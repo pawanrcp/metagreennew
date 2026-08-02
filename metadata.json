@@ -1,0 +1,8 @@
+{
+  "name": "SolarSaaS",
+  "description": "A comprehensive management platform for solar installation companies, featuring CRM, inventory, project tracking, and finance modules.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

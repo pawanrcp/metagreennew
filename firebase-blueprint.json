@@ -1,0 +1,53 @@
+{
+  "collections": [
+    {
+      "name": "leads",
+      "description": "Sales leads and prospects",
+      "fields": [
+        { "name": "name", "type": "string", "description": "Lead name" },
+        { "name": "email", "type": "string", "description": "Contact email" },
+        { "name": "phone", "type": "string", "description": "Contact phone" },
+        { "name": "source", "type": "string", "description": "Source (Website, Referral, etc.)" },
+        { "name": "status", "type": "string", "description": "Pipeline status" },
+        { "name": "address", "type": "string", "description": "Physical address" },
+        { "name": "createdAt", "type": "timestamp", "description": "Creation time" }
+      ]
+    },
+    {
+      "name": "projects",
+      "description": "Active and completed solar projects",
+      "fields": [
+        { "name": "leadId", "type": "string", "description": "Associated lead ID" },
+        { "name": "customerName", "type": "string", "description": "Customer name" },
+        { "name": "status", "type": "string", "description": "Project status" },
+        { "name": "capacityKw", "type": "number", "description": "System capacity in kW" },
+        { "name": "totalCost", "type": "number", "description": "Total project cost" },
+        { "name": "amountPaid", "type": "number", "description": "Amount paid so far" },
+        { "name": "installDate", "type": "timestamp", "description": "Scheduled installation date" },
+        { "name": "createdAt", "type": "timestamp", "description": "Creation time" }
+      ]
+    },
+    {
+      "name": "inventory",
+      "description": "Warehouse stock management",
+      "fields": [
+        { "name": "name", "type": "string", "description": "Item name" },
+        { "name": "category", "type": "string", "description": "Category (Panel, Inverter, etc.)" },
+        { "name": "quantity", "type": "number", "description": "Current stock quantity" },
+        { "name": "unit", "type": "string", "description": "Unit of measure" },
+        { "name": "minThreshold", "type": "number", "description": "Reorder threshold" }
+      ]
+    },
+    {
+      "name": "finance",
+      "description": "Financial transactions",
+      "fields": [
+        { "name": "projectId", "type": "string", "description": "Associated project ID" },
+        { "name": "type", "type": "string", "description": "Type (Advance, EMI, Balance, Refund)" },
+        { "name": "amount", "type": "number", "description": "Transaction amount" },
+        { "name": "status", "type": "string", "description": "Payment status" },
+        { "name": "date", "type": "timestamp", "description": "Transaction date" }
+      ]
+    }
+  ]
+}
