@@ -48,46 +48,8 @@ export default function WarrantyManagement() {
   useEffect(() => {
     const q = query(collection(db, 'warranties'), orderBy('installDate', 'desc'));
     const unsub = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        setWarranties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Warranty)));
-      } else {
-        // Fallback dummy data
-        const today = new Date();
-        setWarranties([
-          {
-            id: 'W1',
-            customerName: 'Pradeep Suvvada',
-            projectId: 'PRJ-401',
-            componentType: 'Panel',
-            brand: 'Waaree',
-            serialNumber: 'WR-2024-8890',
-            installDate: '2024-01-15',
-            warrantyMonths: 300 // 25 years
-          },
-          {
-            id: 'W2',
-            customerName: 'Anita Sharma',
-            projectId: 'PRJ-302',
-            componentType: 'Inverter',
-            brand: 'Growatt',
-            serialNumber: 'GW-5K-9901',
-            installDate: format(addMonths(today, -59), 'yyyy-MM-dd'), // Expiring in 1 month
-            warrantyMonths: 60 // 5 years
-          },
-          {
-            id: 'W3',
-            customerName: 'Kiran Reddy',
-            projectId: 'PRJ-205',
-            componentType: 'Battery',
-            brand: 'Exide',
-            serialNumber: 'EX-150-112',
-            installDate: format(addMonths(today, -37), 'yyyy-MM-dd'), // Expired
-            warrantyMonths: 36 // 3 years
-          }
-        ]);
-      }
+      setWarranties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Warranty)));
     });
-
     return () => unsub();
   }, []);
 

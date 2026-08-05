@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { exportToPDF } from '@/src/lib/exportUtils';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 export default function SolarDesign() {
   const [activeTab, setActiveTab] = useState<'layout' | 'electrical' | 'simulation'>('layout');
@@ -44,7 +46,26 @@ export default function SolarDesign() {
     ];
     exportToPDF('Solar CAD Export Report', ['Parameter', 'Value'], data);
   };
-  const handleSave = () => alert('Design saved successfully!');
+  const handleSave = async () => {
+    try {
+      await addDoc(collection(db, 'solarDesigns'), {
+        panelCount,
+        tiltAngle,
+        orientation,
+        roofDrawn,
+        obstructionsAdded,
+        panelsPlaced,
+        stringsDesigned,
+        cableRouted,
+        shadingRun,
+        createdAt: serverTimestamp()
+      });
+      alert('Design saved successfully to the database!');
+    } catch (err) {
+      console.error('Error saving design:', err);
+      alert('Failed to save design.');
+    }
+  };
 
   return (
     <div className="animate-in fade-in duration-500 space-y-6">

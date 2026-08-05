@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Calendar, CheckCircle2, Clock, MapPin, 
   AlertCircle, Users, Milestone, GitCommit, Search, Plus, ListTodo,
-  AlertTriangle, Sun
+  AlertTriangle, Sun, Edit2, Trash2
 } from 'lucide-react';
 import { Project } from '@/src/types';
 import { cn, formatCurrency } from '@/src/lib/utils';
 import { format } from 'date-fns';
+import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 interface ProjectDetailsProps {
   project: Project;
@@ -15,19 +17,42 @@ interface ProjectDetailsProps {
 
 export default function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
   const [activeTab, setActiveTab] = useState<'timeline' | 'tasks' | 'resources'>('timeline');
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [newTask, setNewTask] = useState({
+    name: '', start: 0, duration: 1, status: 'Pending', type: 'task', dependency: ''
+  });
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
-  // Dummy tasks data to showcase Gantt and Dependencies
-  const tasks = [
-    { id: 'T1', name: 'Site Preparation & Safety Setup', start: 0, duration: 2, status: 'Completed', type: 'task' },
-    { id: 'T2', name: 'Mounting Structure Installation', start: 2, duration: 4, status: 'In Progress', type: 'task', dependency: 'T1' },
-    { id: 'M1', name: 'Structure Ready', start: 6, duration: 0, status: 'Pending', type: 'milestone', dependency: 'T2' },
-    { id: 'T3', name: 'Solar Panels Placement', start: 6, duration: 3, status: 'Pending', type: 'task', dependency: 'M1' },
-    { id: 'T4', name: 'DC Wiring & Conduit', start: 9, duration: 2, status: 'Pending', type: 'task', dependency: 'T3' },
-    { id: 'T5', name: 'Inverter Installation', start: 11, duration: 2, status: 'Pending', type: 'task', dependency: 'T4' },
-    { id: 'M2', name: 'Electricals Complete', start: 13, duration: 0, status: 'Pending', type: 'milestone', dependency: 'T5' },
-    { id: 'T6', name: 'Grid Integration & Net Metering', start: 13, duration: 5, status: 'Pending', type: 'task', delay: true },
-    { id: 'M3', name: 'Commissioning', start: 18, duration: 0, status: 'Pending', type: 'milestone', dependency: 'T6' }
-  ];
+  useEffect(() => {
+    const q = query(collection(db, 'projectTasks'), where('projectId', '==', project.id), orderBy('start', 'asc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setTasks(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, [project.id]);
+
+  const handleSaveTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingTaskId) {
+        await updateDoc(doc(db, 'projectTasks', editingTaskId), newTask);
+      } else {
+        await addDoc(collection(db, 'projectTasks'), { ...newTask, projectId: project.id, createdAt: serverTimestamp() });
+      }
+      setIsTaskModalOpen(false);
+      setEditingTaskId(null);
+      setNewTask({ name: '', start: 0, duration: 1, status: 'Pending', type: 'task', dependency: '' });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    if (window.confirm("Delete this task?")) {
+      await deleteDoc(doc(db, 'projectTasks', id));
+    }
+  };
 
   return (
     <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
@@ -175,7 +200,14 @@ export default function ProjectDetails({ project, onBack }: ProjectDetailsProps)
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-black text-slate-900">Task Breakdown</h3>
-            <button className="text-emerald-600 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 hover:underline">
+            <button 
+              onClick={() => {
+                setEditingTaskId(null);
+                setNewTask({ name: '', start: 0, duration: 1, status: 'Pending', type: 'task', dependency: '' });
+                setIsTaskModalOpen(true);
+              }}
+              className="text-emerald-600 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 hover:underline"
+            >
               <Plus className="w-4 h-4" /> Add Task
             </button>
           </div>
@@ -196,9 +228,22 @@ export default function ProjectDetails({ project, onBack }: ProjectDetailsProps)
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                   <button onClick={() => {
+                     setEditingTaskId(task.id);
+                     setNewTask({ name: task.name, start: task.start, duration: task.duration, status: task.status, type: task.type, dependency: task.dependency || '' });
+                     setIsTaskModalOpen(true);
+                   }} className="text-slate-400 hover:text-emerald-600">
+                     <Edit2 className="w-4 h-4" />
+                   </button>
+                   <button onClick={() => handleDeleteTask(task.id)} className="text-slate-400 hover:text-red-500">
+                     <Trash2 className="w-4 h-4" />
+                   </button>
                    <select 
                      className="text-xs font-bold uppercase tracking-widest bg-white border border-slate-200 rounded-lg px-3 py-1.5 outline-none focus:border-emerald-500"
-                     defaultValue={task.status}
+                     value={task.status}
+                     onChange={async (e) => {
+                       await updateDoc(doc(db, 'projectTasks', task.id), { status: e.target.value });
+                     }}
                    >
                      <option>Pending</option>
                      <option>In Progress</option>
@@ -250,6 +295,62 @@ export default function ProjectDetails({ project, onBack }: ProjectDetailsProps)
                 <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mt-1">On Site</div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Task Modal */}
+      {isTaskModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                {editingTaskId ? <Edit2 className="w-5 h-5 text-emerald-600" /> : <Plus className="w-5 h-5 text-emerald-600" />} 
+                {editingTaskId ? 'Edit Task' : 'Add New Task'}
+              </h3>
+              <button onClick={() => setIsTaskModalOpen(false)} className="text-slate-400 hover:text-slate-600">&times;</button>
+            </div>
+            <form onSubmit={handleSaveTask} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Task Name</label>
+                <input required type="text" value={newTask.name} onChange={e => setNewTask({...newTask, name: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Start Day</label>
+                  <input required type="number" min="0" value={newTask.start} onChange={e => setNewTask({...newTask, start: parseInt(e.target.value)})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Duration (Days)</label>
+                  <input required type="number" min="1" value={newTask.duration} onChange={e => setNewTask({...newTask, duration: parseInt(e.target.value)})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Type</label>
+                  <select value={newTask.type} onChange={e => setNewTask({...newTask, type: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none">
+                    <option value="task">Task</option>
+                    <option value="milestone">Milestone</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Status</label>
+                  <select value={newTask.status} onChange={e => setNewTask({...newTask, status: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none">
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Dependency (Optional)</label>
+                <input type="text" value={newTask.dependency} onChange={e => setNewTask({...newTask, dependency: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. T1" />
+              </div>
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setIsTaskModalOpen(false)} className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700">Save Task</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

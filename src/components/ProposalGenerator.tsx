@@ -105,6 +105,21 @@ export default function ProposalGenerator() {
     }
   };
 
+  const handleSaveProposal = async () => {
+    try {
+      await addDoc(collection(db, 'proposals'), {
+        ...proposalData,
+        netCost,
+        emiAmount,
+        createdAt: serverTimestamp()
+      });
+      alert('Proposal saved successfully to the database.');
+    } catch (err) {
+      console.error('Error saving proposal:', err);
+      alert('Failed to save proposal.');
+    }
+  };
+
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -112,7 +127,13 @@ export default function ProposalGenerator() {
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Proposal Generator</h1>
           <p className="text-slate-500 font-medium mt-1">Create, customize, and send solar proposals</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+           <button 
+             onClick={handleSaveProposal}
+             className="px-4 py-2 bg-blue-50 text-blue-700 font-semibold rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2 text-sm border border-blue-200"
+           >
+             <ShieldCheck className="w-4 h-4" /> Save to DB
+           </button>
            <button 
              onClick={handleExportPDF}
              disabled={isExporting}

@@ -1,124 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ClipboardCheck, 
-  FileCheck, 
-  Building, 
-  Search,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  Plus,
-  Upload,
-  Download,
-  Filter,
-  Edit2,
-  Trash2
-} from 'lucide-react';
-import { cn } from '@/src/lib/utils';
-import { collection, query, onSnapshot, orderBy, addDoc, serverTimestamp, updateDoc, doc, deleteDoc } from 'firebase/firestore';
-import { db } from '@/src/lib/firebase';
-import { format } from 'date-fns';
-import jsPDF from 'jspdf';
+const fs = require('fs');
+let content = fs.readFileSync('src/components/Compliance.tsx', 'utf8');
 
-type ApprovalType = 'Electrical Safety Inspection' | 'Government Approval' | 'Net Meter Approval' | 'Inspection Certificate';
-type ApprovalStatus = 'Pending' | 'In Progress' | 'Approved' | 'Rejected';
-
-interface ComplianceRecord {
-  id: string;
-  projectId: string;
-  customerName: string;
-  type: ApprovalType;
-  status: ApprovalStatus;
-  applicationDate: string;
-  approvalDate?: string;
-  documentUrl?: string;
-  remarks?: string;
-}
-
-export default function Compliance() {
-  const [records, setRecords] = useState<ComplianceRecord[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<ApprovalType | 'All'>('All');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
-  const [updateModal, setUpdateModal] = useState<{isOpen: boolean, recordId: string | null}>({isOpen: false, recordId: null});
-
-  const [newRecord, setNewRecord] = useState({
-    projectId: '',
-    customerName: '',
-    type: 'Electrical Safety Inspection' as ApprovalType,
-    applicationDate: format(new Date(), 'yyyy-MM-dd'),
-    remarks: ''
-  });
-
-  const [updateData, setUpdateData] = useState({
-    status: 'Approved' as ApprovalStatus,
-    approvalDate: format(new Date(), 'yyyy-MM-dd'),
-    remarks: ''
-  });
-
-  useEffect(() => {
-    const q = query(collection(db, 'complianceRecords'), orderBy('applicationDate', 'desc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setRecords(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ComplianceRecord)));
-    });
-    return () => unsub();
-  }, []);
-
-  const handleSubmitRecord = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editingRecordId) {
-        await updateDoc(doc(db, 'complianceRecords', editingRecordId), newRecord);
-      } else {
-        await addDoc(collection(db, 'complianceRecords'), {
-          ...newRecord,
-          status: 'Pending',
-          createdAt: serverTimestamp()
-        });
-      }
-      setIsModalOpen(false);
-      setEditingRecordId(null);
-      setNewRecord({
-        projectId: '',
-        customerName: '',
-        type: 'Electrical Safety Inspection',
-        applicationDate: format(new Date(), 'yyyy-MM-dd'),
-        remarks: ''
-      });
-    } catch (err) {
-      console.error('Error saving compliance record:', err);
-    }
-  };
-
-  const handleDeleteRecord = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this compliance record?")) {
-      try {
-        await deleteDoc(doc(db, 'complianceRecords', id));
-      } catch (err) {
-        console.error('Error deleting compliance record:', err);
-      }
-    }
-  };
-
-  const handleDownloadCertificate = (record: ComplianceRecord) => {
-    const pdf = new jsPDF();
-    pdf.setFontSize(24);
-    pdf.text('Approval Certificate', 105, 30, { align: 'center' });
-    pdf.setFontSize(14);
-    pdf.text(`Project ID: ${record.projectId}`, 20, 60);
-    pdf.text(`Customer Name: ${record.customerName}`, 20, 75);
-    pdf.text(`Approval Type: ${record.type}`, 20, 90);
-    pdf.text(`Status: ${record.status}`, 20, 105);
-    pdf.text(`Date: ${record.approvalDate || new Date().toISOString().split('T')[0]}`, 20, 120);
-    pdf.text('This is an official system-generated certificate.', 20, 160);
-    pdf.save(`Certificate_${record.projectId}_${record.type.replace(/\s+/g, '_')}.pdf`);
-  };
-
-  const handleUpdateRecord = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (updateModal.recordId) {
-
+const remainder = `
       try {
         await updateDoc(doc(db, 'complianceRecords', updateModal.recordId), {
           ...updateData,
@@ -322,3 +205,7 @@ export default function Compliance() {
     </div>
   );
 }
+`
+
+content = content + remainder;
+fs.writeFileSync('src/components/Compliance.tsx', content);

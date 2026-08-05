@@ -15,6 +15,10 @@ export interface Lead {
   source: LeadSource;
   status: LeadStatus;
   address: string;
+  city?: string;
+  district?: string;
+  state?: string;
+  pincode?: string;
   gpsLocation?: string;
   electricityBillUrl?: string;
   propertyImagesUrls?: string[];

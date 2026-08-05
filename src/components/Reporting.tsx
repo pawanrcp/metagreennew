@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BarChart, 
   Download, 
@@ -14,6 +14,8 @@ import {
   UserCheck 
 } from 'lucide-react';
 import { exportToPDF, exportToExcel } from '@/src/lib/exportUtils';
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 const reports = [
   { id: 'sales', title: 'Sales & Lead Conversion', icon: TrendingUp, color: 'text-blue-500', bg: 'bg-blue-50', desc: 'Lead win rate, salesperson performance, revenue pipeline.' },
@@ -27,22 +29,60 @@ const reports = [
   { id: 'productivity', title: 'Employee Productivity', icon: UserCheck, color: 'text-violet-500', bg: 'bg-violet-50', desc: 'Installer efficiency, attendance, site survey completion rates.' }
 ];
 
-const mockMetrics = [
-  { Month: 'Jan', Value: 40 },
-  { Month: 'Feb', Value: 70 },
-  { Month: 'Mar', Value: 45 },
-  { Month: 'Apr', Value: 90 },
-  { Month: 'May', Value: 65 },
-  { Month: 'Jun', Value: 80 },
-  { Month: 'Jul', Value: 100 },
-  { Month: 'Aug', Value: 60 },
-  { Month: 'Sep', Value: 85 },
-  { Month: 'Oct', Value: 50 },
-  { Month: 'Nov', Value: 75 },
-  { Month: 'Dec', Value: 95 }
-];
-
 export default function Reporting() {
+  const [metrics, setMetrics] = useState([
+    { Month: 'Jan', Value: 0 },
+    { Month: 'Feb', Value: 0 },
+    { Month: 'Mar', Value: 0 },
+    { Month: 'Apr', Value: 0 },
+    { Month: 'May', Value: 0 },
+    { Month: 'Jun', Value: 0 },
+    { Month: 'Jul', Value: 0 },
+    { Month: 'Aug', Value: 0 },
+    { Month: 'Sep', Value: 0 },
+    { Month: 'Oct', Value: 0 },
+    { Month: 'Nov', Value: 0 },
+    { Month: 'Dec', Value: 0 }
+  ]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'projects'), (snapshot) => {
+      const newMetrics = [
+        { Month: 'Jan', Value: 0 },
+        { Month: 'Feb', Value: 0 },
+        { Month: 'Mar', Value: 0 },
+        { Month: 'Apr', Value: 0 },
+        { Month: 'May', Value: 0 },
+        { Month: 'Jun', Value: 0 },
+        { Month: 'Jul', Value: 0 },
+        { Month: 'Aug', Value: 0 },
+        { Month: 'Sep', Value: 0 },
+        { Month: 'Oct', Value: 0 },
+        { Month: 'Nov', Value: 0 },
+        { Month: 'Dec', Value: 0 }
+      ];
+      
+      let maxVal = 0;
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.createdAt && typeof data.createdAt.toDate === 'function') {
+          const month = data.createdAt.toDate().getMonth();
+          newMetrics[month].Value += 1;
+          if (newMetrics[month].Value > maxVal) maxVal = newMetrics[month].Value;
+        }
+      });
+      
+      // Normalize values to 0-100% for the chart if maxVal > 0
+      if (maxVal > 0) {
+        newMetrics.forEach(m => {
+          m.Value = Math.round((m.Value / maxVal) * 100);
+        });
+      }
+      setMetrics(newMetrics);
+    });
+
+    return () => unsub();
+  }, []);
 
   const handleExportPDF = () => {
     const headers = ['Report Category', 'Description'];
@@ -94,12 +134,12 @@ export default function Reporting() {
       
       {/* Mock Chart Area */}
       <div className="mt-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900 mb-6">Overview Metrics (Mockup)</h3>
+        <h3 className="text-lg font-bold text-slate-900 mb-6">Overview Metrics (Live Projects)</h3>
         <div className="h-64 flex items-end justify-between gap-2 border-b border-slate-100 pb-4">
-          {[40, 70, 45, 90, 65, 80, 100, 60, 85, 50, 75, 95].map((h, i) => (
-            <div key={i} className="w-full bg-emerald-100 rounded-t-sm hover:bg-emerald-500 transition-colors relative group" style={{ height: `${h}%` }}>
+          {metrics.map((m, i) => (
+            <div key={i} className="w-full bg-emerald-100 rounded-t-sm hover:bg-emerald-500 transition-colors relative group" style={{ height: `${Math.max(m.Value, 2)}%` }}>
               <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                {h * 10}
+                {m.Value}%
               </div>
             </div>
           ))}

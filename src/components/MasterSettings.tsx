@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sliders, 
   Users, 
@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { exportToPDF, exportToExcel } from '@/src/lib/exportUtils';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 type TabType = 'users' | 'roles' | 'states' | 'products' | 'approvals' | 'audit';
 
@@ -40,6 +42,8 @@ const USER_ROLES = [
 export default function MasterSettings() {
   const [activeTab, setActiveTab] = useState<TabType>('users');
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   
   const [newUser, setNewUser] = useState({
     name: '',
@@ -48,35 +52,53 @@ export default function MasterSettings() {
     status: 'Active'
   });
 
-  const [mockUsers, setMockUsers] = useState([
-    { id: 'U1', name: 'Admin User', email: 'admin@solar.com', role: 'Super Admin', status: 'Active' },
-    { id: 'U2', name: 'John Doe', email: 'john@solar.com', role: 'Sales Manager', status: 'Active' },
-  ]);
+  useEffect(() => {
+    const unsubUsers = onSnapshot(query(collection(db, 'users'), orderBy('name', 'asc')), (snapshot) => {
+      setUsersList(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
-  const mockAuditLogs = [
-    { id: 'L1', timestamp: '2024-03-20 10:30 AM', user: 'Admin User', action: 'Updated Tax Rules', details: 'Changed GST for Panels to 12%' },
-    { id: 'L2', timestamp: '2024-03-19 02:15 PM', user: 'John Doe', action: 'Approved Quotation', details: 'Quotation QT-1002 approved.' },
-  ];
+    const unsubAudit = onSnapshot(query(collection(db, 'auditLogs'), orderBy('createdAt', 'desc')), (snapshot) => {
+      setAuditLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => { unsubUsers(); unsubAudit(); };
+  }, []);
 
   const handleExportUsers_PDF = () => {
-    exportToPDF('System Users', ['Name', 'Email', 'Role', 'Status'], mockUsers.map(u => [u.name, u.email, u.role, u.status]));
+    exportToPDF('System Users', ['Name', 'Email', 'Role', 'Status'], usersList.map(u => [u.name, u.email, u.role, u.status]));
   };
+
   const handleExportUsers_Excel = () => {
-    exportToExcel('System Users', mockUsers);
+    exportToExcel('System Users', usersList);
   };
   
   const handleExportAudit_PDF = () => {
-    exportToPDF('Audit Logs', ['Timestamp', 'User', 'Action', 'Details'], mockAuditLogs.map(l => [l.timestamp, l.user, l.action, l.details]));
-  };
-  const handleExportAudit_Excel = () => {
-    exportToExcel('Audit Logs', mockAuditLogs);
+    exportToPDF('Audit Logs', ['Timestamp', 'User', 'Action', 'Details'], auditLogs.map(l => [l.timestamp, l.user, l.action, l.details]));
   };
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleExportAudit_Excel = () => {
+    exportToExcel('Audit Logs', auditLogs);
+  };
+
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMockUsers([...mockUsers, { id: `U${mockUsers.length + 1}`, ...newUser }]);
-    setIsAddUserModalOpen(false);
-    setNewUser({ name: '', email: '', role: 'Sales Executive', status: 'Active' });
+    try {
+      await addDoc(collection(db, 'users'), {
+        ...newUser,
+        createdAt: serverTimestamp()
+      });
+      await addDoc(collection(db, 'auditLogs'), {
+        timestamp: new Date().toLocaleString(),
+        user: 'System Admin',
+        action: 'Created User',
+        details: `Created new user ${newUser.email}`,
+        createdAt: serverTimestamp()
+      });
+      setIsAddUserModalOpen(false);
+      setNewUser({ name: '', email: '', role: 'Sales Executive', status: 'Active' });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const renderContent = () => {
@@ -108,7 +130,7 @@ export default function MasterSettings() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {mockUsers.map(user => (
+                {usersList.map(user => (
                   <tr key={user.id} className="hover:bg-slate-50/50">
                     <td className="p-4 font-bold text-slate-900">{user.name}</td>
                     <td className="p-4 text-slate-600">{user.email}</td>
@@ -288,7 +310,7 @@ export default function MasterSettings() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {mockAuditLogs.map(log => (
+                {auditLogs.map(log => (
                   <tr key={log.id} className="hover:bg-slate-50/50">
                     <td className="p-4 text-xs font-medium text-slate-500 whitespace-nowrap">{log.timestamp}</td>
                     <td className="p-4 font-bold text-slate-900">{log.user}</td>

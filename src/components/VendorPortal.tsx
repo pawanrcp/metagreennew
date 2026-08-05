@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Truck, 
   FileText, 
@@ -13,40 +13,56 @@ import {
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { exportToPDF, exportToExcel } from '@/src/lib/exportUtils';
+import { collection, query, onSnapshot, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/src/lib/firebase';
 
 type TabType = 'po' | 'invoices' | 'payments' | 'dispatch';
 
-const mockPOs = [
-  { id: 'PO-2024-101', date: '12 Mar 2024', items: '50x Waaree 540W Panels', amount: '₹8,50,000', status: 'Pending Acceptance' },
-  { id: 'PO-2024-089', date: '05 Mar 2024', items: '5x Growatt 5kW Inverters', amount: '₹2,25,000', status: 'Accepted' },
-];
-
-const mockPayments = [
-  { invoice: 'INV-5502', po: 'PO-2024-050', amount: '₹4,10,000', dueDate: '20 Mar 2024', status: 'Paid' },
-];
-
 export default function VendorPortal() {
   const [activeTab, setActiveTab] = useState<TabType>('po');
+  const [pos, setPOs] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+
+  useEffect(() => {
+    const unsubPOs = onSnapshot(query(collection(db, 'purchaseOrders'), orderBy('date', 'desc')), (snapshot) => {
+      setPOs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubPayments = onSnapshot(query(collection(db, 'vendorPayments'), orderBy('dueDate', 'desc')), (snapshot) => {
+      setPayments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => { unsubPOs(); unsubPayments(); };
+  }, []);
 
   const handleExportPO_PDF = () => {
     const headers = ['PO Number', 'Date', 'Items', 'Amount', 'Status'];
-    const data = mockPOs.map(po => [po.id, po.date, po.items, po.amount, po.status]);
+    const data = pos.map(po => [po.displayId || po.id, po.date, po.items, po.amount, po.status]);
     exportToPDF('Purchase Orders', headers, data);
   };
 
   const handleExportPO_Excel = () => {
-    exportToExcel('Purchase Orders', mockPOs);
+    exportToExcel('Purchase Orders', pos);
   };
 
   const handleExportPayments_PDF = () => {
     const headers = ['Invoice No', 'PO Ref', 'Amount', 'Due Date', 'Status'];
-    const data = mockPayments.map(p => [p.invoice, p.po, p.amount, p.dueDate, p.status]);
+    const data = payments.map(p => [p.invoice, p.po, p.amount, p.dueDate, p.status]);
     exportToPDF('Payments Report', headers, data);
   };
 
   const handleExportPayments_Excel = () => {
-    exportToExcel('Payments Report', mockPayments);
+    exportToExcel('Payments Report', payments);
   };
+
+  const handleAcceptPO = async (id: string) => {
+    try {
+      await updateDoc(doc(db, 'purchaseOrders', id), { status: 'Accepted' });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
 
   const renderContent = () => {
     switch (activeTab) {
@@ -73,7 +89,7 @@ export default function VendorPortal() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {mockPOs.map(po => (
+                {pos.map(po => (
                   <tr key={po.id} className="hover:bg-slate-50/50">
                     <td className="p-4 font-bold text-slate-900">{po.id}</td>
                     <td className="p-4 text-slate-600">{po.date}</td>
@@ -89,7 +105,7 @@ export default function VendorPortal() {
                       {po.status === 'Accepted' ? (
                         <CheckCircle2 className="w-5 h-5 mx-auto text-slate-400" />
                       ) : (
-                        <button className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors">Accept PO</button>
+                        <button onClick={() => handleAcceptPO(po.id)} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors">Accept PO</button>
                       )}
                     </td>
                   </tr>
@@ -134,7 +150,7 @@ export default function VendorPortal() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {mockPayments.map((p, idx) => (
+                {payments.map((p, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/50">
                     <td className="p-4 font-bold text-slate-900">{p.invoice}</td>
                     <td className="p-4 text-slate-600">{p.po}</td>

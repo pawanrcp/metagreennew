@@ -15,8 +15,9 @@ import {
   Plus, Trash2
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
-import { collection, query, onSnapshot, orderBy, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, addDoc, serverTimestamp, deleteDoc, doc as firestoreDoc } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
+import { storageService } from '@/src/services/storage.service';
 import { format } from 'date-fns';
 
 type DocCategory = 'KYC' | 'Electricity Bill' | 'Survey Report' | 'Agreement' | 'Warranty' | 'Net Meter Approval' | 'Installation Photos' | 'Invoices';
@@ -45,77 +46,74 @@ interface AppDocument {
 
 export default function DocumentManagement() {
   const [documents, setDocuments] = useState<AppDocument[]>([]);
+  const [realProjects, setRealProjects] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [uploadModal, setUploadModal] = useState<{ isOpen: boolean, category: DocCategory | null }>({ isOpen: false, category: null });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // Group documents by project for sidebar/selection
-  const projects = Array.from(new Set(documents.map(d => d.projectId))).map(id => {
-    const docs = documents.filter(d => d.projectId === id);
+  const displayProjects = realProjects.map(p => {
     return {
-      id,
-      customerName: docs[0]?.customerName || 'Unknown',
-      docsCount: docs.length
+      id: p.id,
+      customerName: p.customerName || 'Unknown',
+      docsCount: documents.filter(d => d.projectId === p.id).length
     };
   });
 
-  // Dummy projects to show if no docs exist
-  const displayProjects = projects.length > 0 ? projects : [
-    { id: 'PRJ-401', customerName: 'Pradeep Suvvada', docsCount: 0 },
-    { id: 'PRJ-302', customerName: 'Anita Sharma', docsCount: 0 },
-    { id: 'PRJ-205', customerName: 'Kiran Reddy', docsCount: 0 },
-  ];
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'projectDocuments'), orderBy('uploadDate', 'desc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        setDocuments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppDocument)));
-      } else {
-        // Fallback dummy data
-        setDocuments([
-          { id: 'D1', projectId: 'PRJ-401', customerName: 'Pradeep Suvvada', category: 'KYC', fileName: 'Aadhar_Card.pdf', uploadDate: new Date().toISOString(), size: '1.2 MB' },
-          { id: 'D2', projectId: 'PRJ-401', customerName: 'Pradeep Suvvada', category: 'Electricity Bill', fileName: 'March_Bill.pdf', uploadDate: new Date().toISOString(), size: '800 KB' },
-          { id: 'D3', projectId: 'PRJ-302', customerName: 'Anita Sharma', category: 'Agreement', fileName: 'Signed_Contract.pdf', uploadDate: new Date().toISOString(), size: '2.5 MB' },
-        ]);
-      }
+    const qDocs = query(collection(db, 'projectDocuments'), orderBy('uploadDate', 'desc'));
+    const unsubDocs = onSnapshot(qDocs, (snapshot) => {
+      setDocuments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppDocument)));
     });
-    return () => unsub();
+
+    const qProj = query(collection(db, 'projects'));
+    const unsubProj = onSnapshot(qProj, (snapshot) => {
+      setRealProjects(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => { unsubDocs(); unsubProj(); };
   }, []);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedProject && uploadModal.category && selectedFile) {
       const proj = displayProjects.find(p => p.id === selectedProject);
-      
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const fileData = event.target?.result;
-        try {
-          await addDoc(collection(db, 'projectDocuments'), {
-            projectId: selectedProject,
-            customerName: proj?.customerName || 'Unknown',
-            category: uploadModal.category,
-            fileName: selectedFile.name,
-            uploadDate: new Date().toISOString(),
-            size: `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`,
-            fileData: fileData, // Storing base64 for download
-            createdAt: serverTimestamp()
-          });
-          setUploadModal({ isOpen: false, category: null });
-          setSelectedFile(null);
-        } catch (err) {
-          console.error('Upload failed', err);
-          alert('Upload failed: ' + err);
-        }
-      };
-      reader.readAsDataURL(selectedFile);
+      setIsUploading(true);
+
+      try {
+        const filePath = `projects/${selectedProject}/documents/${Date.now()}_${selectedFile.name}`;
+        const fileUrl = await storageService.uploadFile(selectedFile, filePath);
+
+        await addDoc(collection(db, 'projectDocuments'), {
+          projectId: selectedProject,
+          customerName: proj?.customerName || 'Unknown',
+          category: uploadModal.category,
+          fileName: selectedFile.name,
+          uploadDate: new Date().toISOString(),
+          size: `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`,
+          fileData: fileUrl, // Storing public URL for download
+          storagePath: filePath,
+          createdAt: serverTimestamp()
+        });
+
+        setUploadModal({ isOpen: false, category: null });
+        setSelectedFile(null);
+      } catch (err) {
+        console.error('Upload failed', err);
+        alert('Upload failed: ' + err);
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 
   const handleDownload = (doc: AppDocument) => {
-    if (doc.fileData) {
+    if (doc.fileData && doc.fileData.startsWith('http')) {
+      // It's a public URL, open in new tab
+      window.open(doc.fileData, '_blank');
+    } else if (doc.fileData) {
       const a = document.createElement('a');
       a.href = doc.fileData;
       a.download = doc.fileName;
@@ -135,7 +133,16 @@ export default function DocumentManagement() {
     }
   };
 
-  const handleDeleteDocument = async (id: string) => { if (window.confirm("Are you sure you want to delete this document?")) { try { await deleteDoc(doc(db, "projectDocuments", id)); } catch (err) { console.error("Error deleting document", err); } } };
+  const handleDeleteDocument = async (id: string, storagePath?: string) => { 
+    if (window.confirm("Are you sure you want to delete this document?")) { 
+      try { 
+        await deleteDoc(firestoreDoc(db, "projectDocuments", id)); 
+        if (storagePath) await storageService.deleteFile(storagePath);
+      } catch (err) { 
+        console.error("Error deleting document", err); 
+      } 
+    } 
+  };
 
   const handleDownloadAll = () => {
     const projectDocs = documents.filter(d => d.projectId === selectedProject);
@@ -263,7 +270,7 @@ export default function DocumentManagement() {
                               </div>
                               <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button onClick={() => handleDownload(doc)} className="p-1.5 hover:bg-slate-200 text-slate-500 rounded-md" title="Download"><Download className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => handleDeleteDocument(doc.id)} className="p-1.5 hover:bg-red-100 text-red-500 rounded-md" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => handleDeleteDocument(doc.id, (doc as any).storagePath)} className="p-1.5 hover:bg-red-100 text-red-500 rounded-md" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
                               </div>
                             </div>
                           ))}
@@ -327,8 +334,10 @@ export default function DocumentManagement() {
               </div>
 
               <div className="pt-2 flex gap-3">
-                <button type="button" onClick={() => { setUploadModal({ isOpen: false, category: null }); setSelectedFile(null); }} className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg">Cancel</button>
-                <button type="submit" disabled={!selectedFile} className="flex-1 px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg disabled:opacity-50">Upload File</button>
+                <button type="button" onClick={() => { setUploadModal({ isOpen: false, category: null }); setSelectedFile(null); }} className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg disabled:opacity-50" disabled={isUploading}>Cancel</button>
+                <button type="submit" disabled={!selectedFile || isUploading} className="flex-1 px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg disabled:opacity-50">
+                  {isUploading ? 'Uploading...' : 'Upload File'}
+                </button>
               </div>
             </form>
           </div>

@@ -10,6 +10,6 @@ if (!firebaseConfig.projectId) {
   console.error('Firebase Project ID is missing. Ensure Firebase is properly provisioned.');
 }
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+export const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);

@@ -17,8 +17,9 @@ import {
   User
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
-import { collection, onSnapshot, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
+import { Lead } from '@/src/types';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 
@@ -53,21 +54,62 @@ const defaultItems: QuotationItem[] = [
 ];
 
 export default function QuotationBuilder() {
-  const [versions, setVersions] = useState<QuotationVersion[]>([
-    {
-      id: 'v1',
-      versionNumber: 1,
-      date: new Date().toISOString().split('T')[0],
-      status: 'Draft',
-      items: [...defaultItems],
-      labourCost: 20000,
-      transportCost: 5000,
-      discount: 10000,
-      gstRate: 12,
-      totalValue: 260400,
+  const [versions, setVersions] = useState<QuotationVersion[]>([]);
+  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  const [leads, setLeads] = useState<Lead[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'leads'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setLeads(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lead)));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const q = query(collection(db, 'quotationVersions'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const fetchedVersions = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as QuotationVersion));
+      
+      if (fetchedVersions.length > 0) {
+        setVersions(fetchedVersions);
+        // Only set active version if it's currently null or not in the new list
+        setActiveVersionId(currentId => {
+          if (!currentId || !fetchedVersions.find(v => v.id === currentId)) {
+            return fetchedVersions[0].id;
+          }
+          return currentId;
+        });
+      } else {
+        // If empty, create an initial draft
+        const initialVersion: any = {
+          versionNumber: 1,
+          date: new Date().toISOString().split('T')[0],
+          status: 'Draft',
+          items: [...defaultItems],
+          labourCost: 20000,
+          transportCost: 5000,
+          discount: 10000,
+          gstRate: 12,
+          totalValue: 260400,
+          createdAt: serverTimestamp()
+        };
+        addDoc(collection(db, 'quotationVersions'), initialVersion);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const updateVersionInDb = async (id: string, updates: Partial<QuotationVersion>) => {
+    try {
+      await updateDoc(doc(db, 'quotationVersions', id), updates);
+    } catch (err) {
+      console.error("Error updating version in DB:", err);
     }
-  ]);
-  const [activeVersionId, setActiveVersionId] = useState<string>('v1');
+  };
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const [inventoryItems, setInventoryItems] = useState<{name: string, category: string}[]>([]);
@@ -85,53 +127,51 @@ export default function QuotationBuilder() {
   const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor');
   const [customerEmail, setCustomerEmail] = useState('customer@example.com');
   const [customerDetails, setCustomerDetails] = useState({
-    name: 'Pradeep Suvvada',
-    mobile: '9052526048',
-    addressLine1: '1-2',
-    city: 'Vizag',
-    district: 'Visakhapatnam',
-    state: 'Andhra Pradesh',
-    pincode: '530001',
-    systemSize: 'Adhani 5KW'
+    name: '',
+    mobile: '',
+    addressLine1: '',
+    city: '',
+    district: '',
+    state: '',
+    pincode: '',
+    systemSize: ''
   });
   const [isEmailing, setIsEmailing] = useState(false);
 
   const activeVersion = versions.find(v => v.id === activeVersionId) || versions[0];
 
-  const calculateTotals = (version: QuotationVersion) => {
+  const calculateTotals = (version?: QuotationVersion) => {
+    if (!version || !version.items) return { subtotal: 0, totalBeforeTax: 0, gstAmount: 0, grandTotal: 0 };
     const subtotal = version.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-    const totalBeforeTax = subtotal + version.labourCost + version.transportCost - version.discount;
-    const gstAmount = (totalBeforeTax * version.gstRate) / 100;
+    const totalBeforeTax = subtotal + (version.labourCost || 0) + (version.transportCost || 0) - (version.discount || 0);
+    const gstAmount = (totalBeforeTax * (version.gstRate || 0)) / 100;
     const grandTotal = totalBeforeTax + gstAmount;
     return { subtotal, totalBeforeTax, gstAmount, grandTotal };
   };
 
   const { subtotal, totalBeforeTax, gstAmount, grandTotal } = calculateTotals(activeVersion);
 
+  if (!activeVersion) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   const handleUpdateItem = (id: string, field: keyof QuotationItem, value: any) => {
-    const updatedVersions = versions.map(v => {
-      if (v.id === activeVersionId) {
-        return {
-          ...v,
-          items: v.items.map(item => item.id === id ? { ...item, [field]: value } : item)
-        };
-      }
-      return v;
-    });
-    setVersions(updatedVersions);
+    if (!activeVersionId) return;
+    const updatedItems = activeVersion.items.map(item => item.id === id ? { ...item, [field]: value } : item);
+    updateVersionInDb(activeVersionId, { items: updatedItems });
   };
 
   const handleUpdateCost = (field: keyof QuotationVersion, value: number) => {
-    const updatedVersions = versions.map(v => {
-      if (v.id === activeVersionId) {
-        return { ...v, [field]: value };
-      }
-      return v;
-    });
-    setVersions(updatedVersions);
+    if (!activeVersionId) return;
+    updateVersionInDb(activeVersionId, { [field]: value });
   };
 
   const handleAddItem = () => {
+    if (!activeVersionId) return;
     const newItem: QuotationItem = {
       id: Math.random().toString(36).substr(2, 9),
       category: 'Other' as any,
@@ -139,57 +179,37 @@ export default function QuotationBuilder() {
       quantity: 1,
       unitPrice: 0
     };
-    const updatedVersions = versions.map(v => {
-      if (v.id === activeVersionId) {
-        return { ...v, items: [...v.items, newItem] };
-      }
-      return v;
-    });
-    setVersions(updatedVersions);
+    updateVersionInDb(activeVersionId, { items: [...activeVersion.items, newItem] });
   };
 
   const handleDeleteItem = (id: string) => {
-    const updatedVersions = versions.map(v => {
-      if (v.id === activeVersionId) {
-        return { ...v, items: v.items.filter(item => item.id !== id) };
-      }
-      return v;
-    });
-    setVersions(updatedVersions);
+    if (!activeVersionId) return;
+    updateVersionInDb(activeVersionId, { items: activeVersion.items.filter(item => item.id !== id) });
   };
 
-  const handleCreateNewVersion = () => {
-    const newVersion: QuotationVersion = {
+  const handleCreateNewVersion = async () => {
+    const newVersion: any = {
       ...activeVersion,
-      id: `v${versions.length + 1}`,
       versionNumber: versions.length + 1,
       date: new Date().toISOString().split('T')[0],
       status: 'Draft',
+      createdAt: serverTimestamp()
     };
-    setVersions([newVersion, ...versions]);
-    setActiveVersionId(newVersion.id);
+    delete newVersion.id; // Remove the old ID before inserting as a new doc
+    const docRef = await addDoc(collection(db, 'quotationVersions'), newVersion);
+    setActiveVersionId(docRef.id);
     setIsHistoryOpen(false);
   };
 
   const handleSendForApproval = () => {
-    const updatedVersions = versions.map(v => {
-      if (v.id === activeVersionId) {
-        return { ...v, status: 'Pending Approval' as const };
-      }
-      return v;
-    });
-    setVersions(updatedVersions);
+    if (!activeVersionId) return;
+    updateVersionInDb(activeVersionId, { status: 'Pending Approval' });
     alert('Quotation sent for approval to the Manager.');
   };
 
   const handleApprove = () => {
-    const updatedVersions = versions.map(v => {
-      if (v.id === activeVersionId) {
-        return { ...v, status: 'Approved' as const };
-      }
-      return v;
-    });
-    setVersions(updatedVersions);
+    if (!activeVersionId) return;
+    updateVersionInDb(activeVersionId, { status: 'Approved' });
   };
 
   const handleDownloadPDF = async () => {
@@ -364,12 +384,37 @@ export default function QuotationBuilder() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Customer Name</label>
-                <input 
-                  type="text" 
-                  value={customerDetails.name}
-                  onChange={(e) => setCustomerDetails({...customerDetails, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                />
+                <div className="relative">
+                  <select 
+                    value={customerDetails.name}
+                    onChange={(e) => {
+                      const selectedLead = leads.find(l => l.name === e.target.value);
+                      if (selectedLead) {
+                        setCustomerDetails({
+                          ...customerDetails,
+                          name: selectedLead.name,
+                          mobile: selectedLead.phone || '',
+                          addressLine1: selectedLead.address || '',
+                          city: selectedLead.city || '',
+                          district: selectedLead.district || '',
+                          state: selectedLead.state || '',
+                          pincode: selectedLead.pincode || '',
+                        });
+                      } else {
+                        setCustomerDetails({...customerDetails, name: e.target.value});
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none"
+                  >
+                    <option value="">Select Customer</option>
+                    {leads.map(lead => (
+                      <option key={lead.id} value={lead.name}>{lead.name}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mobile Number</label>

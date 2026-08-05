@@ -68,28 +68,12 @@ export default function Finance() {
   useEffect(() => {
     const qTx = query(collection(db, 'financeTransactions'), orderBy('date', 'desc'));
     const unsubTx = onSnapshot(qTx, (snapshot) => {
-      if (!snapshot.empty) {
-        setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } else {
-        // Fallback dummy data
-        setTransactions([
-          { id: 'TX001', displayId: 'TX-2026-001', customer: 'Pradeep Suvvada', amount: 150000, type: 'Advance', category: 'Income', date: '2026-07-24', gst: 27000, status: 'Completed' },
-          { id: 'TX002', displayId: 'TX-2026-002', customer: 'Marketing Agency', amount: 45000, type: 'Expense', category: 'Expense', date: '2026-07-23', gst: 0, status: 'Completed' },
-          { id: 'TX003', displayId: 'TX-2026-003', customer: 'Anita Sharma', amount: 30000, type: 'EMI', category: 'Income', date: '2026-07-22', gst: 5400, status: 'Pending' },
-        ]);
-      }
+      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     const qLoans = query(collection(db, 'financeLoans'), orderBy('date', 'desc'));
     const unsubLoans = onSnapshot(qLoans, (snapshot) => {
-      if (!snapshot.empty) {
-        setLoans(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } else {
-        setLoans([
-          { id: 'LN001', displayId: 'LN-2026-001', customer: 'Ramesh Patel', bank: 'SBI', type: 'Bank', amount: 350000, tenure: 60, status: 'Disbursed', date: '2026-07-15' },
-          { id: 'LN002', displayId: 'LN-2026-002', customer: 'Kavita Reddy', bank: 'Bajaj Finserv', type: 'NBFC', amount: 200000, tenure: 36, status: 'Eligibility Check', date: '2026-07-24' },
-        ]);
-      }
+      setLoans(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     return () => { unsubTx(); unsubLoans(); };

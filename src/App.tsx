@@ -30,9 +30,11 @@ import Login from './components/Login';
 import { ViewType, AuthenticatedUser } from './types';
 import { Sun, Clock, LogOut } from 'lucide-react';
 import { cn } from './lib/utils';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { authService } from './services/auth.service';
 
-export default function App() {
-  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+function AppContent() {
+  const { user, loading } = useAuth();
   const [currentView, setView] = useState<ViewType>('dashboard');
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [punchTime, setPunchTime] = useState<Date | null>(null);
@@ -70,8 +72,12 @@ export default function App() {
     }
   }, [user]);
 
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>;
+  }
+
   if (!user) {
-    return <Login onLogin={setUser} />;
+    return <Login />;
   }
 
   const renderView = () => {
@@ -151,10 +157,10 @@ export default function App() {
             </button>
           )}
 
-          {/* <div className="hidden md:flex items-center gap-2 text-sm bg-emerald-800 px-3 py-1.5 rounded-full border border-emerald-600/50">
+          <div className="hidden md:flex items-center gap-2 text-sm bg-emerald-800 px-3 py-1.5 rounded-full border border-emerald-600/50">
             <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
             <span>Firebase: Connected</span>
-          </div> */}
+          </div>
           
           <div className="flex items-center gap-3">
             <div className="flex flex-col text-right hidden md:flex">
@@ -164,7 +170,7 @@ export default function App() {
             <div className="w-10 h-10 bg-emerald-600 rounded-full border-2 border-white/20 flex items-center justify-center font-bold text-lg">
               {user.name.charAt(0).toUpperCase()}
             </div>
-            <button onClick={() => setUser(null)} className="p-2 hover:bg-emerald-800 rounded-full ml-2" title="Log out">
+            <button onClick={() => authService.logout()} className="p-2 hover:bg-emerald-800 rounded-full ml-2" title="Log out">
               <LogOut className="w-5 h-5 text-emerald-100 hover:text-white" />
             </button>
           </div>
@@ -184,5 +190,13 @@ export default function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

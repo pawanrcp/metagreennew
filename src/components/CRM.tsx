@@ -26,7 +26,7 @@ export default function CRM() {
     lead.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
     lead.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  const [newLead, setNewLead] = useState<Partial<Lead>>({ name: '', email: '', phone: '', source: 'Website', address: '', gpsLocation: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
+  const [newLead, setNewLead] = useState<Partial<Lead>>({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
   const [selectedLeadForQuotation, setSelectedLeadForQuotation] = useState<Lead | null>(null);
   const [quotationDetails, setQuotationDetails] = useState({
@@ -59,7 +59,7 @@ export default function CRM() {
       }
       setIsModalOpen(false);
       setEditingLeadId(null);
-      setNewLead({ name: '', email: '', phone: '', source: 'Website', address: '', gpsLocation: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
+      setNewLead({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
     } catch (err) {
       console.error('Error saving lead:', err);
     }
@@ -246,7 +246,7 @@ export default function CRM() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-900">{editingLeadId ? 'Edit Prospect' : 'Add New Prospect'}</h3>
-              <button onClick={() => {setIsModalOpen(false); setEditingLeadId(null); setNewLead({ name: '', email: '', phone: '', source: 'Website', address: '', gpsLocation: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });}} className="text-slate-400 hover:text-slate-600">&times;</button>
+              <button onClick={() => {setIsModalOpen(false); setEditingLeadId(null); setNewLead({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });}} className="text-slate-400 hover:text-slate-600">&times;</button>
             </div>
             <form onSubmit={handleSubmitLead} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
@@ -298,12 +298,44 @@ export default function CRM() {
                 <div className="col-span-2">
                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mt-2 mb-2 border-b border-slate-100 pb-1">Location Details</h4>
                 </div>
-                <div className="col-span-2 sm:col-span-1">
+                <div className="col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
                   <input 
                     required
                     value={newLead.address}
                     onChange={e => setNewLead({...newLead, address: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
+                  />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
+                  <input 
+                    value={newLead.city || ''}
+                    onChange={e => setNewLead({...newLead, city: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
+                  />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">District</label>
+                  <input 
+                    value={newLead.district || ''}
+                    onChange={e => setNewLead({...newLead, district: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
+                  />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">State</label>
+                  <input 
+                    value={newLead.state || ''}
+                    onChange={e => setNewLead({...newLead, state: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
+                  />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Pincode</label>
+                  <input 
+                    value={newLead.pincode || ''}
+                    onChange={e => setNewLead({...newLead, pincode: e.target.value})}
                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
                   />
                 </div>
@@ -378,7 +410,34 @@ export default function CRM() {
               <h3 className="text-xl font-bold text-slate-900">Generate Quotation</h3>
               <button onClick={() => setIsQuotationModalOpen(false)} className="text-slate-400 hover:text-slate-600">&times;</button>
             </div>
-            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await addDoc(collection(db, 'quotations'), {
+                  leadId: selectedLeadForQuotation.id,
+                  leadName: selectedLeadForQuotation.name,
+                  systemSize: quotationDetails.systemSize,
+                  panelType: quotationDetails.panelType,
+                  inverterType: quotationDetails.inverterType,
+                  totalCost: quotationDetails.totalCost,
+                  estimatedGeneration: quotationDetails.estimatedGeneration,
+                  createdAt: serverTimestamp()
+                });
+                updateLeadStatus(selectedLeadForQuotation.id, 'Proposal');
+                alert(`Quotation for ${selectedLeadForQuotation.name} generated and saved successfully!`);
+                setIsQuotationModalOpen(false);
+                setQuotationDetails({
+                  systemSize: '',
+                  panelType: 'Monocrystalline',
+                  inverterType: 'String Inverter',
+                  totalCost: '',
+                  estimatedGeneration: ''
+                });
+              } catch (err) {
+                console.error('Error saving quotation:', err);
+                alert('Failed to save quotation');
+              }
+            }} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="mb-4">
                 <p className="text-sm text-slate-500 font-medium">Creating quotation for:</p>
                 <p className="text-lg font-bold text-slate-900">{selectedLeadForQuotation.name}</p>
@@ -387,6 +446,7 @@ export default function CRM() {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">System Size (kW)</label>
                   <input 
+                    required
                     type="number" 
                     value={quotationDetails.systemSize}
                     onChange={e => setQuotationDetails({...quotationDetails, systemSize: e.target.value})}
@@ -421,6 +481,7 @@ export default function CRM() {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Total Cost (₹)</label>
                   <input 
+                    required
                     type="number" 
                     value={quotationDetails.totalCost}
                     onChange={e => setQuotationDetails({...quotationDetails, totalCost: e.target.value})}
@@ -431,6 +492,7 @@ export default function CRM() {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Estimated Annual Generation (kWh)</label>
                   <input 
+                    required
                     type="number" 
                     value={quotationDetails.estimatedGeneration}
                     onChange={e => setQuotationDetails({...quotationDetails, estimatedGeneration: e.target.value})}
@@ -448,26 +510,13 @@ export default function CRM() {
                   Cancel
                 </button>
                 <button 
-                  type="button"
-                  onClick={() => {
-                    // Normally this would generate a PDF or send an email
-                    alert(`Quotation for ${selectedLeadForQuotation.name} generated successfully!`);
-                    setIsQuotationModalOpen(false);
-                    setQuotationDetails({
-                      systemSize: '',
-                      panelType: 'Monocrystalline',
-                      inverterType: 'String Inverter',
-                      totalCost: '',
-                      estimatedGeneration: ''
-                    });
-                    updateLeadStatus(selectedLeadForQuotation.id, 'Proposal');
-                  }}
+                  type="submit"
                   className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
                 >
                   <FileText className="w-4 h-4" /> Generate
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}

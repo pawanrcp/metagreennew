@@ -63,54 +63,8 @@ export default function Support() {
   useEffect(() => {
     const q = query(collection(db, 'supportTickets'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        setTickets(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ticket)));
-      } else {
-        // Fallback dummy data
-        setTickets([
-          {
-            id: 'T1',
-            displayId: 'SUP-26001',
-            customerName: 'Pradeep Suvvada',
-            projectId: 'PRJ-401',
-            issueType: 'Inverter Error',
-            description: 'Inverter showing fault code E-05 and not syncing to grid.',
-            status: 'Open',
-            priority: 'High',
-            createdAt: new Date(Date.now() - 3600000), // 1 hour ago
-            slaStatus: 'Within SLA'
-          },
-          {
-            id: 'T2',
-            displayId: 'SUP-26002',
-            customerName: 'Anita Sharma',
-            projectId: 'PRJ-302',
-            issueType: 'Low Generation',
-            description: 'Generation dropped by 40% compared to last week despite sunny weather.',
-            status: 'Assigned',
-            priority: 'Medium',
-            assignedTo: 'Rajesh Kumar',
-            createdAt: new Date(Date.now() - 86400000 * 2), // 2 days ago
-            slaStatus: 'Breached SLA'
-          },
-          {
-            id: 'T3',
-            displayId: 'SUP-26003',
-            customerName: 'Kiran Reddy',
-            projectId: 'PRJ-205',
-            issueType: 'Leakage',
-            description: 'Water leaking from roof near the panel mounts after recent rain.',
-            status: 'Resolved',
-            priority: 'Critical',
-            assignedTo: 'Suresh Patel',
-            createdAt: new Date(Date.now() - 86400000 * 5),
-            slaStatus: 'Within SLA',
-            resolution: 'Re-sealed the mounts with industrial grade silicone sealant.'
-          }
-        ]);
-      }
+      setTickets(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ticket)));
     });
-
     return () => unsub();
   }, []);
 
@@ -145,18 +99,14 @@ export default function Support() {
   const handleAssignEngineer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (assignEngineerModal.ticketId && selectedEngineer) {
-      if (assignEngineerModal.ticketId.startsWith('T')) {
-        // dummy update
-        setTickets(tickets.map(t => t.id === assignEngineerModal.ticketId ? { ...t, assignedTo: selectedEngineer, status: 'Assigned' } : t));
-      } else {
-        try {
-          await updateDoc(doc(db, 'supportTickets', assignEngineerModal.ticketId), {
-            assignedTo: selectedEngineer,
-            status: 'Assigned'
-          });
-        } catch (err) {
-          console.error(err);
-        }
+      try {
+        await updateDoc(doc(db, 'supportTickets', assignEngineerModal.ticketId), {
+          assignedTo: selectedEngineer,
+          status: 'Assigned',
+          updatedAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.error('Error assigning engineer:', err);
       }
       setAssignEngineerModal({ isOpen: false, ticketId: null });
       setSelectedEngineer('');
@@ -166,17 +116,14 @@ export default function Support() {
   const handleResolveTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (resolutionModal.ticketId && resolutionText) {
-      if (resolutionModal.ticketId.startsWith('T')) {
-        setTickets(tickets.map(t => t.id === resolutionModal.ticketId ? { ...t, resolution: resolutionText, status: 'Resolved' } : t));
-      } else {
-        try {
-          await updateDoc(doc(db, 'supportTickets', resolutionModal.ticketId), {
-            resolution: resolutionText,
-            status: 'Resolved'
-          });
-        } catch (err) {
-          console.error(err);
-        }
+      try {
+        await updateDoc(doc(db, 'supportTickets', resolutionModal.ticketId), {
+          resolution: resolutionText,
+          status: 'Resolved',
+          updatedAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.error('Error resolving ticket:', err);
       }
       setResolutionModal({ isOpen: false, ticketId: null });
       setResolutionText('');
@@ -417,7 +364,7 @@ export default function Support() {
               </div>
 
               <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 transition-colors">Cancel</button>
+                <button type="button" onClick={() => {setIsModalOpen(false); setNewTicket({ customerName: "", projectId: "", issueType: "Low Generation", description: "", priority: "Medium" });}} className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition-colors">Submit Ticket</button>
               </div>
             </form>
