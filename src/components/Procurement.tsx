@@ -12,7 +12,7 @@ import {
   Filter,
   CheckCircle2,
   Clock,
-  AlertCircle, Edit2, Trash2
+  AlertCircle, Edit2, Trash2, ArrowRight
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { collection, query, onSnapshot, orderBy, addDoc, serverTimestamp, updateDoc, doc, deleteDoc } from 'firebase/firestore';
@@ -130,6 +130,18 @@ export default function Procurement() {
     }
   };
 
+  const advanceStage = async (id: string, currentStage: number) => {
+    if (currentStage >= 5) return;
+    try {
+      await updateDoc(doc(db, 'purchaseOrders', id), {
+        stage: currentStage + 1,
+        status: getStageName(currentStage + 1)
+      });
+    } catch (err) {
+      console.error('Error advancing stage:', err);
+    }
+  };
+
   const getStageColor = (currentStage: number, stage: number) => {
     if (currentStage > stage) return 'bg-emerald-500 text-white border-emerald-500';
     if (currentStage === stage) return 'bg-blue-500 text-white border-blue-500';
@@ -234,7 +246,12 @@ export default function Procurement() {
         <div className="grid grid-cols-1 gap-4">
           {purchaseOrders.map(po => (
             <div key={po.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative group">
-              <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                {po.stage < 5 && (
+                  <button onClick={() => advanceStage(po.id, po.stage)} title="Advance Stage" className="p-1.5 hover:bg-emerald-50 text-emerald-500 hover:text-emerald-700 rounded-lg transition-colors bg-white shadow-sm border border-slate-100">
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
                 <button onClick={() => { setEditingPoId(po.id); setNewPo({ vendor: po.vendor, items: po.items, amount: po.amount }); setIsPoModalOpen(true); }} className="p-1.5 hover:bg-blue-50 text-blue-400 hover:text-blue-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100">
                   <Edit2 className="w-4 h-4" />
                 </button>

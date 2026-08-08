@@ -32,7 +32,7 @@ import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
 
 
-export default function Dashboard() {
+export default function Dashboard({ onNavigate }: { onNavigate?: (view: any, filter?: string) => void }) {
   const [counts, setCounts] = useState({ 
     leads: 0, 
     projects: 0, 
@@ -141,14 +141,14 @@ export default function Dashboard() {
   }, []);
 
   const stats = [
-    { label: 'Total Projects', value: counts.projects.toString(), change: '+12%', icon: Sun, color: 'emerald' },
-    { label: 'Revenue (Total)', value: formatCurrency(counts.revenue), change: '+18%', icon: Wallet, color: 'emerald' },
-    { label: 'Active Leads', value: counts.leads.toString(), change: '+10%', icon: Activity, color: 'emerald' },
-    { label: 'Energy Generated', value: `${counts.energyGen} MWh`, change: '+8%', icon: Zap, color: 'blue' },
-    { label: 'Carbon Offset', value: `${counts.carbonOffset} Tons`, change: '+15%', icon: Leaf, color: 'emerald' },
-    { label: 'Pending Approvals', value: counts.pendingApprovals.toString(), change: '-2%', icon: Clock, color: 'amber' },
-    { label: 'Active Installers', value: counts.activeInstallers.toString(), change: '+4%', icon: Users, color: 'blue' },
-    { label: 'Customer Sat', value: `${counts.customerSat} / 5.0`, change: '+1%', icon: Star, color: 'amber' },
+    { label: 'Total Projects', value: counts.projects.toString(), change: '+12%', icon: Sun, color: 'emerald', view: 'projects' },
+    { label: 'Revenue (Total)', value: formatCurrency(counts.revenue), change: '+18%', icon: Wallet, color: 'emerald', view: 'finance' },
+    { label: 'Active Leads', value: counts.leads.toString(), change: '+10%', icon: Activity, color: 'emerald', view: 'crm' },
+    { label: 'Energy Generated', value: `${counts.energyGen} MWh`, change: '+8%', icon: Zap, color: 'blue', view: 'projects' },
+    { label: 'Carbon Offset', value: `${counts.carbonOffset} Tons`, change: '+15%', icon: Leaf, color: 'emerald', view: 'projects' },
+    { label: 'Pending Approvals', value: counts.pendingApprovals.toString(), change: '-2%', icon: Clock, color: 'amber', view: 'projects', filter: 'Planning' },
+    { label: 'Active Installers', value: counts.activeInstallers.toString(), change: '+4%', icon: Users, color: 'blue', view: 'hr' },
+    { label: 'Customer Sat', value: `${counts.customerSat} / 5.0`, change: '+1%', icon: Star, color: 'amber', view: 'support' },
   ];
 
   const projectStatusData = [
@@ -173,7 +173,11 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 hover:shadow-md transition-all hover:-translate-y-1 duration-300">
+          <div 
+            key={i} 
+            onClick={() => stat.view && onNavigate && onNavigate(stat.view, stat.filter)}
+            className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 hover:shadow-md transition-all hover:-translate-y-1 duration-300 cursor-pointer"
+          >
             <div className="flex items-start justify-between">
               <div className={cn(
                 "p-3 rounded-xl shadow-sm",

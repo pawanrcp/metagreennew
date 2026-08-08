@@ -14,6 +14,7 @@ export interface UserProfile {
   email: string;
   name: string;
   role: UserRole;
+  status?: 'Pending' | 'Active' | 'Rejected';
   createdAt?: any;
 }
 
@@ -55,6 +56,7 @@ export const authService = {
       email,
       name,
       role,
+      status: role === 'Super Admin' ? 'Active' : 'Pending',
       createdAt: serverTimestamp()
     };
     await setDoc(doc(db, 'users', profile.uid), profile);

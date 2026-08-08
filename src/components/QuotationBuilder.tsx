@@ -42,7 +42,8 @@ interface QuotationVersion {
   labourCost: number;
   transportCost: number;
   discount: number;
-  gstRate: number; // Percentage
+  gstRate: number;
+  use7030Split?: boolean;
   totalValue: number;
 }
 
@@ -144,7 +145,14 @@ export default function QuotationBuilder() {
     if (!version || !version.items) return { subtotal: 0, totalBeforeTax: 0, gstAmount: 0, grandTotal: 0 };
     const subtotal = version.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
     const totalBeforeTax = subtotal + (version.labourCost || 0) + (version.transportCost || 0) - (version.discount || 0);
-    const gstAmount = (totalBeforeTax * (version.gstRate || 0)) / 100;
+    
+    let gstAmount = 0;
+    if (version.use7030Split) {
+      gstAmount = (totalBeforeTax * 0.7 * 0.12) + (totalBeforeTax * 0.3 * 0.18);
+    } else {
+      gstAmount = (totalBeforeTax * (version.gstRate || 0)) / 100;
+    }
+    
     const grandTotal = totalBeforeTax + gstAmount;
     return { subtotal, totalBeforeTax, gstAmount, grandTotal };
   };
@@ -716,19 +724,39 @@ export default function QuotationBuilder() {
                 <span className="font-bold text-slate-800">Total before Tax</span>
                 <span className="font-bold text-slate-900">₹{totalBeforeTax.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-600">
-                  GST 
-                  <input 
-                    type="number"
-                    value={activeVersion.gstRate}
-                    onChange={(e) => handleUpdateCost('gstRate', Number(e.target.value))}
+              <div className="flex justify-between items-center text-sm mb-2">
+                <span className="text-slate-600 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={activeVersion.use7030Split || false}
+                    onChange={(e) => handleUpdateCost('use7030Split' as any, e.target.checked as any)}
                     disabled={activeVersion.status !== 'Draft'}
-                    className="w-12 text-center p-0.5 mx-1 text-xs border border-slate-200 rounded outline-none disabled:bg-slate-100"
-                  />%
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  Use 70/30 Tax Split (12% & 18%)
                 </span>
-                <span className="text-slate-600">₹{gstAmount.toLocaleString()}</span>
               </div>
+              {!activeVersion.use7030Split && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600">
+                    GST 
+                    <input 
+                      type="number"
+                      value={activeVersion.gstRate}
+                      onChange={(e) => handleUpdateCost('gstRate', Number(e.target.value))}
+                      disabled={activeVersion.status !== 'Draft'}
+                      className="w-12 text-center p-0.5 mx-1 text-xs border border-slate-200 rounded outline-none disabled:bg-slate-100"
+                    />%
+                  </span>
+                  <span className="text-slate-600">₹{gstAmount.toLocaleString()}</span>
+                </div>
+              )}
+              {activeVersion.use7030Split && (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600">GST (70% @ 12%, 30% @ 18%)</span>
+                  <span className="text-slate-600">₹{gstAmount.toLocaleString()}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -808,7 +836,7 @@ export default function QuotationBuilder() {
                            </tr>
                         ))}
                         <tr>
-                            <td className="border border-slate-300 px-4 py-2 font-bold bg-amber-50">Total Amount (Incl. GST {activeVersion.gstRate}%)</td>
+                            <td className="border border-slate-300 px-4 py-2 font-bold bg-amber-50">Total Amount (Incl. GST {activeVersion.use7030Split ? '70/30 Split' : `${activeVersion.gstRate}%`})</td>
                             <td className="border border-slate-300 px-4 py-2 text-right font-bold bg-amber-50">Rs. {grandTotal.toLocaleString()} /-</td>
                         </tr>
                     </tbody>

@@ -127,6 +127,7 @@ export default function MasterSettings() {
                   <th className="p-4">Email</th>
                   <th className="p-4">Role</th>
                   <th className="p-4">Status</th>
+                  <th className="p-4">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -136,7 +137,42 @@ export default function MasterSettings() {
                     <td className="p-4 text-slate-600">{user.email}</td>
                     <td className="p-4 text-slate-600">{user.role}</td>
                     <td className="p-4">
-                      <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-md text-[10px] font-black uppercase tracking-widest border border-emerald-100">{user.status}</span>
+                      <span className={cn(
+                        "px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border",
+                        user.status === 'Active' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                        user.status === 'Pending' ? "bg-amber-50 text-amber-700 border-amber-100" :
+                        "bg-red-50 text-red-700 border-red-100"
+                      )}>{user.status}</span>
+                    </td>
+                    <td className="p-4">
+                      {user.status === 'Pending' && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                await updateDoc(doc(db, 'users', user.id), { status: 'Active' });
+                              } catch (err) {
+                                console.error('Error approving user:', err);
+                              }
+                            }}
+                            className="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await updateDoc(doc(db, 'users', user.id), { status: 'Rejected' });
+                              } catch (err) {
+                                console.error('Error rejecting user:', err);
+                              }
+                            }}
+                            className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

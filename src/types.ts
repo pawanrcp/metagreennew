@@ -21,9 +21,13 @@ export interface Lead {
   pincode?: string;
   gpsLocation?: string;
   electricityBillUrl?: string;
+  roofType?: string;
+  monthlyUnits?: string;
+  expectedLoad?: string;
   propertyImagesUrls?: string[];
   roofImagesUrls?: string[];
   createdAt: any;
+  isDeleted?: boolean;
 }
 
 export type ProjectStatus = 'Planning' | 'In Progress' | 'Installation' | 'Testing' | 'Completed';

@@ -17,16 +17,19 @@ import { formatCurrency, cn } from '@/src/lib/utils';
 import { format } from 'date-fns';
 import ProjectDetails from './ProjectDetails';
 
-export default function Projects() {
+export default function Projects({ initialFilter }: { initialFilter?: string }) {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialFilter || '');
+  const [showTrash, setShowTrash] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   const filteredProjects = projects.filter(project => 
-    project.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    project.id.toLowerCase().includes(searchTerm.toLowerCase())
+    (showTrash ? project.isDeleted : !project.isDeleted) &&
+    (project.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    project.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    project.status.toLowerCase().includes(searchTerm.toLowerCase()))
   );
   const [newProject, setNewProject] = useState({ 
     customerName: '', 
@@ -66,13 +69,23 @@ export default function Projects() {
     }
   };
 
-  const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteProject = async (id: string, e: React.MouseEvent, permanently: boolean = false) => {
     e.stopPropagation();
-    if (window.confirm("Are you sure you want to delete this project?")) {
-      try {
-        await deleteDoc(doc(db, 'projects', id));
-      } catch (err) {
-        console.error('Error deleting project:', err);
+    if (permanently) {
+      if (window.confirm("Are you sure you want to permanently delete this project?")) {
+        try {
+          await deleteDoc(doc(db, 'projects', id));
+        } catch (err) {
+          console.error('Error deleting project:', err);
+        }
+      }
+    } else {
+      if (window.confirm("Are you sure you want to move this project to trash?")) {
+        try {
+          await updateDoc(doc(db, 'projects', id), { isDeleted: true });
+        } catch (err) {
+          console.error('Error moving project to trash:', err);
+        }
       }
     }
   };
@@ -120,6 +133,18 @@ export default function Projects() {
             />
           </div>
           <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setShowTrash(!showTrash)}
+              className={cn(
+                "px-4 py-2.5 border rounded-xl text-sm font-bold flex items-center gap-2 transition-all",
+                showTrash 
+                  ? "bg-red-50 text-red-600 border-red-200" 
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+              )}
+            >
+              <Trash2 className="w-4 h-4" />
+              {showTrash ? 'View Active' : 'Trash'}
+            </button>
             <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
               4 Active
@@ -145,22 +170,38 @@ export default function Projects() {
                     {project.installDate ? format(project.installDate.toDate(), 'MMM dd') : 'TBD'}
                   </div>
                   <div className="flex items-center gap-1">
+                    {!showTrash && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingProjectId(project.id);
+                          setNewProject(project);
+                          setIsModalOpen(true);
+                        }}
+                        className="p-1 hover:bg-blue-50 text-blue-400 hover:text-blue-600 rounded transition-colors"
+                        title="Edit Project"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {showTrash && (
+                      <button 
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (window.confirm("Restore this project?")) {
+                            await updateDoc(doc(db, 'projects', project.id), { isDeleted: false });
+                          }
+                        }}
+                        className="p-1 hover:bg-emerald-50 text-emerald-400 hover:text-emerald-600 rounded transition-colors"
+                        title="Restore Project"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingProjectId(project.id);
-                        setNewProject(project);
-                        setIsModalOpen(true);
-                      }}
-                      className="p-1 hover:bg-blue-50 text-blue-400 hover:text-blue-600 rounded transition-colors"
-                      title="Edit Project"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button 
-                      onClick={(e) => handleDeleteProject(project.id, e)}
+                      onClick={(e) => handleDeleteProject(project.id, e, showTrash)}
                       className="p-1 hover:bg-red-50 text-red-400 hover:text-red-600 rounded transition-colors"
-                      title="Delete Project"
+                      title={showTrash ? "Permanently Delete Project" : "Move to Trash"}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

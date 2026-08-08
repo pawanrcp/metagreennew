@@ -31,7 +31,8 @@ export default function SiteSurvey() {
     nearbyBuildings: 'None',
     treeObstruction: 'None',
     electricalPanelType: 'Single Phase',
-    meterNumber: ''
+    meterNumber: '',
+    surveyNotes: ''
   });
   
   const [images, setImages] = useState<string[]>([]);
@@ -228,6 +229,19 @@ export default function SiteSurvey() {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
+                <FileText className="w-5 h-5 text-slate-500" /> Survey Notes
+              </h3>
+              <textarea 
+                value={surveyData.surveyNotes}
+                onChange={e => setSurveyData({...surveyData, surveyNotes: e.target.value})}
+                placeholder="Enter any additional observations, hazards, or special requirements..."
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none min-h-[100px]"
+              />
             </div>
 
             <button 

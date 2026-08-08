@@ -15,18 +15,22 @@ import { Lead, LeadStatus } from '@/src/types';
 import { Plus, Search, Filter, MoreVertical, Mail, Phone, MapPin, Users, FileText, Edit2, Trash2 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
-export default function CRM() {
+export default function CRM({ initialFilter }: { initialFilter?: string }) {
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialFilter || '');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
 
+  const [showTrash, setShowTrash] = useState(false);
+
   const filteredLeads = leads.filter(lead => 
-    lead.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    lead.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    lead.id.toLowerCase().includes(searchTerm.toLowerCase())
+    (showTrash ? lead.isDeleted : !lead.isDeleted) &&
+    (lead.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+     lead.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
+     lead.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     lead.status.toLowerCase().includes(searchTerm.toLowerCase()))
   );
-  const [newLead, setNewLead] = useState<Partial<Lead>>({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
+  const [newLead, setNewLead] = useState<Partial<Lead>>({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', roofType: '', monthlyUnits: '', expectedLoad: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
   const [selectedLeadForQuotation, setSelectedLeadForQuotation] = useState<Lead | null>(null);
   const [quotationDetails, setQuotationDetails] = useState({
@@ -59,25 +63,51 @@ export default function CRM() {
       }
       setIsModalOpen(false);
       setEditingLeadId(null);
-      setNewLead({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
+      setNewLead({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', roofType: '', monthlyUnits: '', expectedLoad: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
     } catch (err) {
       console.error('Error saving lead:', err);
     }
   };
 
-  const handleDeleteLead = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this lead?")) {
-      try {
-        await deleteDoc(doc(db, 'leads', id));
-      } catch (err) {
-        console.error('Error deleting lead:', err);
+  const handleDeleteLead = async (id: string, permanently: boolean = false) => {
+    if (permanently) {
+      if (window.confirm("Are you sure you want to permanently delete this lead?")) {
+        try {
+          await deleteDoc(doc(db, 'leads', id));
+        } catch (err) {
+          console.error('Error deleting lead:', err);
+        }
+      }
+    } else {
+      if (window.confirm("Are you sure you want to move this lead to trash?")) {
+        try {
+          await updateDoc(doc(db, 'leads', id), { isDeleted: true });
+        } catch (err) {
+          console.error('Error moving lead to trash:', err);
+        }
       }
     }
   };
 
-  const updateLeadStatus = async (id: string, status: LeadStatus) => {
+  const updateLeadStatus = async (id: string, status: LeadStatus, lead?: Lead) => {
     try {
       await updateDoc(doc(db, 'leads', id), { status });
+      
+      // Auto-create project if approved
+      if (status === 'Approved' && lead) {
+        await addDoc(collection(db, 'projects'), {
+          leadId: lead.id,
+          name: `${lead.name} Solar Installation`,
+          customerName: lead.name,
+          phone: lead.phone,
+          address: lead.address,
+          status: 'Initiated',
+          priority: 'Medium',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        alert(`Lead approved. Project created automatically for ${lead.name}.`);
+      }
     } catch (err) {
       console.error('Error updating lead status:', err);
     }
@@ -124,6 +154,18 @@ export default function CRM() {
             />
           </div>
           <div className="flex gap-2 w-full md:w-auto">
+            <button 
+              onClick={() => setShowTrash(!showTrash)}
+              className={cn(
+                "flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border rounded-xl font-bold text-sm transition-colors shadow-sm",
+                showTrash 
+                  ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              )}
+            >
+              <Trash2 className="w-4 h-4" />
+              {showTrash ? 'Hide Trash' : 'View Trash'}
+            </button>
             <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors shadow-sm">
               <Filter className="w-4 h-4" />
               Pipeline Filter
@@ -174,7 +216,7 @@ export default function CRM() {
                   <td className="px-6 py-5">
                     <select 
                       value={lead.status}
-                      onChange={(e) => updateLeadStatus(lead.id, e.target.value as LeadStatus)}
+                      onChange={(e) => updateLeadStatus(lead.id, e.target.value as LeadStatus, lead)}
                       className={cn(
                         "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border outline-none cursor-pointer appearance-none",
                         statusColors[lead.status] || "bg-slate-100 text-slate-700 border-slate-200"
@@ -213,13 +255,36 @@ export default function CRM() {
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    <button 
-                      onClick={() => handleDeleteLead(lead.id)}
-                      className="p-2 hover:bg-red-50 hover:shadow-sm rounded-lg text-red-600 transition-all border border-transparent hover:border-red-100"
-                      title="Delete Lead"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {showTrash ? (
+                      <>
+                        <button 
+                          onClick={async () => {
+                            if (window.confirm("Restore this lead?")) {
+                              await updateDoc(doc(db, 'leads', lead.id), { isDeleted: false });
+                            }
+                          }}
+                          className="p-2 hover:bg-emerald-50 hover:shadow-sm rounded-lg text-emerald-600 transition-all border border-transparent hover:border-emerald-100"
+                          title="Restore Lead"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteLead(lead.id, true)}
+                          className="p-2 hover:bg-red-50 hover:shadow-sm rounded-lg text-red-600 transition-all border border-transparent hover:border-red-100"
+                          title="Delete Permanently"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <button 
+                        onClick={() => handleDeleteLead(lead.id)}
+                        className="p-2 hover:bg-red-50 hover:shadow-sm rounded-lg text-red-600 transition-all border border-transparent hover:border-red-100"
+                        title="Move to Trash"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -246,7 +311,7 @@ export default function CRM() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-900">{editingLeadId ? 'Edit Prospect' : 'Add New Prospect'}</h3>
-              <button onClick={() => {setIsModalOpen(false); setEditingLeadId(null); setNewLead({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });}} className="text-slate-400 hover:text-slate-600">&times;</button>
+              <button onClick={() => {setIsModalOpen(false); setEditingLeadId(null); setNewLead({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', roofType: '', monthlyUnits: '', expectedLoad: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });}} className="text-slate-400 hover:text-slate-600">&times;</button>
             </div>
             <form onSubmit={handleSubmitLead} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
@@ -339,12 +404,72 @@ export default function CRM() {
                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
                   />
                 </div>
-                <div className="col-span-2 sm:col-span-1">
+                <div className="col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-1">GPS Location (Lat, Long)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      value={newLead.gpsLocation}
+                      onChange={e => setNewLead({...newLead, gpsLocation: e.target.value})}
+                      placeholder="e.g. 34.0522, -118.2437"
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        if (navigator.geolocation) {
+                          navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                              setNewLead({...newLead, gpsLocation: `${position.coords.latitude}, ${position.coords.longitude}`});
+                            },
+                            (error) => {
+                              alert("Unable to retrieve location. Please enter manually.");
+                            }
+                          );
+                        } else {
+                          alert("Geolocation is not supported by your browser.");
+                        }
+                      }}
+                      className="whitespace-nowrap px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200 transition-colors"
+                    >
+                      <MapPin className="w-4 h-4 inline-block mr-1" />
+                      Drop Pin
+                    </button>
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mt-2 mb-2 border-b border-slate-100 pb-1">Energy Requirements</h4>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Roof Type</label>
+                  <select 
+                    value={newLead.roofType}
+                    onChange={e => setNewLead({...newLead, roofType: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none appearance-none" 
+                  >
+                    <option value="">Select Roof Type...</option>
+                    <option value="RCC">RCC (Flat)</option>
+                    <option value="Tin Shed">Tin Shed</option>
+                    <option value="Tiled">Tiled</option>
+                    <option value="Asbestos">Asbestos</option>
+                  </select>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Expected Load (kW)</label>
                   <input 
-                    value={newLead.gpsLocation}
-                    onChange={e => setNewLead({...newLead, gpsLocation: e.target.value})}
-                    placeholder="e.g. 34.0522, -118.2437"
+                    type="number"
+                    value={newLead.expectedLoad}
+                    onChange={e => setNewLead({...newLead, expectedLoad: e.target.value})}
+                    placeholder="e.g. 5"
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
+                  />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Monthly Electricity Units</label>
+                  <input 
+                    type="number"
+                    value={newLead.monthlyUnits}
+                    onChange={e => setNewLead({...newLead, monthlyUnits: e.target.value})}
+                    placeholder="e.g. 600"
                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
                   />
                 </div>
@@ -423,7 +548,7 @@ export default function CRM() {
                   estimatedGeneration: quotationDetails.estimatedGeneration,
                   createdAt: serverTimestamp()
                 });
-                updateLeadStatus(selectedLeadForQuotation.id, 'Proposal');
+                updateLeadStatus(selectedLeadForQuotation.id, 'Proposal', selectedLeadForQuotation);
                 alert(`Quotation for ${selectedLeadForQuotation.name} generated and saved successfully!`);
                 setIsQuotationModalOpen(false);
                 setQuotationDetails({
@@ -444,12 +569,45 @@ export default function CRM() {
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">System Size (kW)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-slate-700">System Size (kW)</label>
+                    <div className="flex gap-2">
+                      {[3, 5, 10].map(size => (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => {
+                            const estimatedGen = `${Math.round(size * 120)}`;
+                            const estCost = `${Math.round(size * 60000)}`;
+                            setQuotationDetails({
+                              ...quotationDetails, 
+                              systemSize: size.toString(),
+                              estimatedGeneration: estimatedGen,
+                              totalCost: estCost
+                            });
+                          }}
+                          className="px-2 py-0.5 text-xs font-bold bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded border border-slate-200 transition-colors"
+                        >
+                          {size}kW
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <input 
                     required
                     type="number" 
                     value={quotationDetails.systemSize}
-                    onChange={e => setQuotationDetails({...quotationDetails, systemSize: e.target.value})}
+                    onChange={e => {
+                      const size = parseFloat(e.target.value);
+                      const estimatedGen = !isNaN(size) ? `${Math.round(size * 120)}` : '';
+                      const estCost = !isNaN(size) ? `${Math.round(size * 60000)}` : '';
+                      setQuotationDetails({
+                        ...quotationDetails, 
+                        systemSize: e.target.value,
+                        estimatedGeneration: estimatedGen,
+                        totalCost: estCost
+                      });
+                    }}
                     placeholder="e.g. 5"
                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
                   />
@@ -490,13 +648,13 @@ export default function CRM() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Estimated Annual Generation (kWh)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Estimated Monthly Generation (Units)</label>
                   <input 
                     required
                     type="number" 
                     value={quotationDetails.estimatedGeneration}
                     onChange={e => setQuotationDetails({...quotationDetails, estimatedGeneration: e.target.value})}
-                    placeholder="e.g. 7200"
+                    placeholder="e.g. 600"
                     className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" 
                   />
                 </div>
