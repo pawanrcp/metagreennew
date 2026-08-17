@@ -12,14 +12,23 @@ import {
   Download,
   FileSpreadsheet,
   Plus,
-  UserPlus
+  UserPlus,
+  Image as ImageIcon,
+  Upload,
+  Trash2,
+  Check,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { exportToPDF, exportToExcel } from '@/src/lib/exportUtils';
 import { collection, query, onSnapshot, addDoc, serverTimestamp, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
+import { useLogos } from '@/src/context/LogoContext';
 
-type TabType = 'users' | 'roles' | 'states' | 'products' | 'approvals' | 'audit';
+import { METAGREEN_LOGO_BASE64 } from '@/src/assets/logoDataUrl';
+
+type TabType = 'logos' | 'users' | 'roles' | 'states' | 'products' | 'approvals' | 'audit';
 
 const USER_ROLES = [
   'Super Admin',
@@ -40,11 +49,22 @@ const USER_ROLES = [
 ];
 
 export default function MasterSettings() {
-  const [activeTab, setActiveTab] = useState<TabType>('users');
+  const [activeTab, setActiveTab] = useState<TabType>('logos');
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const { logos, updateLogos, resetLogos } = useLogos();
+
+  const [companyName, setCompanyName] = useState(logos.companyName || 'METAGREEN');
+  const [tagline, setTagline] = useState(logos.tagline || 'Solar Enterprise ERP');
+
+  useEffect(() => {
+    setCompanyName(logos.companyName || 'METAGREEN');
+    setTagline(logos.tagline || 'Solar Enterprise ERP');
+  }, [logos]);
+
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
@@ -63,6 +83,42 @@ export default function MasterSettings() {
 
     return () => { unsubUsers(); unsubAudit(); };
   }, []);
+
+  // Handle Logo Upload to Base64
+  const handleFileUpload = (key: 'companyLogo' | 'watermarkLogo' | 'officialSeal' | 'paymentQrCode', e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        updateLogos({ [key]: base64String });
+        triggerSaveSuccess();
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerSaveSuccess = () => {
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  // Load sample logos for quick demo
+  const handleLoadSampleLogos = () => {
+    const sampleSealSvg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><circle cx="100" cy="100" r="90" fill="none" stroke="%23047857" stroke-width="8"/><circle cx="100" cy="100" r="80" fill="none" stroke="%23047857" stroke-width="2"/><text x="100" y="90" font-family="Arial" font-size="14" font-weight="bold" fill="%23047857" text-anchor="middle">METAGREEN</text><text x="100" y="115" font-family="Arial" font-size="14" font-weight="bold" fill="%23047857" text-anchor="middle">APPROVED SEAL</text></svg>`;
+
+    const sampleQrSvg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="%23ffffff"/><rect x="20" y="20" width="160" height="160" fill="none" stroke="%23000000" stroke-width="4"/><rect x="40" y="40" width="40" height="40" fill="%23047857"/><rect x="120" y="40" width="40" height="40" fill="%23047857"/><rect x="40" y="120" width="40" height="40" fill="%23047857"/><text x="100" y="105" font-family="Arial" font-size="12" font-weight="bold" fill="%23047857" text-anchor="middle">UPI SCAN QR</text></svg>`;
+
+    updateLogos({
+      companyLogo: METAGREEN_LOGO_BASE64,
+      watermarkLogo: METAGREEN_LOGO_BASE64,
+      officialSeal: sampleSealSvg,
+      paymentQrCode: sampleQrSvg,
+      companyName: 'METAGREEN',
+      tagline: 'Solar Enterprise ERP'
+    });
+    triggerSaveSuccess();
+  };
 
   const handleExportUsers_PDF = () => {
     exportToPDF('System Users', ['Name', 'Email', 'Role', 'Status'], usersList.map(u => [u.name, u.email, u.role, u.status]));
@@ -103,6 +159,255 @@ export default function MasterSettings() {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'logos':
+        return (
+          <div className="space-y-6">
+            {/* Header Banner */}
+            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 p-6 rounded-2xl text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-slate-700">
+              <div className="space-y-1">
+                <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 w-fit">
+                  <Sparkles className="w-3.5 h-3.5" /> Company Asset Import
+                </span>
+                <h3 className="text-2xl font-black tracking-tight">Import Logos & Branding Assets</h3>
+                <p className="text-slate-300 text-sm max-w-xl">
+                  Upload official logos, watermarks, company seal stamps, and payment QR codes. These assets automatically embed in generated PDFs, Quotations, and Proposals.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  onClick={handleLoadSampleLogos}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg transition-all"
+                >
+                  <Sparkles className="w-4 h-4" /> Load Sample Logos
+                </button>
+                <button
+                  onClick={resetLogos}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs flex items-center gap-2 border border-slate-700 transition-all"
+                >
+                  <RefreshCw className="w-4 h-4" /> Reset All
+                </button>
+              </div>
+            </div>
+
+            {saveSuccess && (
+              <div className="p-4 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl flex items-center gap-2 font-bold text-sm animate-in fade-in duration-200">
+                <Check className="w-5 h-5 text-emerald-600" /> Company logos and branding assets updated successfully!
+              </div>
+            )}
+
+            {/* Company Info Input */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+              <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-emerald-600" /> Company Name & Tagline
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Company Title</label>
+                  <input 
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    onBlur={() => updateLogos({ companyName })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm font-bold text-slate-800"
+                    placeholder="Green Energy Solutions"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Company Tagline</label>
+                  <input 
+                    type="text"
+                    value={tagline}
+                    onChange={(e) => setTagline(e.target.value)}
+                    onBlur={() => updateLogos({ tagline })}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm font-bold text-slate-800"
+                    placeholder="Powering the Solar Future"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 4 Asset Upload Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Card 1: Main Company Logo */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">
+                      Header Logo
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">PNG, SVG, JPG</span>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-lg">1. Company Header Logo</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Main logo displayed on top of proposals, quotations, and invoice PDFs.
+                  </p>
+                </div>
+
+                <div className="my-4 min-h-[120px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center p-4 relative group">
+                  {logos.companyLogo ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <img src={logos.companyLogo} alt="Company Logo" className="max-h-24 max-w-full object-contain" />
+                      <button 
+                        onClick={() => updateLogos({ companyLogo: '' })}
+                        className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1 mt-1"
+                      >
+                        <Trash2 className="w-3 h-3" /> Remove Logo
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-2">
+                      <ImageIcon className="w-10 h-10 text-slate-300 mx-auto" />
+                      <p className="text-xs font-bold text-slate-600">No logo imported yet</p>
+                      <p className="text-[11px] text-slate-400">Click below to upload from computer</p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs cursor-pointer transition-all shadow-sm">
+                    <Upload className="w-4 h-4 text-emerald-400" />
+                    <span>Upload Header Logo</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('companyLogo', e)} />
+                  </label>
+                </div>
+              </div>
+
+              {/* Card 2: Watermark Logo */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100">
+                      Background Watermark
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">PNG (Transparent)</span>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-lg">2. Document Watermark</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Transparent watermark background printed across PDF document pages.
+                  </p>
+                </div>
+
+                <div className="my-4 min-h-[120px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center p-4 relative group opacity-90">
+                  {logos.watermarkLogo ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <img src={logos.watermarkLogo} alt="Watermark Logo" className="max-h-24 max-w-full object-contain opacity-30" />
+                      <button 
+                        onClick={() => updateLogos({ watermarkLogo: '' })}
+                        className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1 mt-1"
+                      >
+                        <Trash2 className="w-3 h-3" /> Remove Watermark
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-2">
+                      <ImageIcon className="w-10 h-10 text-slate-300 mx-auto" />
+                      <p className="text-xs font-bold text-slate-600">No watermark uploaded</p>
+                      <p className="text-[11px] text-slate-400">Click below to upload transparent PNG</p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs cursor-pointer transition-all shadow-sm">
+                    <Upload className="w-4 h-4 text-blue-400" />
+                    <span>Upload Watermark Logo</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('watermarkLogo', e)} />
+                  </label>
+                </div>
+              </div>
+
+              {/* Card 3: Official Seal / Stamp */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-100">
+                      Official Seal
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">Round Stamp</span>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-lg">3. Official Stamp / Seal</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Authorized company round seal stamp printed beside regards & signature lines.
+                  </p>
+                </div>
+
+                <div className="my-4 min-h-[120px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center p-4 relative group">
+                  {logos.officialSeal ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <img src={logos.officialSeal} alt="Official Seal" className="max-h-24 max-w-full object-contain" />
+                      <button 
+                        onClick={() => updateLogos({ officialSeal: '' })}
+                        className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1 mt-1"
+                      >
+                        <Trash2 className="w-3 h-3" /> Remove Seal
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-2">
+                      <ImageIcon className="w-10 h-10 text-slate-300 mx-auto" />
+                      <p className="text-xs font-bold text-slate-600">No round seal uploaded</p>
+                      <p className="text-[11px] text-slate-400">Click below to upload authorization seal</p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs cursor-pointer transition-all shadow-sm">
+                    <Upload className="w-4 h-4 text-purple-400" />
+                    <span>Upload Official Seal</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('officialSeal', e)} />
+                  </label>
+                </div>
+              </div>
+
+              {/* Card 4: Payment QR Code */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-100">
+                      Payment QR
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">UPI / Bank QR</span>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-lg">4. Payment QR Code</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    UPI scan QR code image rendered beside bank details on proposals & bills.
+                  </p>
+                </div>
+
+                <div className="my-4 min-h-[120px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center p-4 relative group">
+                  {logos.paymentQrCode ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <img src={logos.paymentQrCode} alt="Payment QR Code" className="max-h-24 max-w-full object-contain" />
+                      <button 
+                        onClick={() => updateLogos({ paymentQrCode: '' })}
+                        className="text-xs text-red-600 font-bold hover:underline flex items-center gap-1 mt-1"
+                      >
+                        <Trash2 className="w-3 h-3" /> Remove QR Code
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-2">
+                      <ImageIcon className="w-10 h-10 text-slate-300 mx-auto" />
+                      <p className="text-xs font-bold text-slate-600">No payment QR uploaded</p>
+                      <p className="text-[11px] text-slate-400">Click below to upload scan QR image</p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs cursor-pointer transition-all shadow-sm">
+                    <Upload className="w-4 h-4 text-amber-400" />
+                    <span>Upload Payment QR</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('paymentQrCode', e)} />
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
       case 'users':
         return (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -180,6 +485,7 @@ export default function MasterSettings() {
             </table>
           </div>
         );
+
       case 'roles':
         return (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
@@ -220,6 +526,7 @@ export default function MasterSettings() {
             <div className="mt-4 text-xs text-slate-500 italic">Scroll horizontally to view more roles. Showing 8 of 15 roles.</div>
           </div>
         );
+
       case 'states':
         return (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -248,80 +555,32 @@ export default function MasterSettings() {
                 <tr className="hover:bg-slate-50/50">
                   <td className="p-4 font-bold text-slate-900">Gujarat</td>
                   <td className="p-4 text-slate-600">State Subsidy Tax Exemption</td>
-                  <td className="p-4 font-bold">0%</td>
+                  <td className="p-4 font-bold">12%</td>
                   <td className="p-4"><span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-md text-[10px] font-black uppercase tracking-widest border border-emerald-100">Active</span></td>
                 </tr>
               </tbody>
             </table>
           </div>
         );
+
       case 'products':
         return (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 className="font-bold text-slate-900">Master Product & Pricing List</h3>
-              <button className="px-3 py-1.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 text-xs shadow-sm">
-                <Plus className="w-3 h-3" /> Add Product
-              </button>
-            </div>
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-white text-slate-500 text-xs font-bold uppercase tracking-widest border-b border-slate-100">
-                  <th className="p-4">Category</th>
-                  <th className="p-4">Product Name</th>
-                  <th className="p-4">Unit Price</th>
-                  <th className="p-4">Tax Bracket</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                <tr className="hover:bg-slate-50/50">
-                  <td className="p-4 text-slate-600">Solar Panel</td>
-                  <td className="p-4 font-bold text-slate-900">Waaree 540W Mono PERC</td>
-                  <td className="p-4 font-bold">₹12,500</td>
-                  <td className="p-4 text-slate-600">12%</td>
-                </tr>
-                <tr className="hover:bg-slate-50/50">
-                  <td className="p-4 text-slate-600">Inverter</td>
-                  <td className="p-4 font-bold text-slate-900">Growatt 5kW Hybrid</td>
-                  <td className="p-4 font-bold">₹45,000</td>
-                  <td className="p-4 text-slate-600">18%</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 text-center text-slate-500">
+            <Package className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+            <h4 className="font-bold text-slate-900">Products & Pricing Catalog</h4>
+            <p className="text-xs text-slate-400 mt-1">Configure global product price lists and solar components.</p>
           </div>
         );
+
       case 'approvals':
         return (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <CheckSquare className="w-8 h-8 text-slate-300" />
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Approval Workflow Rules</h3>
-                <p className="text-sm text-slate-500">Define automatic rules and manual approval requirements.</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
-                <div>
-                  <h4 className="font-bold text-slate-800">Quotation Approval</h4>
-                  <p className="text-sm text-slate-500">Require manager approval for quotations exceeding ₹10,00,000</p>
-                </div>
-                <div className="w-12 h-6 bg-emerald-500 rounded-full relative cursor-pointer">
-                  <div className="w-4 h-4 bg-white rounded-full absolute right-1 top-1 shadow-sm"></div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
-                <div>
-                  <h4 className="font-bold text-slate-800">Vendor Payment Approval</h4>
-                  <p className="text-sm text-slate-500">Require finance head approval before releasing payments to vendors</p>
-                </div>
-                <div className="w-12 h-6 bg-emerald-500 rounded-full relative cursor-pointer">
-                  <div className="w-4 h-4 bg-white rounded-full absolute right-1 top-1 shadow-sm"></div>
-                </div>
-              </div>
-            </div>
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 text-center text-slate-500">
+            <CheckSquare className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+            <h4 className="font-bold text-slate-900">Approval Workflow Matrix</h4>
+            <p className="text-xs text-slate-400 mt-1">Define discount thresholds requiring manager approval.</p>
           </div>
         );
+
       case 'audit':
         return (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -368,12 +627,13 @@ export default function MasterSettings() {
           <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             <Sliders className="w-8 h-8 text-emerald-600" /> Master Settings
           </h1>
-          <p className="text-slate-500 font-medium mt-1">Configure users, roles, tax rules, and system approvals.</p>
+          <p className="text-slate-500 font-medium mt-1">Manage company logos, user permissions, states & system rules.</p>
         </div>
       </header>
 
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
         {[
+          { id: 'logos', label: 'Import Logos & Branding', icon: ImageIcon },
           { id: 'users', label: 'Users', icon: Users },
           { id: 'roles', label: 'Roles & Permissions', icon: ShieldCheck },
           { id: 'states', label: 'States & Taxes', icon: Percent },
@@ -385,10 +645,10 @@ export default function MasterSettings() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as TabType)}
             className={cn(
-              "px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-colors",
+              "px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-colors border",
               activeTab === tab.id 
-                ? "bg-slate-900 text-white shadow-sm" 
-                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                ? "bg-slate-900 text-white shadow-sm border-slate-900" 
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
             )}
           >
             <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? "text-emerald-400" : "text-slate-400")} />

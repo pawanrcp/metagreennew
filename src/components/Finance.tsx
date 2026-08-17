@@ -20,6 +20,8 @@ import {
 import { cn } from '@/src/lib/utils';
 import { collection, query, onSnapshot, orderBy, addDoc, serverTimestamp, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
+import { downloadInvoicePDF, InvoiceData, InvoiceType } from '@/src/services/invoiceGenerator.service';
+import { useLogos } from '@/src/context/LogoContext';
 
 export default function Finance() {
   const [activeTab, setActiveTab] = useState<'payments' | 'profit' | 'loans'>('payments');
@@ -31,6 +33,74 @@ export default function Finance() {
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const { logos } = useLogos();
+  const [selectedTxForInvoice, setSelectedTxForInvoice] = useState<any | null>(null);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+
+  const handleDownloadInvoice = (tx: any, templateType: InvoiceType) => {
+    const invData: InvoiceData = {
+      invoiceType: templateType,
+      invoiceNo: tx.displayId ? tx.displayId.replace('TX-', '') : '000001',
+      invoiceDate: tx.date || new Date().toISOString().split('T')[0],
+      referenceNo: `REF-${String(Math.floor(Math.random() * 90000) + 10000)}`,
+      modeOfPayment: tx.type || 'Cash / UPI',
+      shipTo: {
+        name: tx.customer || 'UYYURU NAGESWARARAO',
+        address: '2-201, Shivalayam Street, T.Narasapuram',
+        cityDistrict: 'Eluru',
+        state: 'Andhra Pradesh',
+        stateCode: '37',
+        pincode: '534467',
+        phone: '7095784875'
+      },
+      billTo: {
+        name: tx.customer || 'UYYURU NAGESWARARAO',
+        address: '2-201, Shivalayam Street, T.Narasapuram',
+        cityDistrict: 'Eluru',
+        state: 'Andhra Pradesh',
+        stateCode: '37',
+        pincode: '534467',
+        phone: '7095784875'
+      },
+      items: [
+        {
+          slNo: 1,
+          description: 'Vikram Solar Panels 550w+ M10 Bifacial G2G HC DCR (3 KW)',
+          quantity: 1,
+          capacity: 'GroWatt TL-X2 (Pro) On Grid Tied Solar Invertor',
+          amount: tx.amount || 215000,
+          hsnSac: '85414300',
+          rateInclTax: 116666.67,
+          rate: 104166.67,
+          unit: 'kwp',
+          taxableValue: (tx.amount || 215000) / 1.05,
+          cgstRate: 2.5,
+          cgstAmount: ((tx.amount || 215000) / 1.05) * 0.025,
+          sgstRate: 2.5,
+          sgstAmount: ((tx.amount || 215000) / 1.05) * 0.025
+        }
+      ],
+      systemCapacityKw: 3,
+      totalAmount: tx.amount || 215000,
+      companyDetails: {
+        name: logos.companyName || 'SOLAR HUT SOLUTIONS LLP',
+        logoPath: logos.companyLogo,
+        stampPath: logos.officialSeal
+      },
+      bankDetails: {
+        bankName: 'State Bank of India',
+        accountName: 'Solar Hut Solutions LLP',
+        accountNumber: '44513337275',
+        ifsc: 'SBIN0012948',
+        branch: 'Pantakalava Road, Vijayawada.',
+        qrCodePath: logos.paymentQrCode
+      }
+    };
+
+    downloadInvoicePDF(invData);
+    setIsInvoiceModalOpen(false);
+  };
 
   // Forms State
   const [newTx, setNewTx] = useState({
@@ -279,8 +349,11 @@ export default function Finance() {
                     </td>
                     <td className="p-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <button className="text-blue-600 hover:text-blue-800 text-xs font-bold flex items-center justify-center gap-1 transition-colors">
-                          <FileText className="w-3.5 h-3.5" /> Invoice
+                        <button 
+                          onClick={() => { setSelectedTxForInvoice(t); setIsInvoiceModalOpen(true); }}
+                          className="px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-colors border border-blue-200"
+                        >
+                          <FileText className="w-3.5 h-3.5" /> PDF Invoice
                         </button>
                         <button onClick={() => { setEditingTxId(t.id); setNewTx({ customer: t.customer, amount: t.amount, type: t.type, category: t.category, gstEnabled: t.gst > 0 }); setIsTxModalOpen(true); }} className="p-1.5 hover:bg-blue-50 text-blue-400 hover:text-blue-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100" title="Edit">
                           <Edit2 className="w-4 h-4" />
@@ -612,6 +685,89 @@ export default function Finance() {
                 <button type="submit" className="flex-1 px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors">Submit Eligibility Check</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice PDF Template Selection Modal */}
+      {isInvoiceModalOpen && selectedTxForInvoice && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-900 text-white">
+              <div>
+                <h3 className="text-xl font-black flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-emerald-400" /> Select PDF Invoice Format
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Generate PDF matching customer & DISCOM requirements
+                </p>
+              </div>
+              <button onClick={() => setIsInvoiceModalOpen(false)} className="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+
+            <div className="p-6 space-y-3">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Customer / Tx Details</p>
+                <p className="text-sm font-black text-slate-900">{selectedTxForInvoice.customer}</p>
+                <p className="text-xs text-slate-600">
+                  Amount: <span className="font-bold text-emerald-700">₹{selectedTxForInvoice.amount.toLocaleString('en-IN')}</span> ({selectedTxForInvoice.type})
+                </p>
+              </div>
+
+              {/* Template Option 1 */}
+              <button
+                onClick={() => handleDownloadInvoice(selectedTxForInvoice, 'commercial')}
+                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all group flex items-start gap-3"
+              >
+                <div className="p-2.5 bg-amber-100 text-amber-800 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm group-hover:text-emerald-800">
+                    1. Standard Commercial Invoice (PDF Format 1)
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Includes company logo, customer ship-to/bill-to, bank details, SBI Scan & Pay QR box & terms.
+                  </p>
+                </div>
+              </button>
+
+              {/* Template Option 2 */}
+              <button
+                onClick={() => handleDownloadInvoice(selectedTxForInvoice, 'itemized_tax_invoice')}
+                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all group flex items-start gap-3"
+              >
+                <div className="p-2.5 bg-blue-100 text-blue-800 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm group-hover:text-emerald-800">
+                    2. Statutory Itemized Tax Invoice (PDF Format 2)
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Full statutory form layout with HSN/SAC code breakdown, CGST/SGST tax grid & amount in words.
+                  </p>
+                </div>
+              </button>
+
+              {/* Template Option 3 */}
+              <button
+                onClick={() => handleDownloadInvoice(selectedTxForInvoice, 'solar_7030_tax_invoice')}
+                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all group flex items-start gap-3"
+              >
+                <div className="p-2.5 bg-purple-100 text-purple-800 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm group-hover:text-emerald-800">
+                    3. 70:30 Solar RTS Tax Invoice (PDF Format 3)
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Splits plant cost into 70% Solar Goods (@ 5% GST) and 30% Services/Labor (@ 18% GST).
+                  </p>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       )}

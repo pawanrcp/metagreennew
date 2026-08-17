@@ -44,6 +44,23 @@ export interface Project {
   createdAt: any;
 }
 
+export interface ProjectTask {
+  id: string;
+  projectId: string;
+  name: string;
+  requiredRole?: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  assigneeRole?: string;
+  start: number;
+  duration: number;
+  status: 'Pending' | 'In Progress' | 'Completed';
+  type: 'task' | 'milestone';
+  dependency?: string;
+  delay?: boolean;
+  createdAt?: any;
+}
+
 export interface InventoryItem {
   id: string;
   name: string;

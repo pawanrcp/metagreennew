@@ -47,6 +47,18 @@ export default function Projects({ initialFilter }: { initialFilter?: string }) 
     return () => unsubscribe();
   }, []);
 
+const DEFAULT_SOLAR_PROJECT_TASKS = [
+  { name: 'Site Survey & Structural Assessment', requiredRole: 'Survey Engineer', start: 0, duration: 2, type: 'task', dependency: '' },
+  { name: 'Solar PV & Single Line Diagram Design', requiredRole: 'Design Engineer', start: 2, duration: 3, type: 'task', dependency: 'Site Survey & Structural Assessment' },
+  { name: 'Procurement & Material Requisition', requiredRole: 'Procurement Officer', start: 5, duration: 2, type: 'task', dependency: 'Solar PV & Single Line Diagram Design' },
+  { name: 'Rooftop Mounting Structure Fabrication', requiredRole: 'Installer', start: 7, duration: 3, type: 'task', dependency: 'Procurement & Material Requisition' },
+  { name: 'Solar Panels & Inverter Installation', requiredRole: 'Lead Installer', start: 10, duration: 4, type: 'task', dependency: 'Rooftop Mounting Structure Fabrication' },
+  { name: 'AC/DC Cable Wiring & Earthing Connections', requiredRole: 'Electrician', start: 14, duration: 2, type: 'task', dependency: 'Solar Panels & Inverter Installation' },
+  { name: 'DISCOM NOC & Net Meter Application', requiredRole: 'Compliance Officer', start: 16, duration: 2, type: 'task', dependency: 'AC/DC Cable Wiring & Earthing Connections' },
+  { name: 'Joint Inspection & Net Meter Synchronization', requiredRole: 'Compliance Officer', start: 18, duration: 1, type: 'milestone', dependency: 'DISCOM NOC & Net Meter Application' },
+  { name: 'PM Surya Ghar Subsidy Portal Submission', requiredRole: 'Subsidy Specialist', start: 19, duration: 1, type: 'task', dependency: 'Joint Inspection & Net Meter Synchronization' }
+];
+
   const handleSubmitProject = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -55,11 +67,21 @@ export default function Projects({ initialFilter }: { initialFilter?: string }) 
           ...newProject
         });
       } else {
-        await addDoc(collection(db, 'projects'), {
+        const projectRef = await addDoc(collection(db, 'projects'), {
           ...newProject,
           createdAt: serverTimestamp(),
           leadId: 'manual'
         });
+
+        // Auto-generate standard workflow tasks for the project
+        for (const t of DEFAULT_SOLAR_PROJECT_TASKS) {
+          await addDoc(collection(db, 'projectTasks'), {
+            ...t,
+            projectId: projectRef.id,
+            status: 'Pending',
+            createdAt: serverTimestamp()
+          });
+        }
       }
       setIsModalOpen(false);
       setEditingProjectId(null);
