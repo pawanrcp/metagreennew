@@ -137,6 +137,22 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
       icon: Sun,
       items: [
         {
+          id: 'procurement',
+          label: 'Purchase Orders & PO Creation',
+          subHeader: 'First Procurement Step',
+          description: 'Create PO / RFQ with panel, inverter, AC/DC lines & vendor auto stock',
+          icon: ShoppingCart,
+          roles: ['Super Admin', 'Solar Company Admin', 'Procurement Officer', 'Warehouse Manager']
+        },
+        {
+          id: 'inventory',
+          label: 'Inventory Control',
+          subHeader: 'Stock & Auto Receipts',
+          description: 'Auto-add vendor accepted PO items into warehouse stock',
+          icon: Package,
+          roles: ['Super Admin', 'Solar Company Admin', 'Warehouse Manager', 'Procurement Officer']
+        },
+        {
           id: 'projects',
           label: 'Projects & Tasks',
           subHeader: '10-Stage Workflow',
@@ -153,28 +169,12 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           roles: ['Super Admin', 'Solar Company Admin', 'Project Manager', 'Installer']
         },
         {
-          id: 'procurement',
-          label: 'Procurement & RFQ',
-          subHeader: 'PO Creation & Vendor Sync',
-          description: 'Create PO / RFQ with panel, inverter, AC/DC lines & vendor auto stock',
-          icon: ShoppingCart,
-          roles: ['Super Admin', 'Solar Company Admin', 'Procurement Officer', 'Warehouse Manager']
-        },
-        {
-          id: 'inventory',
-          label: 'Inventory Control',
-          subHeader: 'Stock & Auto Receipts',
-          description: 'Auto-add vendor accepted PO items into warehouse stock',
-          icon: Package,
-          roles: ['Super Admin', 'Solar Company Admin', 'Warehouse Manager', 'Procurement Officer']
-        },
-        {
           id: 'vendors',
-          label: 'Vendor Portal',
-          subHeader: 'Supplier Management',
-          description: 'Vendor registration, PO acceptance & payment triggers',
+          label: 'Vendor Portal & Tasks',
+          subHeader: 'POs, Staff & Employee Tasks',
+          description: 'Accept POs, manage vendor staff (User Limit enforced) & assign employee tasks',
           icon: Truck,
-          roles: ['Super Admin', 'Solar Company Admin', 'Vendor', 'Procurement Officer', 'Finance Manager']
+          roles: ['Super Admin', 'Solar Company Admin', 'Vendor', 'Vendor Employee', 'Procurement Officer', 'Finance Manager']
         }
       ]
     },
@@ -443,18 +443,20 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           })}
         </div>
 
-        {/* Quick Action Button for Importing Logos */}
-        <button
-          onClick={() => {
-            setView('settings');
-            setOpenDropdown(null);
-          }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-bold transition-all shadow-sm shrink-0 ml-2 cursor-pointer"
-          title="Import Company Logos & Branding Assets"
-        >
-          <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="hidden md:inline">Import Logos</span>
-        </button>
+        {/* Quick Action Button for Importing Logos (Global Admin Only) */}
+        {(userRole === 'Super Admin' || userRole === 'Solar Company Admin') && (
+          <button
+            onClick={() => {
+              setView('settings');
+              setOpenDropdown(null);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-bold transition-all shadow-sm shrink-0 ml-2 cursor-pointer"
+            title="Import Company Logos & Branding Assets"
+          >
+            <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden md:inline">Import Logos</span>
+          </button>
+        )}
       </div>
 
       {/* --- PDF WIREFRAME PAGE 12 NUMBERED WORKFLOW BAR (1 to 10) --- */}
@@ -468,7 +470,17 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
         </button>
         <span className="text-slate-600 font-normal px-1">|</span>
 
-        {PDF_WORKFLOW_STEPS.map((step) => {
+        {PDF_WORKFLOW_STEPS.filter(step => {
+          if (!userRole) return true;
+          const adminOnlyViews = ['settings', 'hr'];
+          if (adminOnlyViews.includes(step.id) && userRole !== 'Super Admin' && userRole !== 'Solar Company Admin') {
+            return false;
+          }
+          if (step.id === 'finance' && !['Super Admin', 'Solar Company Admin', 'Finance Manager', 'Auditor'].includes(userRole)) {
+            return false;
+          }
+          return true;
+        }).map((step) => {
           const isActive = currentView === step.id;
 
           return (

@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Calendar, CheckCircle2, Clock, MapPin, 
   AlertCircle, Users, Milestone, GitCommit, Search, Plus, ListTodo,
-  AlertTriangle, Sun, Edit2, Trash2, UserCheck, Filter, ShieldCheck, Wrench
+  AlertTriangle, Sun, Edit2, Trash2, UserCheck, Filter, ShieldCheck, Wrench,
+  Star, Phone, Check, ArrowRight, IndianRupee, MessageSquare, Zap,
+  Camera, Upload, Image as ImageIcon, Eye, Sparkles, X
 } from 'lucide-react';
-import { Project, ProjectTask } from '@/src/types';
+import { Project, ProjectTask, ProjectStatus } from '@/src/types';
 import { cn, formatCurrency } from '@/src/lib/utils';
 import { format } from 'date-fns';
 import { collection, query, where, onSnapshot, orderBy, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
@@ -31,29 +33,50 @@ const DEFAULT_STAFF: StaffMember[] = [
   { id: 'emp-5', name: 'Vikram Rao', role: 'Procurement Officer', team: 'Supply Chain' },
   { id: 'emp-6', name: 'Ramesh Reddy', role: 'Compliance Officer', team: 'DISCOM & Approvals' },
   { id: 'emp-7', name: 'K. Swathi', role: 'Subsidy Specialist', team: 'Finance & Subsidy' },
-  { id: 'emp-8', name: 'Labor Team Alpha', role: 'Installer', team: 'General Field Crew' },
 ];
 
-const SOLAR_ROLES = [
-  'Survey Engineer',
-  'Design Engineer',
-  'Procurement Officer',
-  'Lead Installer',
-  'Installer',
-  'Electrician',
-  'Compliance Officer',
-  'Subsidy Specialist',
-  'Project Manager',
-  'General Staff'
+const PIPELINE_STAGES: ProjectStatus[] = [
+  'Initial',
+  'In Process',
+  'Assigned Installation',
+  'Installation Complete',
+  'Verification',
+  'Net Meter Installed',
+  'Subsidy Pending',
+  'Subsidy Released',
+  'Completed',
+  'Customer Review'
+];
+
+// Sample Solar Inspection & Installation Proofs
+const SAMPLE_SURVEY_PHOTOS = [
+  'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1509391365360-2e959784a276?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1548337138-e87d889cc369?auto=format&fit=crop&w=800&q=80'
+];
+
+const SAMPLE_INSTALLATION_PHOTOS = [
+  'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1613665813446-82a78c468a1d?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1592833159057-651427780004?auto=format&fit=crop&w=800&q=80'
 ];
 
 export default function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
-  const [activeTab, setActiveTab] = useState<'timeline' | 'tasks' | 'resources'>('timeline');
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'team' | 'photos' | 'review'>('pipeline');
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [staffList, setStaffList] = useState<StaffMember[]>(DEFAULT_STAFF);
+  const [currentProject, setCurrentProject] = useState<Project>(project);
+
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [showAllStaffInModal, setShowAllStaffInModal] = useState(false);
+
+  // Photo Upload Modal State
+  const [photoModalType, setPhotoModalType] = useState<'survey' | 'installation' | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // Review Form state
+  const [starRating, setStarRating] = useState<number>(currentProject.rating || 5);
+  const [reviewText, setReviewText] = useState<string>(currentProject.review || '');
 
   const [newTask, setNewTask] = useState<{
     name: string;
@@ -79,50 +102,105 @@ export default function ProjectDetails({ project, onBack }: ProjectDetailsProps)
     dependency: ''
   });
 
-  // Fetch Tasks
+  // Realtime subscription for project document updates
   useEffect(() => {
-    const q = query(collection(db, 'projectTasks'), where('projectId', '==', project.id), orderBy('start', 'asc'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      setTasks(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ProjectTask)));
-    });
-    return () => unsub();
-  }, [project.id]);
-
-  // Fetch Staff / Employees
-  useEffect(() => {
-    const unsubEmp = onSnapshot(collection(db, 'employees'), (snapshot) => {
-      if (!snapshot.empty) {
-        const fetched = snapshot.docs.map(doc => ({
-          id: doc.id,
-          name: doc.data().name,
-          role: doc.data().role,
-          team: doc.data().team,
-          contact: doc.data().contact
-        }));
-        const existingIds = new Set(fetched.map(f => f.id));
-        const combined = [...fetched, ...DEFAULT_STAFF.filter(d => !existingIds.has(d.id))];
-        setStaffList(combined);
+    const unsubProject = onSnapshot(doc(db, 'projects', project.id), (docSnap) => {
+      if (docSnap.exists()) {
+        setCurrentProject({ id: docSnap.id, ...docSnap.data() } as Project);
       }
     });
+    return () => unsubProject();
+  }, [project.id]);
 
-    return () => unsubEmp();
-  }, []);
+  // Fetch Tasks for this project
+  useEffect(() => {
+    const q = query(collection(db, 'projectTasks'), where('projectId', '==', project.id), orderBy('start', 'asc'));
+    const unsubTasks = onSnapshot(q, (snapshot) => {
+      setTasks(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ProjectTask)));
+    });
+    return () => unsubTasks();
+  }, [project.id]);
 
-  // Filter staff by selected requirement role
-  const filteredStaff = staffList.filter(emp => {
-    if (showAllStaffInModal) return true;
-    if (!newTask.requiredRole || newTask.requiredRole === 'General Staff') return true;
-    const req = newTask.requiredRole.toLowerCase();
-    const empRole = emp.role.toLowerCase();
-    return empRole.includes(req) || req.includes(empRole);
-  });
+  // Handle stage change with mandatory site photo gatekeeper
+  const handleUpdateStage = async (newStage: ProjectStatus) => {
+    // 1. Mandatory Site Survey Photos check when assigning / moving to In Process or Assigned Installation
+    if (['In Process', 'Assigned Installation'].includes(newStage) && (!currentProject.siteSurveyImagesUrls || currentProject.siteSurveyImagesUrls.length === 0)) {
+      setPhotoModalType('survey');
+      setActiveTab('photos');
+      return;
+    }
+
+    // 2. Mandatory Installation Photos check when moving to Installation Complete
+    if (['Installation Complete', 'Verification'].includes(newStage) && (!currentProject.installationImagesUrls || currentProject.installationImagesUrls.length === 0)) {
+      setPhotoModalType('installation');
+      setActiveTab('photos');
+      return;
+    }
+
+    const updatedHistory = [
+      ...(currentProject.history || []),
+      { stage: newStage, timestamp: new Date().toISOString(), note: `Stage changed to ${newStage}` }
+    ];
+
+    try {
+      await updateDoc(doc(db, 'projects', currentProject.id), {
+        status: newStage,
+        history: updatedHistory
+      });
+      alert(`✅ Project stage updated to: ${newStage}`);
+    } catch (err) {
+      console.error('Error updating stage:', err);
+    }
+  };
+
+  // Add / Save Site Survey Photos
+  const handleSaveSurveyPhotos = async (urls: string[]) => {
+    const existing = currentProject.siteSurveyImagesUrls || [];
+    const merged = Array.from(new Set([...existing, ...urls]));
+    try {
+      await updateDoc(doc(db, 'projects', currentProject.id), {
+        siteSurveyImagesUrls: merged,
+        siteSurveyCompletedAt: new Date().toISOString()
+      });
+      setPhotoModalType(null);
+      alert("✅ Site survey photos saved successfully!");
+    } catch (err) {
+      console.error("Error saving survey photos:", err);
+    }
+  };
+
+  // Add / Save Installation Proof Photos
+  const handleSaveInstallationPhotos = async (urls: string[]) => {
+    const existing = currentProject.installationImagesUrls || [];
+    const merged = Array.from(new Set([...existing, ...urls]));
+    try {
+      await updateDoc(doc(db, 'projects', currentProject.id), {
+        installationImagesUrls: merged,
+        installationCompletedAt: new Date().toISOString()
+      });
+      setPhotoModalType(null);
+      alert("✅ Installation proof photos saved successfully!");
+    } catch (err) {
+      console.error("Error saving installation photos:", err);
+    }
+  };
+
+  // Task Status Toggle
+  const handleTaskStatusToggle = async (taskId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === 'Completed' ? 'Pending' : currentStatus === 'Pending' ? 'In Progress' : 'Completed';
+    try {
+      await updateDoc(doc(db, 'projectTasks', taskId), { status: nextStatus });
+    } catch (err) {
+      console.error('Error toggling task status:', err);
+    }
+  };
 
   const handleSaveTask = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const payload = {
         ...newTask,
-        projectId: project.id,
+        projectId: currentProject.id,
         updatedAt: serverTimestamp()
       };
 
@@ -159,93 +237,157 @@ export default function ProjectDetails({ project, onBack }: ProjectDetailsProps)
     }
   };
 
-  const handleQuickAssigneeChange = async (taskId: string, assigneeId: string) => {
-    const selected = staffList.find(s => s.id === assigneeId);
-    if (selected) {
-      await updateDoc(doc(db, 'projectTasks', taskId), {
-        assigneeId: selected.id,
-        assigneeName: selected.name,
-        assigneeRole: selected.role
+  const handleSubmitCustomerReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateDoc(doc(db, 'projects', currentProject.id), {
+        rating: starRating,
+        review: reviewText,
+        status: 'Customer Review'
       });
-    } else {
-      await updateDoc(doc(db, 'projectTasks', taskId), {
-        assigneeId: '',
-        assigneeName: '',
-        assigneeRole: ''
-      });
+      alert("⭐ Customer review saved successfully!");
+    } catch (err) {
+      console.error('Error saving customer review:', err);
     }
   };
 
+  const currentStageIndex = PIPELINE_STAGES.indexOf(currentProject.status || 'Initial');
+  const completedTasksCount = tasks.filter(t => t.status === 'Completed').length;
+  const progressPercent = tasks.length > 0 ? Math.round((completedTasksCount / tasks.length) * 100) : 0;
+  const surveyPhotoCount = currentProject.siteSurveyImagesUrls?.length || 0;
+  const installationPhotoCount = currentProject.installationImagesUrls?.length || 0;
+
   return (
-    <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
+    <div className="space-y-6 animate-in slide-in-from-right-6 duration-500 font-sans">
+      {/* Header */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-4">
           <button 
             onClick={onBack}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-100 transition-colors"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-black text-slate-900">{project.customerName}</h1>
-              <span className={cn(
-                "px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-[0.1em] border shadow-sm",
-                project.status === 'Completed' ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-blue-50 text-blue-700 border-blue-100"
-              )}>
-                {project.status}
+              <h1 className="text-2xl font-black text-slate-900">{currentProject.customerName}</h1>
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider border border-emerald-200">
+                {currentProject.status || 'Initial'}
               </span>
             </div>
-            <div className="flex items-center gap-4 text-xs font-bold text-slate-500 uppercase tracking-widest">
-              <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Site PRJ-{project.id.slice(0,4)}</span>
-              <span className="flex items-center gap-1.5"><Sun className="w-3.5 h-3.5 text-emerald-500" /> {project.capacityKw} kWp</span>
+            <div className="flex items-center gap-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400" /> {currentProject.address || 'Site Location'}</span>
+              <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-amber-500" /> {currentProject.capacityKw} kW System</span>
+              <span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-emerald-600" /> Lead: {currentProject.assignedTo || 'Unassigned'}</span>
             </div>
           </div>
         </div>
-        
-        <div className="flex gap-2">
-           <button className="px-4 py-2 border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-2">
-             <AlertTriangle className="w-4 h-4 text-amber-500" /> Report Delay
-           </button>
-           <button 
-             onClick={() => {
-               setEditingTaskId(null);
-               setNewTask({
-                 name: '',
-                 requiredRole: 'Lead Installer',
-                 assigneeId: '',
-                 assigneeName: '',
-                 assigneeRole: '',
-                 start: 0,
-                 duration: 1,
-                 status: 'Pending',
-                 type: 'task',
-                 dependency: ''
-               });
-               setIsTaskModalOpen(true);
-             }}
-             className="px-4 py-2 bg-emerald-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center gap-2"
-           >
-             <Plus className="w-4 h-4" /> Add Task
-           </button>
+
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setPhotoModalType('survey')}
+            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+          >
+            <Camera className="w-4 h-4 text-emerald-400" /> Add Site Photos
+          </button>
+
+          <button 
+            onClick={() => setIsTaskModalOpen(true)}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-emerald-200 flex items-center gap-2 cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4" /> Add Task
+          </button>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="flex overflow-x-auto pb-2 gap-2 no-scrollbar">
+      {/* 10-Stage Pipeline Progression Tracker */}
+      <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-white shadow-xl space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-xs font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+            <Milestone className="w-4 h-4" /> 10-Stage Solar Installation Pipeline Progress
+          </h3>
+          <span className="text-xs font-bold text-slate-300">
+            Stage {currentStageIndex + 1} of 10 ({currentProject.status})
+          </span>
+        </div>
+
+        {/* Pipeline Steps Horizontal Bar */}
+        <div className="grid grid-cols-5 lg:grid-cols-10 gap-2 overflow-x-auto pb-2 no-scrollbar">
+          {PIPELINE_STAGES.map((stage, idx) => {
+            const isCompleted = idx < currentStageIndex;
+            const isCurrent = idx === currentStageIndex;
+
+            return (
+              <button
+                key={stage}
+                onClick={() => handleUpdateStage(stage)}
+                title={`Click to set stage to: ${stage}`}
+                className={cn(
+                  "p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between h-20",
+                  isCurrent 
+                    ? "bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-lg ring-2 ring-emerald-400/40" 
+                    : isCompleted 
+                    ? "bg-slate-800 text-emerald-400 border-emerald-500/30 font-bold" 
+                    : "bg-slate-950/80 text-slate-500 border-slate-800 hover:border-slate-700 font-semibold"
+                )}
+              >
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-black">{idx + 1}</span>
+                  {isCompleted && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                </div>
+                <p className="text-[10px] leading-tight font-extrabold line-clamp-2">{stage}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Customer Info & Financial Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Customer Details</h3>
+          <div className="space-y-1 text-xs">
+            <p className="font-black text-slate-900 text-sm">{currentProject.customerName}</p>
+            {currentProject.phone && <p className="text-slate-600 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {currentProject.phone}</p>}
+            <p className="text-slate-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400" /> {currentProject.address || 'Address on file'}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">System & Specs</h3>
+          <div className="space-y-1 text-xs font-bold text-slate-700">
+            <p><span className="text-slate-400">System Capacity:</span> {currentProject.capacityKw} kW Monocrystalline</p>
+            <p><span className="text-slate-400">Assigned Team:</span> {currentProject.assignedTo || 'Lead Installer'}</p>
+            <p><span className="text-slate-400">Site Proofs:</span> <span className="text-emerald-600 font-black">{surveyPhotoCount} Survey / {installationPhotoCount} Install Photos</span></p>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Financial Ledger</h3>
+          <div className="space-y-1 text-xs font-bold">
+            <p><span className="text-slate-400">Total Project Value:</span> <span className="text-slate-900">₹{currentProject.totalCost?.toLocaleString()}</span></p>
+            <p><span className="text-slate-400">Amount Collected:</span> <span className="text-emerald-600">₹{(currentProject.amountPaid || 0).toLocaleString()}</span></p>
+            <p><span className="text-slate-400">Balance Pending:</span> <span className="text-amber-600">₹{(currentProject.totalCost - (currentProject.amountPaid || 0)).toLocaleString()}</span></p>
+          </div>
+        </div>
+      </div>
+
+      {/* Workspace Tabs */}
+      <div className="flex gap-2 border-b border-slate-100 pb-2 overflow-x-auto">
         {[
-          { id: 'timeline', label: 'Gantt Timeline', icon: Calendar },
-          { id: 'tasks', label: 'Tasks & Assignees', icon: ListTodo },
-          { id: 'resources', label: 'Resource Allocation', icon: Users },
+          { id: 'pipeline', label: `1. Tasks & Workflow (${completedTasksCount}/${tasks.length})`, icon: ListTodo },
+          { id: 'photos', label: `📷 2. Site Survey & Installation Proofs (${surveyPhotoCount + installationPhotoCount})`, icon: Camera },
+          { id: 'team', label: '3. Assigned Team', icon: Users },
+          { id: 'review', label: '4. Customer Review & Ratings', icon: Star },
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              "flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap",
+              "px-4 py-2 rounded-full text-xs font-extrabold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
               activeTab === tab.id 
                 ? "bg-slate-900 text-white shadow-md" 
-                : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+                : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
             )}
           >
             <tab.icon className="w-4 h-4" />
@@ -254,490 +396,367 @@ export default function ProjectDetails({ project, onBack }: ProjectDetailsProps)
         ))}
       </div>
 
-      {/* TAB 1: GANTT TIMELINE */}
-      {activeTab === 'timeline' && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
-          <div className="min-w-[800px]">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-black text-slate-900">Project Gantt Chart</h3>
-                <p className="text-sm text-slate-500 font-medium mt-1">Visualize critical path, required roles, and assigned employee schedule.</p>
-              </div>
-              <div className="flex gap-4 text-xs font-bold uppercase tracking-widest text-slate-500">
-                <span className="flex items-center gap-1.5"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div> Completed</span>
-                <span className="flex items-center gap-1.5"><div className="w-3 h-3 bg-blue-500 rounded-sm"></div> In Progress</span>
-                <span className="flex items-center gap-1.5"><div className="w-3 h-3 bg-amber-500 rounded-sm"></div> Delayed</span>
-                <span className="flex items-center gap-1.5"><div className="w-3 h-3 bg-slate-200 rounded-sm"></div> Pending</span>
+      {/* TAB 1: TASKS & PROGRESSION */}
+      {activeTab === 'pipeline' && (
+        <div className="space-y-4">
+          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+            <div className="space-y-1">
+              <h4 className="text-xs font-black uppercase text-slate-900">Task Completion Bar</h4>
+              <div className="w-64 bg-slate-100 rounded-full h-3 overflow-hidden">
+                <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
               </div>
             </div>
+            <span className="text-xs font-black text-emerald-600">{progressPercent}% Completed ({completedTasksCount}/{tasks.length} Tasks)</span>
+          </div>
 
-            <div className="relative mt-8">
-              {/* Timeline Header (Days) */}
-              <div className="flex ml-56 border-b border-slate-100 pb-2 mb-4">
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <div key={i} className="flex-1 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest border-l border-slate-100">
-                    Day {i + 1}
-                  </div>
-                ))}
-              </div>
-
-              {/* Tasks */}
-              <div className="space-y-4">
-                {tasks.map(task => (
-                  <div key={task.id} className="flex items-center group">
-                    <div className="w-56 shrink-0 pr-4">
-                      <div className="text-xs font-bold text-slate-700 truncate" title={task.name}>
-                        {task.type === 'milestone' ? (
-                          <span className="flex items-center gap-1.5 text-indigo-600 font-black"><Milestone className="w-3 h-3" /> {task.name}</span>
-                        ) : task.name}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
-                          {task.requiredRole || 'Requirement'}
-                        </span>
-                        {task.assigneeName && (
-                          <span className="text-[9px] font-medium text-slate-500 truncate flex items-center gap-1">
-                            <UserCheck className="w-3 h-3 text-emerald-600" /> {task.assigneeName}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex-1 flex relative h-8 bg-slate-50 rounded-lg overflow-hidden border border-slate-100">
-                      {/* Grid lines */}
-                      <div className="absolute inset-0 flex">
-                        {Array.from({ length: 20 }).map((_, i) => (
-                          <div key={i} className="flex-1 border-l border-slate-100/50"></div>
-                        ))}
-                      </div>
-                      
-                      {/* Task Bar */}
-                      {task.type === 'task' ? (
-                        <div 
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-widest border-b border-slate-100">
+                  <th className="p-4">Task Name</th>
+                  <th className="p-4">Required Role</th>
+                  <th className="p-4">Assigned Staff</th>
+                  <th className="p-4 text-center">Status</th>
+                  <th className="p-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {tasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-slate-400 font-bold">
+                      No tasks generated yet. Click "+ Add Project Task" to create custom workflow jobs!
+                    </td>
+                  </tr>
+                ) : (
+                  tasks.map(t => (
+                    <tr key={t.id} className="hover:bg-slate-50/50">
+                      <td className="p-4 font-black text-slate-900">{t.name}</td>
+                      <td className="p-4 text-emerald-700 font-bold">{t.requiredRole}</td>
+                      <td className="p-4 font-semibold text-slate-700">{t.assigneeName || 'Unassigned'}</td>
+                      <td className="p-4 text-center">
+                        <button
+                          onClick={() => handleTaskStatusToggle(t.id, t.status)}
                           className={cn(
-                            "absolute top-1.5 bottom-1.5 rounded-md shadow-sm transition-all group-hover:scale-[1.02] z-10 flex items-center justify-between text-[10px] font-black text-white px-2 overflow-hidden",
-                            task.status === 'Completed' ? "bg-emerald-500" :
-                            task.status === 'In Progress' ? "bg-blue-500" :
-                            task.delay ? "bg-amber-500" : "bg-slate-400 text-white"
+                            "px-3 py-1 rounded-full text-[10px] font-black uppercase border transition-all cursor-pointer",
+                            t.status === 'Completed' ? "bg-emerald-100 text-emerald-800 border-emerald-200" :
+                            t.status === 'In Progress' ? "bg-blue-100 text-blue-800 border-blue-200" :
+                            "bg-amber-50 text-amber-800 border-amber-200"
                           )}
-                          style={{
-                            left: `${(task.start / 20) * 100}%`,
-                            width: `${(task.duration / 20) * 100}%`
-                          }}
-                          title={`${task.name} (${task.assigneeName || 'Unassigned'})`}
                         >
-                          <span className="truncate">{task.assigneeName || task.requiredRole}</span>
-                          {task.delay && <AlertTriangle className="w-3 h-3 shrink-0 ml-1" />}
-                        </div>
-                      ) : (
-                        <div 
-                          className="absolute top-1/2 -translate-y-1/2 z-10"
-                          style={{ left: `${(task.start / 20) * 100}%` }}
-                        >
-                          <div className="w-3.5 h-3.5 bg-indigo-600 rotate-45 transform origin-center border-2 border-white shadow-sm" title={task.name} />
-                        </div>
-                      )}
+                          {t.status}
+                        </button>
+                      </td>
+                      <td className="p-4 text-center">
+                        <button onClick={() => handleDeleteTask(t.id)} className="p-1.5 text-slate-300 hover:text-red-600 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: SITE SURVEY & INSTALLATION PROOFS (MANDATORY REQUIREMENT) */}
+      {activeTab === 'photos' && (
+        <div className="space-y-8 animate-in fade-in duration-300">
+          {/* SECTION 1: SITE SURVEY PHOTOS */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <div>
+                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-black rounded-full uppercase tracking-wider">
+                  Requirement #1: Site Survey
+                </span>
+                <h3 className="text-lg font-black text-slate-900 mt-1 flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-blue-600" />
+                  Site Survey & Structural Assessment Proofs ({surveyPhotoCount})
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Uploaded roof assessment, shade-free area, and electrical panel inspection photos.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleSaveSurveyPhotos(SAMPLE_SURVEY_PHOTOS)}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Auto-Load Survey Proofs
+                </button>
+                <button
+                  onClick={() => setPhotoModalType('survey')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <Upload className="w-3.5 h-3.5" /> Upload Photos
+                </button>
+              </div>
+            </div>
+
+            {/* Photo Grid */}
+            {surveyPhotoCount === 0 ? (
+              <div className="p-10 border-2 border-dashed border-slate-200 rounded-2xl text-center space-y-3 bg-slate-50/50">
+                <Camera className="w-10 h-10 text-slate-300 mx-auto" />
+                <div>
+                  <p className="text-xs font-black text-slate-700">No Site Survey Photos Uploaded Yet</p>
+                  <p className="text-[11px] text-slate-400 font-medium">Click "Auto-Load Survey Proofs" or upload roof angle & meter photos.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {currentProject.siteSurveyImagesUrls?.map((img, idx) => (
+                  <div key={idx} className="group relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video shadow-sm">
+                    <img src={img} alt={`Survey Photo ${idx+1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-90 group-hover:opacity-100" />
+                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <button onClick={() => setPreviewImage(img)} className="p-2 bg-white/90 text-slate-900 rounded-full font-bold text-xs hover:bg-white transition-colors">
+                        <Eye className="w-4 h-4" />
+                      </button>
                     </div>
+                    <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-slate-900/80 backdrop-blur-xs text-white text-[9px] font-black rounded-md">
+                      Survey Photo #{idx + 1}
+                    </span>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 2: INSTALLATION COMPLETED PHOTOS */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <div>
+                <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider">
+                  Requirement #2: Post-Installation
+                </span>
+                <h3 className="text-lg font-black text-slate-900 mt-1 flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  Installation Completed Verification Proofs ({installationPhotoCount})
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Uploaded mounted panel structure, inverter wiring, earthing chamber, and net meter photos.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleSaveInstallationPhotos(SAMPLE_INSTALLATION_PHOTOS)}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Auto-Load Install Proofs
+                </button>
+                <button
+                  onClick={() => setPhotoModalType('installation')}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <Upload className="w-3.5 h-3.5" /> Upload Photos
+                </button>
+              </div>
+            </div>
+
+            {/* Photo Grid */}
+            {installationPhotoCount === 0 ? (
+              <div className="p-10 border-2 border-dashed border-slate-200 rounded-2xl text-center space-y-3 bg-slate-50/50">
+                <CheckCircle2 className="w-10 h-10 text-slate-300 mx-auto" />
+                <div>
+                  <p className="text-xs font-black text-slate-700">No Installation Verification Photos Uploaded Yet</p>
+                  <p className="text-[11px] text-slate-400 font-medium">Click "Auto-Load Install Proofs" or upload panel mounting & wiring photos.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {currentProject.installationImagesUrls?.map((img, idx) => (
+                  <div key={idx} className="group relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video shadow-sm">
+                    <img src={img} alt={`Installation Photo ${idx+1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-90 group-hover:opacity-100" />
+                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <button onClick={() => setPreviewImage(img)} className="p-2 bg-white/90 text-slate-900 rounded-full font-bold text-xs hover:bg-white transition-colors">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-emerald-600 text-white text-[9px] font-black rounded-md">
+                      Install Proof #{idx + 1}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: ASSIGNED TEAM */}
+      {activeTab === 'team' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {staffList.map(staff => (
+            <div key={staff.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center font-black text-sm">
+                {staff.name.charAt(0)}
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-900">{staff.name}</p>
+                <p className="text-[11px] font-bold text-emerald-600">{staff.role}</p>
+                <p className="text-[10px] text-slate-400 font-medium">{staff.team}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* TAB 4: CUSTOMER REVIEW & RATING */}
+      {activeTab === 'review' && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm max-w-2xl mx-auto space-y-6">
+          <div className="text-center space-y-1">
+            <h3 className="text-lg font-black text-slate-900">Stage 10: Customer Review & Rating</h3>
+            <p className="text-xs text-slate-500 font-medium">Record final customer feedback and star ratings upon commissioning.</p>
+          </div>
+
+          <form onSubmit={handleSubmitCustomerReview} className="space-y-4">
+            <div className="flex items-center justify-center gap-2 py-3 bg-slate-50 rounded-2xl border border-slate-100">
+              {[1, 2, 3, 4, 5].map(star => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setStarRating(star)}
+                  className="p-1 cursor-pointer transition-transform hover:scale-125"
+                >
+                  <Star className={cn("w-7 h-7", star <= starRating ? "text-amber-400 fill-amber-400" : "text-slate-300")} />
+                </button>
+              ))}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Customer Review & Testimonial *</label>
+              <textarea
+                rows={4}
+                required
+                value={reviewText}
+                onChange={e => setReviewText(e.target.value)}
+                placeholder="Enter customer feedback regarding installation speed, system output, and installer behavior..."
+                className="w-full p-3 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+
+            <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-emerald-200">
+              Submit Final Customer Review
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* PHOTO UPLOAD MODAL FOR SITE SURVEY / INSTALLATION COMPLETED */}
+      {photoModalType && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 font-sans text-white">
+            <div className="p-5 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
+              <div>
+                <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-black rounded-full border border-emerald-500/20 uppercase tracking-widest">
+                  {photoModalType === 'survey' ? 'Site Survey Upload' : 'Installation Verification'}
+                </span>
+                <h3 className="text-lg font-black text-white mt-1">
+                  {photoModalType === 'survey' ? '📷 Site Survey Inspection Photos' : '📷 Installation Completion Proof Photos'}
+                </h3>
+              </div>
+              <button onClick={() => setPhotoModalType(null)} className="text-slate-400 hover:text-white p-2 text-xl font-bold">&times;</button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-300 font-medium">
+                {photoModalType === 'survey'
+                  ? 'Please attach or load site survey photos (roof angle, shadow-free space, electrical meter box).'
+                  : 'Please attach or load installation completion photos (mounted panel array, inverter wiring, earthing chamber).'}
+              </p>
+
+              <div className="p-8 border-2 border-dashed border-slate-700 hover:border-emerald-500 rounded-2xl text-center space-y-2 bg-slate-950/60 transition-colors">
+                <Upload className="w-8 h-8 text-emerald-400 mx-auto" />
+                <p className="text-xs font-bold text-slate-200">Drag & Drop Field Inspection Photos</p>
+                <p className="text-[10px] text-slate-400">JPG, PNG up to 10MB each</p>
+              </div>
+
+              <div className="pt-2 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (photoModalType === 'survey') handleSaveSurveyPhotos(SAMPLE_SURVEY_PHOTOS);
+                    else handleSaveInstallationPhotos(SAMPLE_INSTALLATION_PHOTOS);
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 fill-slate-950" />
+                  Attach Preset High-Res Field Photos & Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPhotoModalType(null)}
+                  className="w-full py-2.5 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: TASKS & ASSIGNEES BREAKDOWN */}
-      {activeTab === 'tasks' && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-            <div>
-              <h3 className="text-lg font-black text-slate-900">Task Breakdown & Role-Based Assignee Selector</h3>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">Tasks auto-filter available employees based on required skill set.</p>
-            </div>
-            <button 
-              onClick={() => {
-                setEditingTaskId(null);
-                setNewTask({
-                  name: '',
-                  requiredRole: 'Lead Installer',
-                  assigneeId: '',
-                  assigneeName: '',
-                  assigneeRole: '',
-                  start: 0,
-                  duration: 1,
-                  status: 'Pending',
-                  type: 'task',
-                  dependency: ''
-                });
-                setIsTaskModalOpen(true);
-              }}
-              className="text-emerald-600 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 hover:underline bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200/60 w-fit"
-            >
-              <Plus className="w-4 h-4" /> Add Custom Task
+      {/* FULLSCREEN IMAGE PREVIEW MODAL */}
+      {previewImage && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-[200] flex items-center justify-center p-4">
+          <div className="relative max-w-4xl w-full">
+            <button onClick={() => setPreviewImage(null)} className="absolute -top-12 right-0 p-2 text-white hover:text-emerald-400 font-bold text-xl">
+              <X className="w-8 h-8" />
             </button>
-          </div>
-
-          <div className="space-y-3">
-            {tasks.map(task => {
-              const reqRole = task.requiredRole || 'General Staff';
-              const matchingEmployees = staffList.filter(e => 
-                e.role.toLowerCase().includes(reqRole.toLowerCase()) || 
-                reqRole.toLowerCase().includes(e.role.toLowerCase())
-              );
-
-              return (
-                <div key={task.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-emerald-200 transition-colors group bg-slate-50/50 gap-4">
-                  <div className="flex items-start gap-4 flex-1">
-                    <div className="mt-1 shrink-0">
-                      {task.status === 'Completed' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <Clock className="w-5 h-5 text-slate-400" />}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="font-bold text-slate-900 text-sm">{task.name}</h4>
-                        {task.type === 'milestone' && (
-                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase rounded border border-indigo-100 flex items-center gap-1">
-                            <Milestone className="w-3 h-3" /> Milestone
-                          </span>
-                        )}
-                        <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-bold rounded">
-                          Required: {reqRole}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-slate-500">
-                        <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-400" /> Day {task.start + 1} - Day {task.start + task.duration}</span>
-                        {task.dependency && (
-                          <span className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                            <GitCommit className="w-3 h-3" /> {task.dependency}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Assignee Dropdown & Actions */}
-                  <div className="flex flex-wrap items-center gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/60">
-                    {/* Role Filtered Employee Dropdown */}
-                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-sm">
-                      <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <select
-                        className="text-xs font-bold text-slate-800 bg-transparent outline-none cursor-pointer max-w-[170px] truncate"
-                        value={task.assigneeId || ''}
-                        onChange={(e) => handleQuickAssigneeChange(task.id, e.target.value)}
-                        title={`Select employee with role '${reqRole}'`}
-                      >
-                        <option value="">-- Assign Employee --</option>
-                        <optgroup label={`Matching Requirement (${reqRole})`}>
-                          {matchingEmployees.map(emp => (
-                            <option key={emp.id} value={emp.id}>
-                              {emp.name} ({emp.role})
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Other Company Staff">
-                          {staffList.filter(e => !matchingEmployees.some(m => m.id === e.id)).map(emp => (
-                            <option key={emp.id} value={emp.id}>
-                              {emp.name} - {emp.role}
-                            </option>
-                          ))}
-                        </optgroup>
-                      </select>
-                    </div>
-
-                    {/* Status Dropdown */}
-                    <select 
-                      className="text-xs font-bold uppercase tracking-wider bg-white border border-slate-200 rounded-lg px-3 py-1.5 outline-none focus:border-emerald-500 shadow-sm"
-                      value={task.status}
-                      onChange={async (e) => {
-                        await updateDoc(doc(db, 'projectTasks', task.id), { status: e.target.value });
-                      }}
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="In Progress">In Progress</option>
-                      <option value="Completed">Completed</option>
-                    </select>
-
-                    <button 
-                      onClick={() => {
-                        setEditingTaskId(task.id);
-                        setNewTask({
-                          name: task.name,
-                          requiredRole: task.requiredRole || 'Lead Installer',
-                          assigneeId: task.assigneeId || '',
-                          assigneeName: task.assigneeName || '',
-                          assigneeRole: task.assigneeRole || '',
-                          start: task.start,
-                          duration: task.duration,
-                          status: task.status,
-                          type: task.type,
-                          dependency: task.dependency || ''
-                        });
-                        setIsTaskModalOpen(true);
-                      }} 
-                      className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-slate-100 rounded-lg transition-colors"
-                      title="Edit Task"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteTask(task.id)} 
-                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-lg transition-colors"
-                      title="Delete Task"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+            <img src={previewImage} alt="Site Photo Preview" className="w-full h-auto max-h-[85vh] object-contain rounded-2xl border border-slate-800 shadow-2xl" />
           </div>
         </div>
       )}
 
-      {/* TAB 3: RESOURCE ALLOCATION */}
-      {activeTab === 'resources' && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-black text-slate-900">Resource & Staff Allocation</h3>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">Assigned staff personnel and requirement coverage for this project.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {staffList.map(staff => {
-              const assignedTasks = tasks.filter(t => t.assigneeId === staff.id);
-              const isAssigned = assignedTasks.length > 0;
-
-              return (
-                <div 
-                  key={staff.id} 
-                  className={cn(
-                    "p-4 border rounded-xl flex items-start gap-4 transition-all",
-                    isAssigned ? "border-emerald-200 bg-emerald-50/20 shadow-sm" : "border-slate-100 bg-white"
-                  )}
-                >
-                  <div className={cn(
-                    "w-12 h-12 rounded-full flex items-center justify-center font-black text-sm shrink-0 border shadow-sm",
-                    isAssigned ? "bg-emerald-600 text-white border-emerald-500" : "bg-slate-100 text-slate-600 border-slate-200"
-                  )}>
-                    {staff.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-slate-900 text-sm truncate">{staff.name}</h4>
-                      <span className={cn(
-                        "text-[9px] font-black uppercase px-2 py-0.5 rounded-full border",
-                        isAssigned ? "bg-emerald-100 text-emerald-800 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"
-                      )}>
-                        {isAssigned ? `${assignedTasks.length} Task(s)` : 'Available'}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-600 font-bold mt-0.5">{staff.role}</p>
-                    {staff.team && <p className="text-[10px] text-slate-400 font-medium">{staff.team}</p>}
-
-                    {isAssigned ? (
-                      <div className="mt-2 space-y-1">
-                        {assignedTasks.map(t => (
-                          <div key={t.id} className="text-[10px] font-semibold text-slate-700 bg-white px-2 py-1 rounded border border-slate-200 flex items-center justify-between">
-                            <span className="truncate">{t.name}</span>
-                            <span className="text-[9px] font-bold text-emerald-600 shrink-0 ml-1">{t.status}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[10px] text-slate-400 italic mt-2">No tasks assigned for this project yet.</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Add/Edit Task Modal */}
+      {/* ADD TASK MODAL */}
       {isTaskModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                {editingTaskId ? <Edit2 className="w-5 h-5 text-emerald-600" /> : <Plus className="w-5 h-5 text-emerald-600" />} 
-                {editingTaskId ? 'Edit Project Task' : 'Add New Project Task'}
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 font-sans">
+            <div className="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <ListTodo className="w-5 h-5 text-emerald-600" /> Add Project Task
               </h3>
               <button onClick={() => setIsTaskModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
             </div>
 
             <form onSubmit={handleSaveTask} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Task Name</label>
-                <input 
-                  required 
-                  type="text" 
-                  value={newTask.name} 
-                  onChange={e => setNewTask({...newTask, name: e.target.value})} 
-                  className="w-full px-4 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none font-medium"
-                  placeholder="e.g. Inverter Installation & Earthing"
-                />
-              </div>
-
-              {/* Requirement & Employee Assignee Dropdown */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1 flex items-center justify-between">
-                    <span>1. Required Skill / Role</span>
-                    <span className="text-[10px] text-emerald-600 font-bold">Requirement Filter</span>
-                  </label>
-                  <select 
-                    value={newTask.requiredRole} 
-                    onChange={e => {
-                      const newRole = e.target.value;
-                      setNewTask(prev => {
-                        // Check if current assignee matches new requirement
-                        const matching = staffList.find(s => s.role.toLowerCase().includes(newRole.toLowerCase()));
-                        return {
-                          ...prev,
-                          requiredRole: newRole,
-                          assigneeId: matching ? matching.id : prev.assigneeId,
-                          assigneeName: matching ? matching.name : prev.assigneeName,
-                          assigneeRole: matching ? matching.role : prev.assigneeRole,
-                        };
-                      });
-                    }} 
-                    className="w-full px-3 py-2 text-xs font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none bg-white"
-                  >
-                    {SOLAR_ROLES.map(role => (
-                      <option key={role} value={role}>{role}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                      2. Assignee Employee Dropdown
-                    </label>
-                    <label className="flex items-center gap-1 text-[10px] font-bold text-slate-500 cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={showAllStaffInModal} 
-                        onChange={e => setShowAllStaffInModal(e.target.checked)} 
-                        className="rounded border-slate-300 text-emerald-600"
-                      />
-                      Show All Staff
-                    </label>
-                  </div>
-
-                  <select 
-                    value={newTask.assigneeId}
-                    onChange={e => {
-                      const selectedEmp = staffList.find(s => s.id === e.target.value);
-                      if (selectedEmp) {
-                        setNewTask({
-                          ...newTask,
-                          assigneeId: selectedEmp.id,
-                          assigneeName: selectedEmp.name,
-                          assigneeRole: selectedEmp.role
-                        });
-                      } else {
-                        setNewTask({
-                          ...newTask,
-                          assigneeId: '',
-                          assigneeName: '',
-                          assigneeRole: ''
-                        });
-                      }
-                    }}
-                    className="w-full px-3 py-2 text-xs font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none bg-white text-slate-900"
-                  >
-                    <option value="">-- Select Employee --</option>
-                    {filteredStaff.map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name} — {emp.role} ({emp.team || 'Staff'})
-                      </option>
-                    ))}
-                  </select>
-                  {filteredStaff.length === 0 && (
-                    <p className="text-[10px] text-amber-600 font-semibold mt-1">
-                      No exact match for '{newTask.requiredRole}'. Check 'Show All Staff' to assign any employee.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Start Day</label>
-                  <input 
-                    required 
-                    type="number" 
-                    min="0" 
-                    value={newTask.start} 
-                    onChange={e => setNewTask({...newTask, start: parseInt(e.target.value) || 0})} 
-                    className="w-full px-4 py-2 text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Duration (Days)</label>
-                  <input 
-                    required 
-                    type="number" 
-                    min="1" 
-                    value={newTask.duration} 
-                    onChange={e => setNewTask({...newTask, duration: parseInt(e.target.value) || 1})} 
-                    className="w-full px-4 py-2 text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Task Type</label>
-                  <select 
-                    value={newTask.type} 
-                    onChange={e => setNewTask({...newTask, type: e.target.value as any})} 
-                    className="w-full px-3 py-2 text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                  >
-                    <option value="task">Task</option>
-                    <option value="milestone">Milestone</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Status</label>
-                  <select 
-                    value={newTask.status} 
-                    onChange={e => setNewTask({...newTask, status: e.target.value as any})} 
-                    className="w-full px-3 py-2 text-xs font-bold border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none"
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Task Description *</label>
+                <input required type="text" value={newTask.name} onChange={e => setNewTask({ ...newTask, name: e.target.value })} placeholder="e.g. Earthing & AC DB Connection" className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500/20" />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Dependency (Optional)</label>
-                <input 
-                  type="text" 
-                  value={newTask.dependency} 
-                  onChange={e => setNewTask({...newTask, dependency: e.target.value})} 
-                  className="w-full px-4 py-2 text-xs font-medium border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none" 
-                  placeholder="e.g. Site Survey & Structural Assessment" 
-                />
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Required Role</label>
+                <select value={newTask.requiredRole} onChange={e => setNewTask({ ...newTask, requiredRole: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/20">
+                  <option value="Lead Installer">Lead Installer</option>
+                  <option value="Electrician">Electrician</option>
+                  <option value="Survey Engineer">Survey Engineer</option>
+                  <option value="Design Engineer">Design Engineer</option>
+                  <option value="Compliance Officer">Compliance Officer</option>
+                </select>
               </div>
 
-              <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setIsTaskModalOpen(false)} className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 transition-colors">Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 shadow-md transition-colors">Save Task</button>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Assign Staff</label>
+                <select value={newTask.assigneeId} onChange={e => {
+                  const s = staffList.find(x => x.id === e.target.value);
+                  setNewTask({ ...newTask, assigneeId: e.target.value, assigneeName: s?.name || '', assigneeRole: s?.role || '' });
+                }} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/20">
+                  <option value="">-- Select Team Member --</option>
+                  {staffList.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
+                </select>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button type="button" onClick={() => setIsTaskModalOpen(false)} className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2.5 bg-emerald-600 text-white font-extrabold rounded-xl text-xs hover:bg-emerald-700 shadow-md shadow-emerald-200">Save Task</button>
               </div>
             </form>
           </div>
         </div>
       )}
-
     </div>
   );
 }

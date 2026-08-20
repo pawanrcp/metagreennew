@@ -30,7 +30,17 @@ export interface Lead {
   isDeleted?: boolean;
 }
 
-export type ProjectStatus = 'Planning' | 'In Progress' | 'Installation' | 'Testing' | 'Completed';
+export type ProjectStatus = 
+  | 'Initial'
+  | 'In Process'
+  | 'Assigned Installation'
+  | 'Installation Complete'
+  | 'Verification'
+  | 'Net Meter Installed'
+  | 'Subsidy Pending'
+  | 'Subsidy Released'
+  | 'Completed'
+  | 'Customer Review';
 
 export interface Project {
   id: string;
@@ -40,8 +50,23 @@ export interface Project {
   capacityKw: number;
   totalCost: number;
   amountPaid: number;
+  priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  assignedTo?: string;
+  assignedToId?: string;
+  rating?: number;
+  review?: string;
+  siteSurveyImagesUrls?: string[];
+  installationImagesUrls?: string[];
+  siteSurveyCompletedAt?: any;
+  installationCompletedAt?: any;
+  history?: Array<{ stage: string; timestamp: any; note?: string }>;
   installDate?: any;
   createdAt: any;
+  isDeleted?: boolean;
 }
 
 export interface ProjectTask {
@@ -97,12 +122,22 @@ export type UserRole =
   | 'Customer Support'
   | 'Customer'
   | 'Vendor'
+  | 'Vendor Employee'
   | 'Auditor';
+
+export interface RolePermissions {
+  canAcceptPOs?: boolean;
+  canManageTasks?: boolean;
+  canUploadPhotos?: boolean;
+  canViewInvoices?: boolean;
+  canManageTeam?: boolean;
+}
 
 export interface AuthenticatedUser {
   name: string;
   email: string;
   role: UserRole;
+  permissions?: RolePermissions;
 }
 
 export type ViewType = 'dashboard' | 'crm' | 'site-survey' | 'solar-design' | 'proposal' | 'quotation' | 'subsidy' | 'procurement' | 'projects' | 'inventory' | 'work-orders' | 'finance' | 'support' | 'warranty' | 'documents' | 'compliance' | 'hr' | 'vendors' | 'reports' | 'portal' | 'settings';

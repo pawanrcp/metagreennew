@@ -28,7 +28,10 @@ import { useLogos } from '@/src/context/LogoContext';
 
 import { METAGREEN_LOGO_BASE64 } from '@/src/assets/logoDataUrl';
 
-type TabType = 'logos' | 'users' | 'roles' | 'states' | 'products' | 'approvals' | 'audit';
+import SubscriptionManagement from './SubscriptionManagement';
+import { CreditCard } from 'lucide-react';
+
+type TabType = 'logos' | 'subscriptions' | 'users' | 'roles' | 'states' | 'products' | 'approvals' | 'audit';
 
 const USER_ROLES = [
   'Super Admin',
@@ -48,7 +51,10 @@ const USER_ROLES = [
   'Auditor'
 ];
 
+import { useAuth } from '@/src/context/AuthContext';
+
 export default function MasterSettings() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('logos');
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [usersList, setUsersList] = useState<any[]>([]);
@@ -56,6 +62,8 @@ export default function MasterSettings() {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const { logos, updateLogos, resetLogos } = useLogos();
+
+  const isGlobalAdmin = !user || user.role === 'Super Admin' || user.role === 'Solar Company Admin';
 
   const [companyName, setCompanyName] = useState(logos.companyName || 'METAGREEN');
   const [tagline, setTagline] = useState(logos.tagline || 'Solar Enterprise ERP');
@@ -159,6 +167,8 @@ export default function MasterSettings() {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'subscriptions':
+        return <SubscriptionManagement />;
       case 'logos':
         return (
           <div className="space-y-6">
@@ -620,6 +630,18 @@ export default function MasterSettings() {
     }
   };
 
+  if (!isGlobalAdmin) {
+    return (
+      <div className="p-8 text-center bg-white border border-red-200 rounded-2xl max-w-xl mx-auto my-12 space-y-4 shadow-md">
+        <ShieldCheck className="w-12 h-12 text-red-500 mx-auto" />
+        <h2 className="text-xl font-black text-slate-900">Access Restricted</h2>
+        <p className="text-xs font-semibold text-slate-600">
+          Master Settings & Subscription Management are strictly restricted to Super Admin / Global Admin roles.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
@@ -634,6 +656,7 @@ export default function MasterSettings() {
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
         {[
           { id: 'logos', label: 'Import Logos & Branding', icon: ImageIcon },
+          { id: 'subscriptions', label: 'Subscription Plans & Trials', icon: CreditCard },
           { id: 'users', label: 'Users', icon: Users },
           { id: 'roles', label: 'Roles & Permissions', icon: ShieldCheck },
           { id: 'states', label: 'States & Taxes', icon: Percent },

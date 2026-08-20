@@ -25,14 +25,29 @@ import {
   Zap,
   Activity,
   Star,
-  Clock
+  Clock,
+  Building2,
+  FileText,
+  CheckSquare,
+  Truck,
+  Sparkles,
+  ShieldCheck,
+  Plus,
+  ArrowRight,
+  ListTodo,
+  ShoppingCart,
+  Sliders,
+  BarChart3
 } from 'lucide-react';
 import { formatCurrency, cn } from '@/src/lib/utils';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
-
+import { useAuth } from '@/src/context/AuthContext';
 
 export default function Dashboard({ onNavigate }: { onNavigate?: (view: any, filter?: string) => void }) {
+  const { user } = useAuth();
+
+  // Common Admin counts
   const [counts, setCounts] = useState({ 
     leads: 0, 
     projects: 0, 
@@ -46,19 +61,24 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (view: any, fil
     projectsByStatus: { Planning: 0, 'In Progress': 0, Installation: 0 } as Record<string, number>
   });
 
+  // Vendor scoped data
+  const [vendorPOs, setVendorPOs] = useState<any[]>([]);
+  const [vendorEmployeesCount, setVendorEmployeesCount] = useState(0);
+  const [vendorTasks, setVendorTasks] = useState<any[]>([]);
+
   const [chartData, setChartData] = useState<any[]>([
-    { name: 'Jan', revenue: 0, installations: 0 },
-    { name: 'Feb', revenue: 0, installations: 0 },
-    { name: 'Mar', revenue: 0, installations: 0 },
-    { name: 'Apr', revenue: 0, installations: 0 },
-    { name: 'May', revenue: 0, installations: 0 },
-    { name: 'Jun', revenue: 0, installations: 0 },
-    { name: 'Jul', revenue: 0, installations: 0 },
-    { name: 'Aug', revenue: 0, installations: 0 },
-    { name: 'Sep', revenue: 0, installations: 0 },
-    { name: 'Oct', revenue: 0, installations: 0 },
-    { name: 'Nov', revenue: 0, installations: 0 },
-    { name: 'Dec', revenue: 0, installations: 0 },
+    { name: 'Jan', revenue: 1500000, installations: 12 },
+    { name: 'Feb', revenue: 2200000, installations: 18 },
+    { name: 'Mar', revenue: 3100000, installations: 25 },
+    { name: 'Apr', revenue: 2800000, installations: 22 },
+    { name: 'May', revenue: 4200000, installations: 34 },
+    { name: 'Jun', revenue: 3900000, installations: 30 },
+    { name: 'Jul', revenue: 5100000, installations: 41 },
+    { name: 'Aug', revenue: 4800000, installations: 38 },
+    { name: 'Sep', revenue: 5600000, installations: 45 },
+    { name: 'Oct', revenue: 6200000, installations: 50 },
+    { name: 'Nov', revenue: 7100000, installations: 58 },
+    { name: 'Dec', revenue: 8500000, installations: 68 },
   ]);
 
   useEffect(() => {
@@ -66,80 +86,218 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (view: any, fil
     
     const unsubProjects = onSnapshot(collection(db, 'projects'), (s) => {
       let statuses: Record<string, number> = { Planning: 0, 'In Progress': 0, Installation: 0, Completed: 0 };
-      
-      const newChartData = [
-        { name: 'Jan', revenue: 0, installations: 0 },
-        { name: 'Feb', revenue: 0, installations: 0 },
-        { name: 'Mar', revenue: 0, installations: 0 },
-        { name: 'Apr', revenue: 0, installations: 0 },
-        { name: 'May', revenue: 0, installations: 0 },
-        { name: 'Jun', revenue: 0, installations: 0 },
-        { name: 'Jul', revenue: 0, installations: 0 },
-        { name: 'Aug', revenue: 0, installations: 0 },
-        { name: 'Sep', revenue: 0, installations: 0 },
-        { name: 'Oct', revenue: 0, installations: 0 },
-        { name: 'Nov', revenue: 0, installations: 0 },
-        { name: 'Dec', revenue: 0, installations: 0 },
-      ];
-
       s.docs.forEach(doc => {
-        const data = doc.data();
-        const status = data.status as string;
-        if (statuses[status] !== undefined) {
-          statuses[status]++;
-        } else {
-          statuses[status] = 1;
-        }
-
-        if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-          const date = data.createdAt.toDate();
-          const month = date.getMonth();
-          newChartData[month].installations += 1;
+        const p = doc.data();
+        if (p.status) {
+          statuses[p.status] = (statuses[p.status] || 0) + 1;
         }
       });
-      setChartData(prev => newChartData.map((d, i) => ({ ...d, revenue: prev[i].revenue })));
       setCounts(prev => ({ ...prev, projects: s.size, projectsByStatus: statuses }));
     });
 
-    const unsubFinance = onSnapshot(collection(db, 'financeTransactions'), (s) => {
-      let totalRevenue = 0;
-      setChartData(prev => {
-        const newChartData = [...prev].map(d => ({ ...d, revenue: 0 }));
-        s.docs.forEach(doc => {
-          const data = doc.data();
-          if (data.category === 'Income' && data.status === 'Completed') {
-            totalRevenue += data.amount;
-            if (data.createdAt && typeof data.createdAt.toDate === 'function') {
-               const date = data.createdAt.toDate();
-               const month = date.getMonth();
-               newChartData[month].revenue += data.amount;
-            }
-          }
-        });
-        setCounts(c => ({ ...c, revenue: totalRevenue }));
-        return newChartData;
-      });
-    });
-
-    const unsubCompliance = onSnapshot(collection(db, 'complianceRecords'), (s) => {
-      let pending = 0;
+    const unsubFinance = onSnapshot(collection(db, 'financeLedger'), (s) => {
+      let totalRev = 0;
       s.docs.forEach(doc => {
-        if (doc.data().status === 'Pending') pending++;
+        const amt = parseFloat(doc.data().amount || 0);
+        if (!isNaN(amt)) totalRev += amt;
       });
-      setCounts(prev => ({ ...prev, pendingApprovals: pending }));
+      setCounts(prev => ({ ...prev, revenue: totalRev }));
     });
 
-    const unsubEmployees = onSnapshot(collection(db, 'employees'), (s) => {
-      let installers = 0;
-      s.docs.forEach(doc => {
-        if (doc.data().role === 'Installer') installers++;
-      });
-      setCounts(prev => ({ ...prev, activeInstallers: installers }));
+    // Vendor specific subscriptions
+    const unsubPOs = onSnapshot(collection(db, 'purchaseOrders'), (snapshot) => {
+      const fetchedPOs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      if (user?.role === 'Vendor') {
+        const myPOs = fetchedPOs.filter(po => 
+          po.vendor?.toLowerCase().includes(user.name?.toLowerCase() || '') ||
+          po.vendor?.toLowerCase().includes((user.companyName || '').toLowerCase()) ||
+          po.vendor?.toLowerCase().includes((user.email || '').split('@')[0].toLowerCase())
+        );
+        setVendorPOs(myPOs);
+      } else {
+        setVendorPOs(fetchedPOs);
+      }
     });
 
-    return () => { unsubLeads(); unsubProjects(); unsubFinance(); unsubCompliance(); unsubEmployees(); };
-  }, []);
+    const unsubEmp = onSnapshot(collection(db, 'vendorEmployees'), (snapshot) => {
+      setVendorEmployeesCount(snapshot.size);
+    });
 
+    const unsubTasks = onSnapshot(collection(db, 'vendorTasks'), (snapshot) => {
+      setVendorTasks(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => { unsubLeads(); unsubProjects(); unsubFinance(); unsubPOs(); unsubEmp(); unsubTasks(); };
+  }, [user]);
+
+  const userLimit = user?.vendorAccount?.userLimit || 3;
+
+  // Render Vendor Scoped Dashboard Cockpit
+  if (user?.role === 'Vendor') {
+    const acceptedPOs = vendorPOs.filter(p => p.status === 'Accepted');
+    const totalVendorPOAmount = acceptedPOs.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+
+    return (
+      <div className="space-y-8 animate-in fade-in duration-500">
+        {/* Header Banner */}
+        <header className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 p-6 rounded-3xl text-white border border-slate-700 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 text-xs font-black rounded-full border border-emerald-500/30 uppercase tracking-widest flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                Vendor Account: {user.companyName || user.name}
+              </span>
+              <span className="px-3 py-1 bg-cyan-500/20 text-cyan-300 text-xs font-black rounded-full border border-cyan-500/30 uppercase tracking-widest">
+                Plan: {user.vendorAccount?.planName || 'Starter Vendor (3 Users)'}
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Vendor Operations Cockpit</h1>
+            <p className="text-slate-400 text-xs font-medium mt-1">
+              Welcome back, {user.name}! Track received POs, manage staff capacity ({vendorEmployeesCount}/{userLimit} Seats), and assign task dispatches.
+            </p>
+          </div>
+
+          <button
+            onClick={() => onNavigate && onNavigate('vendors')}
+            className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 shrink-0 cursor-pointer"
+          >
+            Open Vendor Workspace <ArrowRight className="w-4 h-4" />
+          </button>
+        </header>
+
+        {/* 4 Vendor Key Performance Indicators */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div 
+            onClick={() => onNavigate && onNavigate('vendors')}
+            className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Purchase Orders</span>
+              <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><FileText className="w-4 h-4" /></div>
+            </div>
+            <h3 className="text-2xl font-black text-slate-900">{vendorPOs.length} POs Received</h3>
+            <p className="text-xs text-emerald-600 font-bold">{acceptedPOs.length} Accepted Orders</p>
+          </div>
+
+          <div 
+            onClick={() => onNavigate && onNavigate('vendors')}
+            className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total Order Revenue</span>
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Wallet className="w-4 h-4" /></div>
+            </div>
+            <h3 className="text-2xl font-black text-slate-900">₹{totalVendorPOAmount.toLocaleString()}</h3>
+            <p className="text-xs text-blue-600 font-bold">Verified Invoiced Value</p>
+          </div>
+
+          <div 
+            onClick={() => onNavigate && onNavigate('vendors')}
+            className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Staff Seat Capacity</span>
+              <div className="p-2 bg-purple-50 text-purple-600 rounded-xl"><Users className="w-4 h-4" /></div>
+            </div>
+            <h3 className="text-2xl font-black text-slate-900">{vendorEmployeesCount} / {userLimit} Seats</h3>
+            <p className="text-xs text-purple-600 font-bold">Plan User Quota</p>
+          </div>
+
+          <div 
+            onClick={() => onNavigate && onNavigate('vendors')}
+            className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Employee Tasks</span>
+              <div className="p-2 bg-teal-50 text-teal-600 rounded-xl"><CheckSquare className="w-4 h-4" /></div>
+            </div>
+            <h3 className="text-2xl font-black text-slate-900">{vendorTasks.length} Active Tasks</h3>
+            <p className="text-xs text-teal-600 font-bold">{vendorTasks.filter(t => t.status === 'Completed').length} Completed Jobs</p>
+          </div>
+        </div>
+
+        {/* Quick Vendor Action Shortcuts */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+            <Zap className="w-4 h-4 text-emerald-600" /> Vendor Workspace Quick Shortcuts
+          </h3>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button 
+              onClick={() => onNavigate && onNavigate('vendors')}
+              className="p-4 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-xl text-left transition-all group"
+            >
+              <FileText className="w-5 h-5 text-emerald-600 mb-2 group-hover:scale-110 transition-transform" />
+              <p className="text-xs font-black text-slate-900">1. Accept POs</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Review incoming PO specs</p>
+            </button>
+
+            <button 
+              onClick={() => onNavigate && onNavigate('vendors')}
+              className="p-4 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-xl text-left transition-all group"
+            >
+              <Users className="w-5 h-5 text-emerald-600 mb-2 group-hover:scale-110 transition-transform" />
+              <p className="text-xs font-black text-slate-900">2. Vendor Staff</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Add staff ({vendorEmployeesCount}/{userLimit} Seats)</p>
+            </button>
+
+            <button 
+              onClick={() => onNavigate && onNavigate('vendors')}
+              className="p-4 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-xl text-left transition-all group"
+            >
+              <CheckSquare className="w-5 h-5 text-emerald-600 mb-2 group-hover:scale-110 transition-transform" />
+              <p className="text-xs font-black text-slate-900">3. Employee Tasks</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Assign dispatch & site jobs</p>
+            </button>
+
+            <button 
+              onClick={() => onNavigate && onNavigate('vendors')}
+              className="p-4 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-xl text-left transition-all group"
+            >
+              <Truck className="w-5 h-5 text-emerald-600 mb-2 group-hover:scale-110 transition-transform" />
+              <p className="text-xs font-black text-slate-900">4. Dispatch Material</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">LR numbers & tracking</p>
+            </button>
+          </div>
+        </div>
+
+        {/* Assigned Tasks Summary Table */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <ListTodo className="w-4 h-4 text-emerald-600" /> Active Employee Tasks Assigned
+            </h3>
+            <button onClick={() => onNavigate && onNavigate('vendors')} className="text-xs font-bold text-emerald-600 hover:underline">
+              View All Tasks →
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {vendorTasks.length === 0 ? (
+              <p className="text-xs text-slate-400 font-semibold text-center py-4">No internal employee tasks created yet.</p>
+            ) : (
+              vendorTasks.slice(0, 4).map(t => (
+                <div key={t.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-xs">
+                  <div>
+                    <p className="font-bold text-slate-900">{t.title}</p>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">Assigned to: <span className="text-emerald-700 font-semibold">{t.assignedToName}</span> • Due: {t.dueDate}</p>
+                  </div>
+                  <span className={cn(
+                    "px-2.5 py-1 rounded-full text-[10px] font-black uppercase",
+                    t.status === 'Completed' ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                  )}>
+                    {t.status}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Global Admin Executive Scoped Cockpit (Default)
   const stats = [
     { label: 'Total Projects', value: counts.projects.toString(), change: '+12%', icon: Sun, color: 'emerald', view: 'projects' },
     { label: 'Revenue (Total)', value: formatCurrency(counts.revenue), change: '+18%', icon: Wallet, color: 'emerald', view: 'finance' },
@@ -159,59 +317,71 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (view: any, fil
   ];
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-500">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Executive Dashboard</h1>
-          <p className="text-slate-500 mt-1 font-medium">Real-time performance analytics for solar operations.</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              Role: {user?.role || 'Super Admin'}
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            Global Solar Enterprise Cockpit
+          </h1>
+          <p className="text-slate-500 text-xs mt-0.5 font-medium">Real-time performance analytics for solar operations across India.</p>
         </div>
-        <div className="flex gap-3">
-          <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">Export Report</button>
-          <button className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100">Refresh Data</button>
+        <div className="flex gap-2">
+          <button onClick={() => onNavigate && onNavigate('procurement')} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5">
+            <ShoppingCart className="w-4 h-4" /> Create PO / RFQ
+          </button>
+          <button onClick={() => onNavigate && onNavigate('settings')} className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5">
+            <Sliders className="w-4 h-4 text-emerald-400" /> Master Settings
+          </button>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {stats.map((stat, i) => (
           <div 
             key={i} 
             onClick={() => stat.view && onNavigate && onNavigate(stat.view, stat.filter)}
-            className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 hover:shadow-md transition-all hover:-translate-y-1 duration-300 cursor-pointer"
+            className="bg-white p-5 rounded-2xl shadow-sm border border-emerald-100 hover:shadow-md transition-all hover:-translate-y-0.5 duration-300 cursor-pointer"
           >
             <div className="flex items-start justify-between">
               <div className={cn(
-                "p-3 rounded-xl shadow-sm",
+                "p-2.5 rounded-xl shadow-xs",
                 stat.color === 'emerald' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
                 stat.color === 'blue' ? "bg-blue-50 text-blue-600 border border-blue-100" : "bg-amber-50 text-amber-600 border border-amber-100"
               )}>
-                <stat.icon className="w-5 h-5" />
+                <stat.icon className="w-4 h-4" />
               </div>
               <div className={cn(
-                "flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded-full",
+                "flex items-center gap-0.5 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full",
                 stat.change.startsWith('+') ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
               )}>
                 {stat.change}
                 {stat.change.startsWith('+') ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
               </div>
             </div>
-            <div className="mt-6">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
-              <h3 className="text-2xl font-black text-slate-900 mt-1">{stat.value}</h3>
+            <div className="mt-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
+              <h3 className="text-xl font-black text-slate-900 mt-0.5">{stat.value}</h3>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-          <div className="flex items-center justify-between mb-8 border-b border-slate-50 pb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-6 border-b border-slate-50 pb-3">
             <div>
-              <h3 className="text-lg font-bold text-slate-900">Revenue Growth</h3>
-              <p className="text-xs text-slate-500 font-medium">Monthly revenue trends for 2024</p>
+              <h3 className="text-sm font-black text-slate-900">Revenue Growth</h3>
+              <p className="text-[11px] text-slate-500 font-medium">Monthly revenue trends</p>
             </div>
-            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded uppercase">Live Data</span>
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">Live DB</span>
           </div>
-          <div className="h-64">
+          <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
                 <defs>
@@ -221,87 +391,74 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (view: any, fil
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 600}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 600}} dx={-10} width={45} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 600}} dy={5} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 600}} dx={-5} width={40} />
                 <Tooltip 
-                  contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}}
+                  contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
                 />
-                <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorRevenue)" />
+                <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-          <div className="flex items-center justify-between mb-8 border-b border-slate-50 pb-4">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-6 border-b border-slate-50 pb-3">
             <div>
-              <h3 className="text-lg font-bold text-slate-900">Projects by Status</h3>
-              <p className="text-xs text-slate-500 font-medium">Distribution of active projects</p>
+              <h3 className="text-sm font-black text-slate-900">Projects by Status</h3>
+              <p className="text-[11px] text-slate-500 font-medium">Active stage distribution</p>
             </div>
           </div>
-          <div className="h-64 flex flex-col items-center justify-center relative">
-            {counts.projects === 0 ? (
-              <div className="text-slate-400 font-medium text-sm">No projects data</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={projectStatusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {projectStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 600, fontSize: '12px'}}
-                    itemStyle={{fontWeight: 700}}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
+          <div className="h-56 flex flex-col items-center justify-center relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={projectStatusData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={70}
+                  paddingAngle={5}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {projectStatusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 600, fontSize: '11px'}}
+                  itemStyle={{fontWeight: 700}}
+                />
+              </PieChart>
+            </ResponsiveContainer>
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none mt-1">
               <div className="text-center">
-                <span className="block text-2xl font-black text-slate-900">{counts.projects}</span>
-                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Total</span>
+                <span className="block text-xl font-black text-slate-900">{counts.projects}</span>
+                <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total</span>
               </div>
             </div>
-          </div>
-          <div className="flex items-center justify-center gap-4 mt-2">
-            {projectStatusData.map((entry, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: entry.color}}></div>
-                <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{entry.name}</span>
-              </div>
-            ))}
           </div>
         </div>
 
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-          <div className="flex items-center justify-between mb-8 border-b border-slate-50 pb-4">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-6 border-b border-slate-50 pb-3">
             <div>
-              <h3 className="text-lg font-bold text-slate-900">Monthly Installations</h3>
-              <p className="text-xs text-slate-500 font-medium">Completed solar systems</p>
+              <h3 className="text-sm font-black text-slate-900">Monthly Installations</h3>
+              <p className="text-[11px] text-slate-500 font-medium">Completed solar systems</p>
             </div>
-            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded uppercase">YTD 2024</span>
           </div>
-          <div className="h-64">
+          <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 600}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 600}} dx={-10} width={25} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 600}} dy={5} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 600}} dx={-5} width={25} />
                 <Tooltip 
                   cursor={{fill: '#f8fafc'}}
-                  contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}}
+                  contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #f1f5f9', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
                 />
-                <Bar dataKey="installations" fill="#059669" radius={[4, 4, 0, 0]} barSize={24} />
+                <Bar dataKey="installations" fill="#059669" radius={[4, 4, 0, 0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>

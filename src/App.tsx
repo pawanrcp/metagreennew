@@ -8,12 +8,14 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import CRM from './components/CRM';
 import Inventory from './components/Inventory';
+import InventoryAndPO from './components/InventoryAndPO';
 import Projects from './components/Projects';
 import CustomerPortal from './components/CustomerPortal';
 import SiteSurvey from './components/SiteSurvey';
 import SolarDesign from './components/SolarDesign';
 import ProposalGenerator from './components/ProposalGenerator';
 import QuotationBuilder from './components/QuotationBuilder';
+import QuoteAndInvoice from './components/QuoteAndInvoice';
 import SubsidyManagement from './components/SubsidyManagement';
 import Procurement from './components/Procurement';
 import WorkOrders from './components/WorkOrders';
@@ -27,6 +29,9 @@ import VendorPortal from './components/VendorPortal';
 import Reporting from './components/Reporting';
 import MasterSettings from './components/MasterSettings';
 import Login from './components/Login';
+import LandingPage from './components/LandingPage';
+import ChangePasswordModal from './components/ChangePasswordModal';
+
 import { ViewType, AuthenticatedUser } from './types';
 import { 
   Sun, 
@@ -41,7 +46,9 @@ import {
   Mail,
   Megaphone,
   X,
-  Sparkles
+  Sparkles,
+  Globe,
+  KeyRound
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -49,8 +56,10 @@ import { LogoProvider, useLogos } from './context/LogoContext';
 import { authService } from './services/auth.service';
 
 function AppContent() {
+  // 1. ALL HOOKS DECLARED TOGETHER AT TOP (Rule of Hooks)
   const { user, loading } = useAuth();
   const { logos } = useLogos();
+
   const [currentView, setView] = useState<ViewType>('dashboard');
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [punchTime, setPunchTime] = useState<Date | null>(null);
@@ -58,6 +67,10 @@ function AppContent() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSupportDrawerOpen, setIsSupportDrawerOpen] = useState(false);
+  const [isLandingPageMode, setIsLandingPageMode] = useState<boolean>(() => {
+    return sessionStorage.getItem('metagreen_landing') === 'true';
+  });
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -66,6 +79,31 @@ function AppContent() {
       document.documentElement.classList.remove('dark');
     }
   }, [isDarkMode]);
+
+  useEffect(() => {
+    if (user) {
+      if (sessionStorage.getItem('metagreen_landing') !== 'true') {
+        setIsLandingPageMode(false);
+      }
+
+      if (user.mustChangePassword || user.isFirstLogin) {
+        setIsChangePasswordModalOpen(true);
+      }
+
+      if (['Vendor', 'Vendor Employee', 'Customer', 'Survey Engineer', 'Design Engineer', 'Installer', 'Procurement Officer', 'Warehouse Manager', 'Auditor'].includes(user.role)) {
+        if (user.role === 'Vendor' || user.role === 'Vendor Employee') setView('vendors');
+        else if (user.role === 'Customer') setView('portal');
+        else if (user.role === 'Survey Engineer') setView('site-survey');
+        else if (user.role === 'Design Engineer') setView('solar-design');
+        else if (user.role === 'Installer') setView('projects');
+        else if (user.role === 'Procurement Officer' || user.role === 'Warehouse Manager') setView('inventory');
+        else if (user.role === 'Auditor') setView('reports');
+        else setView('dashboard');
+      } else {
+        setView('dashboard');
+      }
+    }
+  }, [user]);
 
   const canPunch = user?.role === 'Installer' || 
                    user?.role === 'Survey Engineer' || 
@@ -81,29 +119,34 @@ function AppContent() {
     setPunchTime(new Date());
   };
 
-  useEffect(() => {
-    if (user) {
-      if (['Vendor', 'Customer', 'Survey Engineer', 'Design Engineer', 'Installer', 'Procurement Officer', 'Warehouse Manager', 'Auditor'].includes(user.role)) {
-        if (user.role === 'Vendor') setView('vendors');
-        else if (user.role === 'Customer') setView('portal');
-        else if (user.role === 'Survey Engineer') setView('site-survey');
-        else if (user.role === 'Design Engineer') setView('solar-design');
-        else if (user.role === 'Installer') setView('projects');
-        else if (user.role === 'Procurement Officer' || user.role === 'Warehouse Manager') setView('inventory');
-        else if (user.role === 'Auditor') setView('reports');
-        else setView('dashboard');
-      } else {
-        setView('dashboard');
-      }
-    }
-  }, [user]);
+  const handleViewChange = (view: ViewType, filter?: string) => {
+    setView(view);
+    setCurrentFilter(filter);
+  };
 
+  // 2. CONDITIONAL RENDERING (AFTER ALL HOOKS HAVE BEEN EXECUTED)
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div></div>;
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Loading Meta Green Enterprise OS...</p>
+        </div>
+      </div>
+    );
   }
 
-  if (!user) {
-    return <Login />;
+  // Always open with Public Landing Page on launch unless user enters Dashboard
+  if (isLandingPageMode || !user) {
+    return (
+      <LandingPage 
+        onLoginSuccess={() => {
+          sessionStorage.removeItem('metagreen_landing');
+          setIsLandingPageMode(false);
+          setView('dashboard');
+        }} 
+      />
+    );
   }
 
   if (user.status === 'Pending' || user.status === 'Rejected') {
@@ -115,7 +158,10 @@ function AppContent() {
             Your account is currently {user.status.toLowerCase()}. Please wait for an administrator to review and approve your account.
           </p>
           <button 
-            onClick={() => authService.logout()}
+            onClick={() => {
+              authService.logout();
+              setIsLandingPageMode(true);
+            }}
             className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors"
           >
             Sign Out
@@ -132,7 +178,7 @@ function AppContent() {
       case 'crm':
         return <CRM initialFilter={currentFilter} />;
       case 'inventory':
-        return <Inventory />;
+        return <InventoryAndPO initialTab="po" />;
       case 'projects':
         return <Projects initialFilter={currentFilter} />;
       case 'portal':
@@ -142,13 +188,13 @@ function AppContent() {
       case 'solar-design':
         return <SolarDesign />;
       case 'proposal':
-        return <ProposalGenerator />;
+        return <QuoteAndInvoice initialSubTab="proposal" />;
       case 'quotation':
-        return <QuotationBuilder />;
+        return <QuoteAndInvoice initialSubTab="quotation" />;
       case 'subsidy':
         return <SubsidyManagement />;
       case 'procurement':
-        return <Procurement />;
+        return <InventoryAndPO initialTab="po" />;
       case 'work-orders':
         return <WorkOrders />;
       case 'finance':
@@ -174,14 +220,9 @@ function AppContent() {
     }
   };
 
-  const handleViewChange = (view: ViewType, filter?: string) => {
-    setView(view);
-    setCurrentFilter(filter);
-  };
-
   return (
     <div className="flex flex-col h-screen bg-white font-sans text-slate-800 overflow-hidden relative">
-      {/* Top Navigation - PDF Wireframe Page 12 Header Spec */}
+      {/* Top Navigation Bar */}
       <nav className="h-16 bg-[#0f172a] text-white flex items-center justify-between px-4 md:px-6 shrink-0 z-50 border-b border-slate-800">
         {/* Left: MetaGreen Logo & Title */}
         <div className="flex items-center gap-3 shrink-0">
@@ -202,18 +243,39 @@ function AppContent() {
           </div>
         </div>
 
-        {/* Center: Notice Board Ticker Banner (PDF Wireframe Page 12 Spec) */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-slate-900/90 border border-slate-800 rounded-full text-xs font-bold max-w-xl mx-4 overflow-hidden shadow-inner">
-          <span className="px-2 py-0.5 bg-emerald-500 text-slate-950 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0 animate-pulse">
-            <Megaphone className="w-3 h-3" /> Notice Board
-          </span>
+        {/* Center: Notice Board / Trial Banner */}
+        <div className="hidden lg:flex items-center gap-2 px-3.5 py-1 bg-slate-900/90 border border-slate-800 rounded-full text-xs font-bold max-w-xl mx-4 overflow-hidden shadow-inner">
+          {user?.role === 'Vendor' ? (
+            <span className="px-2.5 py-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0 animate-pulse">
+              <Sparkles className="w-3 h-3 fill-slate-950" /> 7-Day Trial Active
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 bg-emerald-500 text-slate-950 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0 animate-pulse">
+              <Megaphone className="w-3 h-3" /> Notice Board
+            </span>
+          )}
           <div className="truncate text-slate-300 text-[11px] font-medium">
-            <span>📢 Solar Installer Signup Active • PM Surya Ghar Subsidy Sync Live • 70:30 Tax Invoice Split Enabled</span>
+            {user?.role === 'Vendor' ? (
+              <span>⏳ 7-Day Free Trial: 6 Days Remaining • Plan: Starter Vendor (3 Users, 10 GB Storage)</span>
+            ) : (
+              <span>📢 Solar Installer Signup Active • PM Surya Ghar Subsidy Sync Live • 70:30 Tax Invoice Split Enabled</span>
+            )}
           </div>
         </div>
 
-        {/* Right: Actions, Theme Toggle, Profile Settings (PDF Wireframe Spec) */}
+        {/* Right: Actions & Theme Toggle */}
         <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => {
+              sessionStorage.setItem('metagreen_landing', 'true');
+              setIsLandingPageMode(true);
+            }}
+            className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-bold bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 transition-all shadow-xs"
+            title="Switch to Public Landing Page"
+          >
+            <Globe className="w-3.5 h-3.5" /> Landing Page
+          </button>
+
           {canPunch && (
             <button 
               onClick={handlePunch}
@@ -252,7 +314,10 @@ function AppContent() {
 
             {/* Logout Icon */}
             <button 
-              onClick={() => authService.logout()} 
+              onClick={() => {
+                authService.logout();
+                setIsLandingPageMode(true);
+              }}
               className="p-2 hover:bg-slate-800 rounded-full text-slate-300 hover:text-red-400 transition-colors" 
               title="Log out"
             >
@@ -275,7 +340,7 @@ function AppContent() {
         </main>
       </div>
 
-      {/* Floating MetaGreen Support / Contact Us Widget (PDF Wireframe Page 13 Spec) */}
+      {/* Floating MetaGreen Support / Contact Us Widget */}
       <div className="fixed bottom-4 left-4 z-50">
         <button
           onClick={() => setIsSupportDrawerOpen(true)}
@@ -286,7 +351,7 @@ function AppContent() {
         </button>
       </div>
 
-      {/* Support Contact Drawer / Modal (PDF Page 13 Spec) */}
+      {/* Support Contact Drawer / Modal */}
       {isSupportDrawerOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
@@ -379,13 +444,25 @@ function AppContent() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 mt-6">
+              <div className="pt-4 border-t border-slate-100 mt-6 space-y-2">
+                <button 
+                  onClick={() => {
+                    setIsProfileModalOpen(false);
+                    setIsChangePasswordModalOpen(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 font-bold rounded-xl transition-colors text-xs"
+                >
+                  <KeyRound className="w-4 h-4 text-emerald-600" />
+                  Change Account Password
+                </button>
+
                 <button 
                   onClick={() => {
                     setIsProfileModalOpen(false);
                     authService.logout();
+                    setIsLandingPageMode(true);
                   }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold rounded-xl transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold rounded-xl transition-colors text-xs"
                 >
                   <LogOut className="w-4 h-4" />
                   Sign Out of Meta Green
@@ -395,6 +472,14 @@ function AppContent() {
           </div>
         </div>
       )}
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordModalOpen}
+        isFirstLogin={user?.mustChangePassword || user?.isFirstLogin}
+        onClose={() => setIsChangePasswordModalOpen(false)}
+        onSuccess={() => setIsChangePasswordModalOpen(false)}
+      />
     </div>
   );
 }
