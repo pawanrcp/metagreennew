@@ -1,13 +1,26 @@
 import React, { useState } from 'react';
-import { Sparkles, Calculator, Receipt, FileText } from 'lucide-react';
+import { Sparkles, Calculator, Receipt, FileText, Archive } from 'lucide-react';
 import ProposalGenerator from './ProposalGenerator';
 import QuotationBuilder from './QuotationBuilder';
 import InvoiceBuilder from './InvoiceBuilder';
 import TaxInvoiceGenerator from './TaxInvoiceGenerator';
+import GeneratedDocumentsList from './GeneratedDocumentsList';
 import { cn } from '@/src/lib/utils';
 
-export default function QuoteAndInvoice({ initialSubTab }: { initialSubTab?: 'proposal' | 'quotation' | 'invoice' | 'tax-invoice' }) {
-  const [activeSubTab, setActiveSubTab] = useState<'proposal' | 'quotation' | 'invoice' | 'tax-invoice'>(initialSubTab || 'quotation');
+export default function QuoteAndInvoice({ 
+  initialSubTab 
+}: { 
+  initialSubTab?: 'proposal' | 'quotation' | 'invoice' | 'tax-invoice' | 'records' 
+}) {
+  const [activeSubTab, setActiveSubTab] = useState<'proposal' | 'quotation' | 'invoice' | 'tax-invoice' | 'records'>(
+    initialSubTab || 'records'
+  );
+
+  React.useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
@@ -17,23 +30,23 @@ export default function QuoteAndInvoice({ initialSubTab }: { initialSubTab?: 'pr
           <FileText className="w-5 h-5 text-emerald-400" />
           <div>
             <h2 className="text-sm font-black tracking-tight text-white uppercase">Quote & Invoice Hub</h2>
-            <p className="text-[10px] text-slate-400 font-medium">Proposal, Quotation/Estimate, Commercial Invoice & GST Tax Invoice Generators</p>
+            <p className="text-[10px] text-slate-400 font-medium">User-Wise Document History, Estimates, Proposals, Invoices & GST Tax Invoices</p>
           </div>
         </div>
 
-        <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700/80 overflow-x-auto">
+        <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700/80 overflow-x-auto gap-1">
           <button
             type="button"
-            onClick={() => setActiveSubTab('proposal')}
+            onClick={() => setActiveSubTab('records')}
             className={cn(
               "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer shrink-0",
-              activeSubTab === 'proposal'
+              activeSubTab === 'records'
                 ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
                 : "text-slate-300 hover:text-white hover:bg-slate-700/50"
             )}
           >
-            <Sparkles className="w-4 h-4" />
-            <span>Proposal Generator</span>
+            <Archive className="w-4 h-4" />
+            <span>Generated Documents</span>
           </button>
 
           <button
@@ -52,6 +65,20 @@ export default function QuoteAndInvoice({ initialSubTab }: { initialSubTab?: 'pr
 
           <button
             type="button"
+            onClick={() => setActiveSubTab('proposal')}
+            className={cn(
+              "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer shrink-0",
+              activeSubTab === 'proposal'
+                ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
+                : "text-slate-300 hover:text-white hover:bg-slate-700/50"
+            )}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Proposal</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveSubTab('invoice')}
             className={cn(
               "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer shrink-0",
@@ -61,7 +88,7 @@ export default function QuoteAndInvoice({ initialSubTab }: { initialSubTab?: 'pr
             )}
           >
             <FileText className="w-4 h-4" />
-            <span>Invoice</span>
+            <span>Commercial Invoice</span>
           </button>
 
           <button
@@ -75,12 +102,13 @@ export default function QuoteAndInvoice({ initialSubTab }: { initialSubTab?: 'pr
             )}
           >
             <Receipt className="w-4 h-4" />
-            <span>Tax Invoice</span>
+            <span>Tax Invoice (GST)</span>
           </button>
         </div>
       </div>
 
-      {/* Render Active View with Side-by-Side Editor & View */}
+      {/* Render Active View */}
+      {activeSubTab === 'records' && <GeneratedDocumentsList />}
       {activeSubTab === 'proposal' && <ProposalGenerator />}
       {activeSubTab === 'quotation' && <QuotationBuilder />}
       {activeSubTab === 'invoice' && <InvoiceBuilder />}

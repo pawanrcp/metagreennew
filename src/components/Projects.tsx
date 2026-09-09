@@ -75,6 +75,7 @@ export default function Projects({ initialFilter }: { initialFilter?: string }) 
   const [searchTerm, setSearchTerm] = useState(initialFilter || '');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
   const [selectedPriorityFilter, setSelectedPriorityFilter] = useState<string>('ALL');
+  const [statusCategoryFilter, setStatusCategoryFilter] = useState<'ALL' | 'ACTIVE' | 'PENDING' | 'COMPLETED'>('ALL');
   const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
   const [showTrash, setShowTrash] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -143,7 +144,13 @@ export default function Projects({ initialFilter }: { initialFilter?: string }) 
       (project.status || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (project.address || '').toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = selectedStatusFilter === 'ALL' || project.status === selectedStatusFilter;
+    const matchesCategory = 
+      statusCategoryFilter === 'ALL' ? true :
+      statusCategoryFilter === 'ACTIVE' ? ['Initial', 'In Process', 'Assigned Installation', 'Installation Complete'].includes(project.status) :
+      statusCategoryFilter === 'PENDING' ? ['Department Verification', 'Verification', 'Net Meter Installed', 'Subsidy Pending'].includes(project.status) :
+      statusCategoryFilter === 'COMPLETED' ? ['Subsidy Released', 'Completed', 'Customer Review'].includes(project.status) : true;
+
+    const matchesStatus = (selectedStatusFilter === 'ALL' || project.status === selectedStatusFilter) && matchesCategory;
     const matchesPriority = selectedPriorityFilter === 'ALL' || project.priority === selectedPriorityFilter;
 
     // Vendor Strict Isolation: Vendor only sees projects assigned/created for their specific Vendor account
@@ -369,31 +376,88 @@ export default function Projects({ initialFilter }: { initialFilter?: string }) 
         </button>
       </header>
 
-      {/* Top Stat Cards */}
+      {/* Top Stat Cards - Interactive Clickable Filters */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
-          <p className="text-[10px] font-black uppercase text-slate-400">Total Projects</p>
-          <p className="text-2xl font-black text-slate-900">{projects.filter(p => !p.isDeleted).length}</p>
-          <p className="text-[11px] text-slate-500 font-medium">All deployments</p>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setStatusCategoryFilter('ALL');
+            setSelectedStatusFilter('ALL');
+          }}
+          className={cn(
+            "text-left p-4 rounded-2xl border transition-all cursor-pointer space-y-1 group",
+            statusCategoryFilter === 'ALL'
+              ? "bg-slate-900 text-white border-slate-900 ring-2 ring-slate-400/40 shadow-md"
+              : "bg-white border-slate-100 shadow-sm hover:border-slate-300 hover:shadow-md"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <p className={cn("text-[10px] font-black uppercase tracking-wider", statusCategoryFilter === 'ALL' ? "text-slate-300" : "text-slate-400")}>
+              Total Projects
+            </p>
+            {statusCategoryFilter === 'ALL' && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />}
+          </div>
+          <p className={cn("text-2xl font-black", statusCategoryFilter === 'ALL' ? "text-white" : "text-slate-900")}>
+            {projects.filter(p => !p.isDeleted).length}
+          </p>
+          <p className={cn("text-[11px] font-medium", statusCategoryFilter === 'ALL' ? "text-slate-300" : "text-slate-500")}>
+            All deployments (Click to reset)
+          </p>
+        </button>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
-          <p className="text-[10px] font-black uppercase text-blue-500">Active Installations</p>
+        <button
+          type="button"
+          onClick={() => setStatusCategoryFilter(statusCategoryFilter === 'ACTIVE' ? 'ALL' : 'ACTIVE')}
+          className={cn(
+            "text-left p-4 rounded-2xl border transition-all cursor-pointer space-y-1 group",
+            statusCategoryFilter === 'ACTIVE'
+              ? "bg-blue-50 border-blue-300 ring-2 ring-blue-500/40 shadow-md"
+              : "bg-white border-slate-100 shadow-sm hover:border-blue-200 hover:shadow-md"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-wider text-blue-600">Active Installations</p>
+            {statusCategoryFilter === 'ACTIVE' && <span className="w-2 h-2 rounded-full bg-blue-500" />}
+          </div>
           <p className="text-2xl font-black text-blue-600">{activeCount}</p>
-          <p className="text-[11px] text-blue-500 font-medium">In field progress</p>
-        </div>
+          <p className="text-[11px] text-blue-600 font-medium">In field progress (Click to view)</p>
+        </button>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
-          <p className="text-[10px] font-black uppercase text-amber-500">Net Meter / Subsidy Pending</p>
+        <button
+          type="button"
+          onClick={() => setStatusCategoryFilter(statusCategoryFilter === 'PENDING' ? 'ALL' : 'PENDING')}
+          className={cn(
+            "text-left p-4 rounded-2xl border transition-all cursor-pointer space-y-1 group",
+            statusCategoryFilter === 'PENDING'
+              ? "bg-amber-50 border-amber-300 ring-2 ring-amber-500/40 shadow-md"
+              : "bg-white border-slate-100 shadow-sm hover:border-amber-200 hover:shadow-md"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-wider text-amber-600">Net Meter / Subsidy</p>
+            {statusCategoryFilter === 'PENDING' && <span className="w-2 h-2 rounded-full bg-amber-500" />}
+          </div>
           <p className="text-2xl font-black text-amber-600">{pendingCount}</p>
-          <p className="text-[11px] text-amber-500 font-medium">DISCOM & Claims</p>
-        </div>
+          <p className="text-[11px] text-amber-600 font-medium">DISCOM & Claims (Click to view)</p>
+        </button>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-1">
-          <p className="text-[10px] font-black uppercase text-emerald-500">Completed & Reviewed</p>
+        <button
+          type="button"
+          onClick={() => setStatusCategoryFilter(statusCategoryFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
+          className={cn(
+            "text-left p-4 rounded-2xl border transition-all cursor-pointer space-y-1 group",
+            statusCategoryFilter === 'COMPLETED'
+              ? "bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/40 shadow-md"
+              : "bg-white border-slate-100 shadow-sm hover:border-emerald-200 hover:shadow-md"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Completed & Reviewed</p>
+            {statusCategoryFilter === 'COMPLETED' && <span className="w-2 h-2 rounded-full bg-emerald-500" />}
+          </div>
           <p className="text-2xl font-black text-emerald-600">{completedCount}</p>
-          <p className="text-[11px] text-emerald-600 font-medium">100% Finalized</p>
-        </div>
+          <p className="text-[11px] text-emerald-600 font-medium">100% Finalized (Click to view)</p>
+        </button>
       </div>
 
       {/* Control Bar: Search, Filters, View Mode Toggle */}
@@ -577,18 +641,16 @@ export default function Projects({ initialFilter }: { initialFilter?: string }) 
                       return (
                         <div
                           key={project.id}
+                          onClick={() => setSelectedProject(project)}
                           className={cn(
-                            "bg-white border rounded-xl p-3 shadow-xs hover:shadow-md transition-all space-y-2 relative border-l-4 group",
+                            "bg-white border rounded-xl p-3 shadow-xs hover:shadow-md transition-all space-y-2 relative border-l-4 group cursor-pointer",
                             colorTheme.border,
                             isExpanded ? "border-l-emerald-500 bg-slate-50/40" : "hover:border-slate-300"
                           )}
                         >
                           {/* Top Row: Customer Name & Minimization Chevron */}
                           <div className="flex justify-between items-start gap-2">
-                            <div 
-                              onClick={() => setSelectedProject(project)}
-                              className="cursor-pointer flex-1"
-                            >
+                            <div className="flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <h4 className="text-xs font-black text-slate-900 group-hover:text-emerald-600 transition-colors leading-tight">
                                   {project.customerName}

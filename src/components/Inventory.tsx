@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   collection,
   query,
@@ -82,7 +82,7 @@ export default function Inventory({ onNavigateToPO }: { onNavigateToPO?: (vendor
   // Strict Role Scoping based on Logged In Account
   const userRole = user?.role || 'Super Admin';
   const isVendor = userRole === 'Vendor' || userRole === 'Vendor Employee' || userRole === 'Solar Supplier';
-  const isInstaller = userRole === 'Installer' || userRole === 'Solar Installer' || userRole === 'Technician';
+  const isInstaller = userRole === 'Installer' || userRole === 'Solar Installer' || (userRole as any) === 'Technician';
   const isGlobalAdmin = !isVendor && !isInstaller;
 
   const [newItem, setNewItem] = useState<{
@@ -365,32 +365,44 @@ export default function Inventory({ onNavigateToPO }: { onNavigateToPO?: (vendor
       v.createdBy === user?.uid;
   });
 
+  const [inventoryFilterMode, setInventoryFilterMode] = useState<'all' | 'sellable' | 'low_stock' | 'highest_qty'>('all');
+
   // Filter Items based on Active Tab & Role Scope
-  const warehouseItems = items.filter(item => {
-    const matchesSearch =
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.manufacturer || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.vendor || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.id.toLowerCase().includes(searchTerm.toLowerCase());
+  const warehouseItems = useMemo(() => {
+    let result = items.filter(item => {
+      const matchesSearch =
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.manufacturer || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.vendor || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.id.toLowerCase().includes(searchTerm.toLowerCase());
 
-    if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-    if (isVendor) {
-      // Vendor sees items they own or supplied
-      const isOwner = item.stockOwner === user?.uid || item.vendorId === user?.uid || (item.vendor && user?.companyName && item.vendor.toLowerCase().includes(user.companyName.toLowerCase()));
-      return isOwner;
+      if (inventoryFilterMode === 'low_stock' && item.quantity > item.minThreshold) {
+        return false;
+      }
+      if (inventoryFilterMode === 'sellable' && !item.availableForSelling) {
+        return false;
+      }
+
+      if (isVendor) {
+        return item.stockOwner === user?.uid || item.vendorId === user?.uid || (item.vendor && user?.companyName && item.vendor.toLowerCase().includes(user.companyName.toLowerCase()));
+      }
+
+      if (isInstaller) {
+        return item.stockOwner === user?.uid || item.stockOwnerName === user?.name || (!item.stockOwner && item.vendorType === 'Unregistered');
+      }
+
+      return true;
+    });
+
+    if (inventoryFilterMode === 'highest_qty') {
+      result = [...result].sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
     }
 
-    if (isInstaller) {
-      // Installer sees received items they own or directly provisioned
-      const isOwner = item.stockOwner === user?.uid || item.stockOwnerName === user?.name || (!item.stockOwner && item.vendorType === 'Unregistered');
-      return isOwner;
-    }
-
-    // Global Admin sees all items
-    return true;
-  });
+    return result;
+  }, [items, searchTerm, inventoryFilterMode, isVendor, isInstaller, user]);
 
   // Marketplace: Live Sellable Stock from Registered Vendors
   const marketplaceSellableItems = items.filter(item => {
@@ -803,61 +815,131 @@ export default function Inventory({ onNavigateToPO }: { onNavigateToPO?: (vendor
         </div>
       </div>
 
-      {/* METRIC STATS CARDS */}
+      {/* METRIC STATS CARDS - Clickable to Filter & Inspect */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs relative overflow-hidden group">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('warehouse');
+            setInventoryFilterMode('all');
+            setSearchTerm('');
+          }}
+          className={cn(
+            "text-left p-5 rounded-3xl border transition-all cursor-pointer relative overflow-hidden group shadow-xs",
+            activeTab === 'warehouse' && inventoryFilterMode === 'all'
+              ? "bg-slate-900 text-white border-slate-900 ring-2 ring-slate-400/40 shadow-md"
+              : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md"
+          )}
+        >
           <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100">
+            <div className={cn(
+              "p-3 rounded-2xl border",
+              activeTab === 'warehouse' && inventoryFilterMode === 'all'
+                ? "bg-slate-800 text-emerald-400 border-slate-700"
+                : "bg-emerald-50 text-emerald-600 border-emerald-100"
+            )}>
               <Package className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Inventory Items</p>
-              <h3 className="text-xl font-black text-slate-900">{items.length} SKUs</h3>
+              <p className={cn("text-[10px] font-black uppercase tracking-widest", activeTab === 'warehouse' && inventoryFilterMode === 'all' ? "text-slate-300" : "text-slate-400")}>
+                Total Inventory Items
+              </p>
+              <h3 className={cn("text-xl font-black", activeTab === 'warehouse' && inventoryFilterMode === 'all' ? "text-white" : "text-slate-900")}>
+                {items.length} SKUs
+              </h3>
             </div>
           </div>
-        </div>
+          <p className={cn("text-[10.5px] mt-2 font-semibold", activeTab === 'warehouse' && inventoryFilterMode === 'all' ? "text-emerald-400" : "text-slate-400")}>
+            Full stock list (Click to view)
+          </p>
+        </button>
 
-        <div className="bg-white p-5 rounded-3xl border border-emerald-200 shadow-xs relative overflow-hidden group">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('marketplace');
+            setInventoryFilterMode('sellable');
+          }}
+          className={cn(
+            "text-left p-5 rounded-3xl border transition-all cursor-pointer relative overflow-hidden group shadow-xs",
+            activeTab === 'marketplace' || inventoryFilterMode === 'sellable'
+              ? "bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/40 shadow-md"
+              : "bg-white border-emerald-200 hover:border-emerald-300 hover:shadow-md"
+          )}
+        >
           <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-100">
+            <div className="p-3 bg-emerald-100 text-emerald-700 rounded-2xl border border-emerald-200">
               <Store className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Available for Selling</p>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Available for Selling</p>
               <h3 className="text-xl font-black text-emerald-700">
                 {items.filter(i => i.availableForSelling).length} Sellable SKUs
               </h3>
             </div>
           </div>
-        </div>
+          <p className="text-[10.5px] mt-2 font-semibold text-emerald-600">
+            Marketplace catalog (Click to browse)
+          </p>
+        </button>
 
-        <div className="bg-white p-5 rounded-3xl border border-amber-200 shadow-xs relative overflow-hidden group">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('warehouse');
+            setInventoryFilterMode('low_stock');
+          }}
+          className={cn(
+            "text-left p-5 rounded-3xl border transition-all cursor-pointer relative overflow-hidden group shadow-xs",
+            activeTab === 'warehouse' && inventoryFilterMode === 'low_stock'
+              ? "bg-amber-50 border-amber-300 ring-2 ring-amber-500/40 shadow-md"
+              : "bg-white border-amber-200 hover:border-amber-300 hover:shadow-md"
+          )}
+        >
           <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl border border-amber-100">
+            <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl border border-amber-200">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Low Stock Alerts</p>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Low Stock Alerts</p>
               <h3 className="text-xl font-black text-amber-600">
                 {items.filter(item => item.quantity <= item.minThreshold).length} Reorder Needed
               </h3>
             </div>
           </div>
-        </div>
+          <p className="text-[10.5px] mt-2 font-semibold text-amber-600">
+            Below threshold (Click to view)
+          </p>
+        </button>
 
-        <div className="bg-white p-5 rounded-3xl border border-teal-200 shadow-xs relative overflow-hidden group">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('warehouse');
+            setInventoryFilterMode('highest_qty');
+          }}
+          className={cn(
+            "text-left p-5 rounded-3xl border transition-all cursor-pointer relative overflow-hidden group shadow-xs",
+            activeTab === 'warehouse' && inventoryFilterMode === 'highest_qty'
+              ? "bg-teal-50 border-teal-300 ring-2 ring-teal-500/40 shadow-md"
+              : "bg-white border-teal-200 hover:border-teal-300 hover:shadow-md"
+          )}
+        >
           <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-teal-50 text-teal-600 rounded-2xl border border-teal-100">
+            <div className="p-3 bg-teal-100 text-teal-700 rounded-2xl border border-teal-200">
               <Truck className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Stock Units</p>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Total Stock Units</p>
               <h3 className="text-xl font-black text-teal-700">
                 {items.reduce((acc, curr) => acc + (curr.quantity || 0), 0)} Units on Hand
               </h3>
             </div>
           </div>
-        </div>
+          <p className="text-[10.5px] mt-2 font-semibold text-teal-600">
+            Sort highest volume (Click to sort)
+          </p>
+        </button>
       </div>
 
       {/* TAB 1: WAREHOUSE & MY STOCK */}
@@ -909,7 +991,45 @@ export default function Inventory({ onNavigateToPO }: { onNavigateToPO?: (vendor
                     const sPrice = item.sellingPrice || pCost;
 
                     return (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <tr 
+                        key={item.id} 
+                        onClick={() => {
+                          if (isInstaller && !isGlobalAdmin) {
+                            setSelectedItemForConsumption(item);
+                            setConsumeQty(1);
+                            setIsConsumeModalOpen(true);
+                          } else {
+                            setEditingItemId(item.id);
+                            setNewItem({
+                              name: item.name,
+                              type: item.type || 'Panel',
+                              category: item.category,
+                              manufacturer: item.manufacturer || item.vendor || 'Vikram Solar',
+                              description: item.description || '',
+                              weight: item.weight || 0,
+                              weightUnit: (item.weightUnit as any) || 'KG',
+                              quantity: item.quantity,
+                              unit: (item.unit as any) || 'KW',
+                              size: item.size || 550,
+                              wattPrice: item.wattPrice || 0,
+                              purchasePrice: item.purchasePrice || item.price || 0,
+                              price: item.purchasePrice || item.price || 0,
+                              gst: item.gst !== undefined ? item.gst : 18,
+                              pricingBasis: (item.pricingBasis as any) || 'Per Unit',
+                              minThreshold: item.minThreshold,
+                              serialNumber: item.serialNumber || '',
+                              warranty: item.warranty || '',
+                              vendor: item.vendor || '',
+                              vendorType: item.vendorType || (isVendor ? 'Registered' : 'Unregistered'),
+                              availableForSelling: item.availableForSelling || false,
+                              sellingPrice: item.sellingPrice || 0,
+                              sellingPriceMode: item.sellingPrice === (item.purchasePrice || item.price) ? 'purchase' : 'custom'
+                            });
+                            setIsModalOpen(true);
+                          }
+                        }}
+                        className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
+                      >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors shrink-0">
@@ -1073,7 +1193,7 @@ export default function Inventory({ onNavigateToPO }: { onNavigateToPO?: (vendor
                           )}
                         </td>
 
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
                             {/* Installer Specific Action: Consume on Site */}
                             {(isInstaller || isGlobalAdmin) && (
@@ -1182,7 +1302,17 @@ export default function Inventory({ onNavigateToPO }: { onNavigateToPO?: (vendor
                 const availQty = item.availableQuantity !== undefined ? item.availableQuantity : item.quantity;
 
                 return (
-                  <div key={item.id} className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4 group">
+                  <div 
+                    key={item.id} 
+                    onClick={() => {
+                      if (onNavigateToPO) {
+                        onNavigateToPO(item.vendor, item);
+                      } else {
+                        toast.info(`Selected "${item.name}" by ${item.vendor}. Available: ${availQty} ${item.unit} @ ₹${sPrice.toLocaleString('en-IN')}/${item.unit}.`, "Marketplace Stock");
+                      }
+                    }}
+                    className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all flex flex-col justify-between space-y-4 group cursor-pointer"
+                  >
                     <div>
                       <div className="flex items-start justify-between gap-2">
                         <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
@@ -1225,7 +1355,8 @@ export default function Inventory({ onNavigateToPO }: { onNavigateToPO?: (vendor
 
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (onNavigateToPO) {
                             onNavigateToPO(item.vendor, item);
                           } else {

@@ -3,6 +3,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updatePassword,
+  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
   User as FirebaseUser
@@ -271,6 +272,14 @@ export const authService = {
       mustChangePassword: false,
       isFirstLogin: false
     });
+  },
+
+  async resetPassword(email: string): Promise<void> {
+    const cleanEmail = email?.trim();
+    if (!cleanEmail) {
+      throw new Error('Please enter your registered email address.');
+    }
+    await sendPasswordResetEmail(auth, cleanEmail);
   },
 
   async logout(): Promise<void> {

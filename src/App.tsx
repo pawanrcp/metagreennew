@@ -18,6 +18,7 @@ import ProposalGenerator from './components/ProposalGenerator';
 import QuotationBuilder from './components/QuotationBuilder';
 import InvoiceBuilder from './components/InvoiceBuilder';
 import TaxInvoiceGenerator from './components/TaxInvoiceGenerator';
+import GeneratedDocumentsList from './components/GeneratedDocumentsList';
 import SubsidyManagement from './components/SubsidyManagement';
 import Procurement from './components/Procurement';
 import WorkOrders from './components/WorkOrders';
@@ -296,6 +297,8 @@ function AppContent() {
         return <InvoiceBuilder />;
       case 'tax-invoice':
         return <TaxInvoiceGenerator />;
+      case 'quote-records':
+        return <GeneratedDocumentsList />;
       case 'subsidy':
         return <SubsidyManagement />;
       case 'procurement':
@@ -303,7 +306,9 @@ function AppContent() {
       case 'work-orders':
         return <WorkOrders />;
       case 'finance':
-        return <Finance />;
+        return <Finance initialTab="payments" />;
+      case 'expenses':
+        return <Finance initialTab="expenses" />;
       case 'support':
         return <Support />;
       case 'warranty':
@@ -316,6 +321,8 @@ function AppContent() {
         return <HRModule />;
       case 'vendors':
         return <VendorPortal />;
+      case 'direct-suppliers':
+        return <InventoryAndPO initialTab="direct_suppliers" />;
       case 'reports':
         return <Reporting />;
       case 'settings':

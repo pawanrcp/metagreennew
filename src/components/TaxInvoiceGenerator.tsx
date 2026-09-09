@@ -14,11 +14,13 @@ import {
   Printer,
   QrCode,
   Building2,
-  UserPlus
+  UserPlus,
+  Save
 } from 'lucide-react';
 import { useLogos } from '@/src/context/LogoContext';
 import { useAuth } from '@/src/context/AuthContext';
 import { downloadInvoicePDF, InvoiceData } from '@/src/services/invoiceGenerator.service';
+import { saveGeneratedDocument } from '@/src/services/generatedDocuments.service';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
 import html2canvas from 'html2canvas-pro';
@@ -197,6 +199,43 @@ export default function TaxInvoiceGenerator() {
     };
 
     downloadInvoicePDF(invData);
+
+    // Automatically record generated tax invoice in database
+    (async () => {
+      try {
+        await saveGeneratedDocument({
+          type: 'tax-invoice',
+          docNumber: invoiceForm.invoiceNo,
+          customerName: invoiceForm.customerName,
+          customerPhone: invoiceForm.phone,
+          customerAddress: `${invoiceForm.address}, ${invoiceForm.cityDistrict}, ${invoiceForm.state} ${invoiceForm.pincode}`,
+          city: invoiceForm.cityDistrict,
+          state: invoiceForm.state,
+          pincode: invoiceForm.pincode,
+          systemCapacityKw: invoiceForm.systemCapacityKw,
+          totalAmount: totalInvoiceAmount,
+          subtotal: subtotalTaxable,
+          taxAmount: totalCgst + totalSgst,
+          items: invoiceForm.items,
+          status: 'Generated',
+          userId: user?.uid || 'admin',
+          userName: user?.name || 'Solar Consultant',
+          userEmail: user?.email || '',
+          userRole: user?.role || 'Finance Manager',
+          companyName: vendorCompanyName,
+          metadata: {
+            referenceNo: invoiceForm.referenceNo,
+            modeOfPayment: invoiceForm.modeOfPayment,
+            stateCode: invoiceForm.stateCode,
+            totalCgst,
+            totalSgst,
+            customMatter: invoiceForm.customMatter
+          }
+        });
+      } catch (saveErr) {
+        console.warn('Could not auto-record tax invoice:', saveErr);
+      }
+    })();
   };
 
   const handleAddItem = () => {
@@ -219,6 +258,49 @@ export default function TaxInvoiceGenerator() {
     setInvoiceForm({ ...invoiceForm, items: updated });
   };
 
+  const [isSavingTaxInvoice, setIsSavingTaxInvoice] = useState(false);
+
+  const handleSaveTaxInvoice = async () => {
+    setIsSavingTaxInvoice(true);
+    try {
+      await saveGeneratedDocument({
+        type: 'tax-invoice',
+        docNumber: invoiceForm.invoiceNo,
+        customerName: invoiceForm.customerName,
+        customerPhone: invoiceForm.phone,
+        customerAddress: `${invoiceForm.address}, ${invoiceForm.cityDistrict}, ${invoiceForm.state} ${invoiceForm.pincode}`,
+        city: invoiceForm.cityDistrict,
+        state: invoiceForm.state,
+        pincode: invoiceForm.pincode,
+        systemCapacityKw: invoiceForm.systemCapacityKw,
+        totalAmount: totalInvoiceAmount,
+        subtotal: subtotalTaxable,
+        taxAmount: totalCgst + totalSgst,
+        items: invoiceForm.items,
+        status: 'Generated',
+        userId: user?.uid || 'admin',
+        userName: user?.name || 'Solar Consultant',
+        userEmail: user?.email || '',
+        userRole: user?.role || 'Finance Manager',
+        companyName: vendorCompanyName,
+        metadata: {
+          referenceNo: invoiceForm.referenceNo,
+          modeOfPayment: invoiceForm.modeOfPayment,
+          stateCode: invoiceForm.stateCode,
+          totalCgst,
+          totalSgst,
+          customMatter: invoiceForm.customMatter
+        }
+      });
+      alert(`✅ Tax Invoice #${invoiceForm.invoiceNo} saved successfully to Database!`);
+    } catch (err: any) {
+      console.error('Error saving tax invoice:', err);
+      alert('Failed to save Tax Invoice: ' + (err.message || err));
+    } finally {
+      setIsSavingTaxInvoice(false);
+    }
+  };
+
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
       {/* Header Bar */}
@@ -235,13 +317,21 @@ export default function TaxInvoiceGenerator() {
           <button 
             type="button"
             onClick={() => setIsWalkinModalOpen(true)}
-            className="px-3.5 py-2 bg-emerald-600 text-white font-extrabold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-1.5 text-xs shadow-md shadow-emerald-200"
+            className="px-3.5 py-2 bg-slate-100 text-slate-800 font-bold rounded-xl hover:bg-slate-200 transition-colors flex items-center gap-1.5 text-xs border border-slate-200"
           >
-            <UserPlus className="w-4 h-4" /> + Direct Add Walk-in Lead
+            <UserPlus className="w-4 h-4 text-emerald-600" /> + Direct Add Walk-in Lead
+          </button>
+          <button 
+            type="button"
+            onClick={handleSaveTaxInvoice}
+            disabled={isSavingTaxInvoice}
+            className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-1.5 text-xs shadow-md shadow-emerald-200 cursor-pointer disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" /> {isSavingTaxInvoice ? 'Saving...' : 'Save Tax Invoice'}
           </button>
           <button 
             onClick={handleDownloadPDF}
-            className="px-4 py-2 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 transition-colors flex items-center gap-2 text-xs"
+            className="px-4 py-2 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 transition-colors flex items-center gap-2 text-xs cursor-pointer"
           >
             <Download className="w-4 h-4" /> Download Official GST PDF
           </button>

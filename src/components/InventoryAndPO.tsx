@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { ShoppingCart, Package, Store } from 'lucide-react';
+import { ShoppingCart, Package, Store, Building2 } from 'lucide-react';
 import Procurement from './Procurement';
 import Inventory from './Inventory';
 import VendorPortal from './VendorPortal';
+import DirectSuppliers from './DirectSuppliers';
 import { cn } from '@/src/lib/utils';
 
-export default function InventoryAndPO({ initialTab = 'po' }: { initialTab?: 'po' | 'inventory' | 'vendors' }) {
-  const [activeSubTab, setActiveSubTab] = useState<'po' | 'inventory' | 'vendors'>(initialTab);
+export default function InventoryAndPO({ initialTab = 'po' }: { initialTab?: 'po' | 'inventory' | 'vendors' | 'direct_suppliers' }) {
+  const [activeSubTab, setActiveSubTab] = useState<'po' | 'inventory' | 'vendors' | 'direct_suppliers'>(initialTab);
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
@@ -20,7 +21,7 @@ export default function InventoryAndPO({ initialTab = 'po' }: { initialTab?: 'po
           </div>
         </div>
 
-        <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700/80">
+        <div className="flex flex-wrap items-center bg-slate-800 p-1 rounded-xl border border-slate-700/80 gap-1">
           <button
             type="button"
             onClick={() => setActiveSubTab('po')}
@@ -62,6 +63,20 @@ export default function InventoryAndPO({ initialTab = 'po' }: { initialTab?: 'po
             <Store className="w-4 h-4" />
             <span>3. Registered Vendors</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('direct_suppliers')}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer",
+              activeSubTab === 'direct_suppliers'
+                ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20"
+                : "text-slate-300 hover:text-white hover:bg-slate-700/50"
+            )}
+          >
+            <Building2 className="w-4 h-4" />
+            <span>4. Direct Suppliers</span>
+          </button>
         </div>
       </div>
 
@@ -69,6 +84,13 @@ export default function InventoryAndPO({ initialTab = 'po' }: { initialTab?: 'po
       {activeSubTab === 'po' && <Procurement />}
       {activeSubTab === 'inventory' && <Inventory />}
       {activeSubTab === 'vendors' && <VendorPortal />}
+      {activeSubTab === 'direct_suppliers' && (
+        <DirectSuppliers
+          onCreatePO={(_supplier) => {
+            setActiveSubTab('po');
+          }}
+        />
+      )}
     </div>
   );
 }

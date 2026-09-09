@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Sliders, 
   Users, 
@@ -23,20 +23,45 @@ import {
   Building2,
   Edit2,
   X,
-  Sun
+  Sun,
+  Search,
+  Filter,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Copy,
+  CheckCircle2,
+  XCircle,
+  Phone,
+  Mail,
+  Shield,
+  CreditCard,
+  Building,
+  UserCheck
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { exportToPDF, exportToExcel } from '@/src/lib/exportUtils';
 import { collection, query, onSnapshot, addDoc, serverTimestamp, orderBy, deleteDoc, doc, updateDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
 import { useLogos } from '@/src/context/LogoContext';
+import { useAuth } from '@/src/context/AuthContext';
+import { useToast } from '@/src/context/ToastContext';
 
 import { METAGREEN_LOGO_BASE64 } from '@/src/assets/logoDataUrl';
 
 import SubscriptionManagement from './SubscriptionManagement';
-import { CreditCard } from 'lucide-react';
+import {
+  DROPDOWN_CATEGORIES,
+  DropdownCategoryKey,
+  DropdownOption,
+  subscribeDropdownOptions,
+  addDropdownOption,
+  updateDropdownOption,
+  deleteDropdownOption,
+  seedCategoryDefaults
+} from '@/src/services/dropdownMaster.service';
 
-type TabType = 'logos' | 'subscriptions' | 'users' | 'roles' | 'roof-types' | 'states' | 'products' | 'approvals' | 'audit' | 'purge';
+type TabType = 'logos' | 'subscriptions' | 'users' | 'roles' | 'dropdowns' | 'roof-types' | 'states' | 'products' | 'approvals' | 'audit' | 'purge';
 
 const USER_ROLES = [
   'Super Admin',
@@ -48,19 +73,26 @@ const USER_ROLES = [
   'Procurement Officer',
   'Warehouse Manager',
   'Installer',
+  'Solar Installer',
   'Project Manager',
   'Finance Manager',
   'Customer Support',
   'Customer',
   'Vendor',
+  'Vendor Employee',
   'Auditor'
 ];
 
-import { useAuth } from '@/src/context/AuthContext';
-
 export default function MasterSettings() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabType>('logos');
+  const { toast } = useToast();
+
+  const isGlobalAdmin = !user || user.role === 'Super Admin' || user.role === 'Solar Company Admin';
+  const userOrg = (user?.companyName || '').trim();
+  const currentUid = user?.uid || '';
+  const currentEmail = (user?.email || '').trim().toLowerCase();
+
+  const [activeTab, setActiveTab] = useState<TabType>(isGlobalAdmin ? 'logos' : 'users');
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -76,9 +108,45 @@ export default function MasterSettings() {
   });
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const { logos, updateLogos, resetLogos } = useLogos();
+  // Dropdown Masters State
+  const [selectedDropdownCategory, setSelectedDropdownCategory] = useState<DropdownCategoryKey>('expense_types');
+  const [dropdownOptionsList, setDropdownOptionsList] = useState<DropdownOption[]>([]);
+  const [dropdownOptionSearch, setDropdownOptionSearch] = useState('');
+  const [dropdownStatusFilter, setDropdownStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
+  const [isAddOptionModalOpen, setIsAddOptionModalOpen] = useState(false);
+  const [editingOption, setEditingOption] = useState<DropdownOption | null>(null);
+  const [optionForm, setOptionForm] = useState({
+    name: '',
+    code: '',
+    description: '',
+    status: 'Active' as 'Active' | 'Inactive'
+  });
+  const [isSavingOption, setIsSavingOption] = useState(false);
+  const [deleteConfirmOption, setDeleteConfirmOption] = useState<DropdownOption | null>(null);
+  const [isDeletingOption, setIsDeletingOption] = useState(false);
+  const [isRestoringDefaults, setIsRestoringDefaults] = useState(false);
+  const [dropdownCategoryCounts, setDropdownCategoryCounts] = useState<Record<string, number>>({});
 
-  const isGlobalAdmin = !user || user.role === 'Super Admin' || user.role === 'Solar Company Admin';
+  // Search & filter state for Users Master
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('All');
+  const [userStatusFilter, setUserStatusFilter] = useState('All');
+
+  // Edit User State
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editUserForm, setEditUserForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'Sales Executive',
+    companyName: '',
+    status: 'Active',
+    resetPassword: false,
+    newPassword: '',
+    showPassword: false
+  });
+
+  const { logos, updateLogos, resetLogos } = useLogos();
 
   const [companyName, setCompanyName] = useState(logos.companyName || 'METAGREEN');
   const [tagline, setTagline] = useState(logos.tagline || 'Solar Enterprise ERP');
@@ -91,9 +159,20 @@ export default function MasterSettings() {
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
-    role: 'Sales Executive',
-    status: 'Active'
+    phone: '',
+    role: isGlobalAdmin ? 'Sales Executive' : 'Vendor Employee',
+    companyName: '',
+    status: 'Active',
+    tempPassword: 'User123!',
+    showPassword: false
   });
+
+  // Keep activeTab safe if role is not global admin
+  useEffect(() => {
+    if (!isGlobalAdmin && (activeTab === 'subscriptions' || activeTab === 'purge' || activeTab === 'audit' || activeTab === 'states' || activeTab === 'approvals')) {
+      setActiveTab('users');
+    }
+  }, [isGlobalAdmin, activeTab]);
 
   useEffect(() => {
     const unsubUsers = onSnapshot(query(collection(db, 'users'), orderBy('name', 'asc')), (snapshot) => {
@@ -123,6 +202,40 @@ export default function MasterSettings() {
     });
 
     return () => { unsubUsers(); unsubAudit(); unsubRoofs(); };
+  }, []);
+
+  // Subscribe to current category dropdown options
+  useEffect(() => {
+    const unsub = subscribeDropdownOptions(selectedDropdownCategory, (options) => {
+      setDropdownOptionsList(options);
+    });
+    return () => unsub();
+  }, [selectedDropdownCategory]);
+
+  // Track counts across all categories
+  useEffect(() => {
+    const qAll = query(collection(db, 'systemDropdownMasters'));
+    const unsubAll = onSnapshot(qAll, (snapshot) => {
+      const counts: Record<string, number> = {};
+      DROPDOWN_CATEGORIES.forEach(c => {
+        counts[c.key] = c.defaults.length;
+      });
+      snapshot.docs.forEach(docSnap => {
+        const cat = docSnap.data().category;
+        if (cat) {
+          const fsKey = `fs_${cat}`;
+          counts[fsKey] = (counts[fsKey] || 0) + 1;
+        }
+      });
+      DROPDOWN_CATEGORIES.forEach(c => {
+        const fsKey = `fs_${c.key}`;
+        if (counts[fsKey] !== undefined) {
+          counts[c.key] = counts[fsKey];
+        }
+      });
+      setDropdownCategoryCounts(counts);
+    });
+    return () => unsubAll();
   }, []);
 
   const [isClearingData, setIsClearingData] = useState(false);
@@ -241,12 +354,145 @@ export default function MasterSettings() {
     triggerSaveSuccess();
   };
 
+  // Scoped users: Global Admin gets ALL users; Specified Login gets ONLY their organization / team users
+  const scopedUsers = useMemo(() => {
+    if (isGlobalAdmin) {
+      return usersList;
+    }
+
+    return usersList.filter(u => {
+      const uCompany = (u.companyName || '').trim().toLowerCase();
+      const myCompany = userOrg.toLowerCase();
+
+      // 1. Company match
+      if (myCompany && uCompany && (myCompany === uCompany || uCompany.includes(myCompany) || myCompany.includes(uCompany))) {
+        return true;
+      }
+
+      // 2. Created by this user
+      if (u.createdBy && (u.createdBy === currentUid || (u.creatorEmail && u.creatorEmail.toLowerCase() === currentEmail))) {
+        return true;
+      }
+
+      // 3. Linked via vendorId or vendorName
+      if (u.vendorId && (u.vendorId === currentUid || u.vendorId === user?.companyName)) {
+        return true;
+      }
+
+      // 4. Match self
+      if (u.id === currentUid || u.uid === currentUid || (u.email && u.email.toLowerCase() === currentEmail)) {
+        return true;
+      }
+
+      return false;
+    });
+  }, [usersList, isGlobalAdmin, userOrg, currentUid, currentEmail, user?.companyName]);
+
+  // Filtered users based on search query, role, and status
+  const displayUsers = useMemo(() => {
+    return scopedUsers.filter(u => {
+      if (userSearchQuery.trim()) {
+        const q = userSearchQuery.toLowerCase();
+        const matchName = u.name?.toLowerCase().includes(q);
+        const matchEmail = u.email?.toLowerCase().includes(q);
+        const matchRole = u.role?.toLowerCase().includes(q);
+        const matchCompany = u.companyName?.toLowerCase().includes(q);
+        const matchPhone = u.phone?.toLowerCase().includes(q);
+        if (!matchName && !matchEmail && !matchRole && !matchCompany && !matchPhone) return false;
+      }
+
+      if (userRoleFilter !== 'All' && u.role !== userRoleFilter) return false;
+      if (userStatusFilter !== 'All' && u.status !== userStatusFilter) return false;
+
+      return true;
+    });
+  }, [scopedUsers, userSearchQuery, userRoleFilter, userStatusFilter]);
+
+  // Summary Metrics for currently scoped users
+  const userMetrics = useMemo(() => {
+    const total = scopedUsers.length;
+    const active = scopedUsers.filter(u => u.status === 'Active').length;
+    const pending = scopedUsers.filter(u => u.status === 'Pending').length;
+    const inactive = scopedUsers.filter(u => u.status === 'Inactive' || u.status === 'Rejected').length;
+    return { total, active, pending, inactive };
+  }, [scopedUsers]);
+
+  // Allowed roles for creation and editing
+  const allowedRoles = useMemo(() => {
+    if (isGlobalAdmin) {
+      return USER_ROLES;
+    }
+    if (user?.role === 'Vendor') {
+      return ['Vendor Employee', 'Installer', 'Solar Installer', 'Sales Executive', 'Survey Engineer', 'Warehouse Manager'];
+    }
+    return ['Sales Executive', 'Survey Engineer', 'Design Engineer', 'Installer', 'Warehouse Manager', 'Vendor Employee'];
+  }, [isGlobalAdmin, user?.role]);
+
+  // Tab definitions dynamically scoped to role
+  const availableTabs = useMemo(() => {
+    if (isGlobalAdmin) {
+      return [
+        { id: 'logos', label: 'Import Logos & Branding', icon: ImageIcon },
+        ...(user?.role === 'Super Admin' ? [{ id: 'subscriptions', label: 'Subscription Plans & Trials', icon: CreditCard }] : []),
+        { id: 'users', label: 'System Users', icon: Users },
+        { id: 'roles', label: 'Roles & Permissions', icon: ShieldCheck },
+        { id: 'dropdowns', label: 'Dropdown Masters', icon: Sliders },
+        { id: 'roof-types', label: 'Roof Types Master', icon: Building2 },
+        { id: 'states', label: 'States & Taxes', icon: Percent },
+        { id: 'products', label: 'Products & Pricing', icon: Package },
+        { id: 'approvals', label: 'Approval Rules', icon: CheckSquare },
+        { id: 'audit', label: 'Audit Logs', icon: List },
+        { id: 'purge', label: 'System Reset & Data Purge', icon: Trash2 },
+      ];
+    }
+    // Specified logins (Vendor, Installer, Regional Manager, etc.)
+    return [
+      { id: 'users', label: 'Team & Users', icon: Users },
+      { id: 'roles', label: 'Roles & Permissions', icon: ShieldCheck },
+      { id: 'dropdowns', label: 'Dropdown Masters', icon: Sliders },
+      { id: 'roof-types', label: 'Roof Types Master', icon: Building2 },
+      { id: 'products', label: 'Products & Pricing', icon: Package },
+      { id: 'logos', label: 'Company Branding', icon: ImageIcon },
+    ];
+  }, [isGlobalAdmin, user?.role]);
+
+  const getRoleBadgeColor = (role?: string) => {
+    switch (role) {
+      case 'Super Admin':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'Solar Company Admin':
+        return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      case 'Regional Manager':
+      case 'Project Manager':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'Vendor':
+        return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'Vendor Employee':
+      case 'Installer':
+      case 'Solar Installer':
+        return 'bg-teal-100 text-teal-800 border-teal-200';
+      case 'Finance Manager':
+        return 'bg-rose-100 text-rose-800 border-rose-200';
+      case 'Sales Executive':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
   const handleExportUsers_PDF = () => {
-    exportToPDF('System Users', ['Name', 'Email', 'Role', 'Status'], usersList.map(u => [u.name, u.email, u.role, u.status]));
+    exportToPDF(
+      isGlobalAdmin ? 'All System Users (Global HQ)' : `${userOrg || 'Organization'} Team Users`,
+      ['Name', 'Email', 'Phone', 'Role', 'Company', 'Status'],
+      displayUsers.map(u => [u.name || '-', u.email || '-', u.phone || '-', u.role || '-', u.companyName || '-', u.status || '-'])
+    );
   };
 
   const handleExportUsers_Excel = () => {
-    exportToExcel('System Users', usersList);
+    exportToExcel(
+      isGlobalAdmin ? 'All System Users (Global HQ)' : `${userOrg || 'Organization'} Team Users`,
+      displayUsers
+    );
   };
   
   const handleExportAudit_PDF = () => {
@@ -259,23 +505,188 @@ export default function MasterSettings() {
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanName = newUser.name.trim();
+    const cleanEmail = newUser.email.trim().toLowerCase();
+    const cleanPhone = newUser.phone.trim();
+    const cleanRole = newUser.role;
+    const cleanStatus = newUser.status;
+    const cleanPassword = newUser.tempPassword.trim() || 'User123!';
+
+    if (!cleanName || !cleanEmail) {
+      toast.warning('Full name and email address are required.', 'Missing Required Fields');
+      return;
+    }
+
+    // Duplicate email verification across system
+    const duplicate = usersList.find(u => u.email?.toLowerCase() === cleanEmail);
+    if (duplicate) {
+      toast.error(`A user with email "${cleanEmail}" already exists.`, 'Duplicate Account');
+      return;
+    }
+
+    const assignedCompany = isGlobalAdmin
+      ? (newUser.companyName.trim() || 'Meta Green Global HQ')
+      : (userOrg || 'My Organization');
+
     try {
       await addDoc(collection(db, 'users'), {
-        ...newUser,
+        name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        role: cleanRole,
+        companyName: assignedCompany,
+        status: cleanStatus,
+        tempPassword: cleanPassword,
+        mustChangePassword: true,
+        isFirstLogin: true,
+        createdBy: currentUid || 'admin',
+        creatorEmail: currentEmail,
+        creatorName: user?.name || 'Administrator',
         createdAt: serverTimestamp()
       });
+
       await addDoc(collection(db, 'auditLogs'), {
         timestamp: new Date().toLocaleString(),
-        user: 'System Admin',
+        user: user?.name || 'System Admin',
         action: 'Created User',
-        details: `Created new user ${newUser.email}`,
+        details: `Created new user ${cleanEmail} (${cleanRole}) for ${assignedCompany}`,
         createdAt: serverTimestamp()
       });
+
+      toast.success(`User "${cleanName}" created successfully for ${assignedCompany}!`, 'User Created');
       setIsAddUserModalOpen(false);
-      setNewUser({ name: '', email: '', role: 'Sales Executive', status: 'Active' });
-    } catch (error) {
-      console.error(error);
+      setNewUser({
+        name: '',
+        email: '',
+        phone: '',
+        role: isGlobalAdmin ? 'Sales Executive' : 'Vendor Employee',
+        companyName: '',
+        status: 'Active',
+        tempPassword: 'User123!',
+        showPassword: false
+      });
+    } catch (err: any) {
+      console.error('Error creating user:', err);
+      toast.error(err.message || 'Failed to create user', 'Error');
     }
+  };
+
+  const handleOpenEditUser = (targetUser: any) => {
+    setEditingUser(targetUser);
+    setEditUserForm({
+      name: targetUser.name || '',
+      email: targetUser.email || '',
+      phone: targetUser.phone || '',
+      role: targetUser.role || 'Sales Executive',
+      companyName: targetUser.companyName || '',
+      status: targetUser.status || 'Active',
+      resetPassword: false,
+      newPassword: '',
+      showPassword: false
+    });
+  };
+
+  const handleSaveEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    const cleanName = editUserForm.name.trim();
+    const cleanEmail = editUserForm.email.trim().toLowerCase();
+    const cleanPhone = editUserForm.phone.trim();
+    const cleanRole = editUserForm.role;
+    const cleanStatus = editUserForm.status;
+
+    if (!cleanName || !cleanEmail) {
+      toast.warning('Full name and email are required.', 'Missing Fields');
+      return;
+    }
+
+    try {
+      const updatePayload: any = {
+        name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        role: cleanRole,
+        status: cleanStatus,
+        updatedAt: serverTimestamp()
+      };
+
+      if (isGlobalAdmin && editUserForm.companyName.trim()) {
+        updatePayload.companyName = editUserForm.companyName.trim();
+      }
+
+      if (editUserForm.resetPassword && editUserForm.newPassword.trim()) {
+        updatePayload.tempPassword = editUserForm.newPassword.trim();
+        updatePayload.mustChangePassword = true;
+        updatePayload.isFirstLogin = true;
+      }
+
+      await updateDoc(doc(db, 'users', editingUser.id), updatePayload);
+
+      await addDoc(collection(db, 'auditLogs'), {
+        timestamp: new Date().toLocaleString(),
+        user: user?.name || 'System Admin',
+        action: 'Updated User',
+        details: `Updated user profile for ${cleanEmail} (${cleanRole})`,
+        createdAt: serverTimestamp()
+      });
+
+      toast.success(`User "${cleanName}" updated successfully!`, 'User Saved');
+      setEditingUser(null);
+    } catch (err: any) {
+      console.error('Error updating user:', err);
+      toast.error(err.message || 'Failed to update user', 'Error');
+    }
+  };
+
+  const handleDeleteUser = async (targetUser: any) => {
+    if (targetUser.id === currentUid || targetUser.uid === currentUid || targetUser.email?.toLowerCase() === currentEmail) {
+      toast.warning('You cannot delete your own logged-in account!', 'Action Blocked');
+      return;
+    }
+
+    if (!isGlobalAdmin && (targetUser.role === 'Super Admin' || targetUser.role === 'Solar Company Admin')) {
+      toast.error('You do not have permission to delete a Global Administrator.', 'Access Denied');
+      return;
+    }
+
+    const confirm = window.confirm(`Are you sure you want to permanently delete user "${targetUser.name}" (${targetUser.email})? This action cannot be undone.`);
+    if (!confirm) return;
+
+    try {
+      await deleteDoc(doc(db, 'users', targetUser.id));
+
+      await addDoc(collection(db, 'auditLogs'), {
+        timestamp: new Date().toLocaleString(),
+        user: user?.name || 'System Admin',
+        action: 'Deleted User',
+        details: `Permanently deleted user ${targetUser.email} (${targetUser.role})`,
+        createdAt: serverTimestamp()
+      });
+
+      toast.success(`User "${targetUser.name}" deleted from system.`, 'User Deleted');
+    } catch (err: any) {
+      console.error('Error deleting user:', err);
+      toast.error(err.message || 'Failed to delete user', 'Error');
+    }
+  };
+
+  const handleUpdateUserStatus = async (userId: string, newStatus: 'Active' | 'Rejected' | 'Inactive') => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      });
+      toast.success(`User status updated to "${newStatus}"!`, 'Status Changed');
+    } catch (err: any) {
+      console.error('Error updating status:', err);
+      toast.error('Failed to change user status.', 'Error');
+    }
+  };
+
+  const handleCopyPassword = (pass: string) => {
+    navigator.clipboard.writeText(pass);
+    toast.info(`Copied initial password "${pass}" to clipboard!`, 'Password Copied');
   };
 
   const handleOpenAddRoof = () => {
@@ -593,79 +1004,417 @@ export default function MasterSettings() {
 
       case 'users':
         return (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 className="font-bold text-slate-900">System Users</h3>
-              <div className="flex gap-2">
-                <button onClick={handleExportUsers_PDF} className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2 text-xs shadow-sm">
-                  <Download className="w-3 h-3 text-red-500" /> PDF
+          <div className="space-y-6">
+            {/* Scope Information Banner */}
+            {isGlobalAdmin ? (
+              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-5 shadow-sm border border-slate-700/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 shadow-inner flex-shrink-0">
+                    <Shield className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black tracking-widest uppercase bg-amber-400/20 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-400/30">
+                        Global HQ Scope
+                      </span>
+                      <span className="text-xs text-slate-400">All Organizations & Vendors</span>
+                    </div>
+                    <h2 className="text-xl font-black text-white mt-1">Global System Users Directory</h2>
+                    <p className="text-xs text-slate-300 mt-0.5">Showing all registered users across every company, vendor, and regional partner in the system.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 self-start md:self-auto">
+                  <span className="text-xs font-semibold text-slate-300 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
+                    Role: <strong className="text-white">{user?.role || 'Super Admin'}</strong>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white rounded-2xl p-5 shadow-sm border border-emerald-700/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-400/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shadow-inner flex-shrink-0">
+                    <Building className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black tracking-widest uppercase bg-emerald-400/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-400/30">
+                        Organization Scope
+                      </span>
+                      <span className="text-xs text-emerald-200/80">{userOrg || user?.companyName || 'My Team'}</span>
+                    </div>
+                    <h2 className="text-xl font-black text-white mt-1">{userOrg || user?.companyName ? `${userOrg || user?.companyName} - Team & Staff` : 'Organization Users Directory'}</h2>
+                    <p className="text-xs text-emerald-100/70 mt-0.5">Showing only members, employees, and installers belonging to your organization.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 self-start md:self-auto">
+                  <span className="text-xs font-semibold text-emerald-100 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
+                    Logged in: <strong className="text-white">{user?.name}</strong> ({user?.role})
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Metric Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total in Scope</span>
+                  <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                    <Users className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-slate-900">{userMetrics.total}</span>
+                  <span className="text-xs text-slate-500 font-medium">registered</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Active Accounts</span>
+                  <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-emerald-600">{userMetrics.active}</span>
+                  <span className="text-xs text-slate-500 font-medium">enabled</span>
+                </div>
+              </div>
+
+              <div className={cn(
+                "rounded-2xl p-4 border shadow-sm transition-colors",
+                userMetrics.pending > 0 
+                  ? "bg-amber-50/50 border-amber-200" 
+                  : "bg-white border-slate-100"
+              )}>
+                <div className="flex items-center justify-between">
+                  <span className={cn(
+                    "text-xs font-bold uppercase tracking-wider",
+                    userMetrics.pending > 0 ? "text-amber-700" : "text-slate-400"
+                  )}>Pending Approvals</span>
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-700">
+                    <UserCheck className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className={cn(
+                    "text-2xl font-black",
+                    userMetrics.pending > 0 ? "text-amber-700" : "text-slate-900"
+                  )}>{userMetrics.pending}</span>
+                  <span className="text-xs text-slate-500 font-medium">needs review</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Inactive / Rejected</span>
+                  <div className="p-2 rounded-xl bg-slate-100 text-slate-600">
+                    <XCircle className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-slate-700">{userMetrics.inactive}</span>
+                  <span className="text-xs text-slate-500 font-medium">disabled</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter & Action Toolbar */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex flex-1 flex-wrap items-center gap-2.5">
+                {/* Search Bar */}
+                <div className="relative min-w-[240px] flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={e => setUserSearchQuery(e.target.value)}
+                    placeholder="Search by name, email, role, phone, company..."
+                    className="w-full pl-9 pr-8 py-2 text-xs font-medium border border-slate-200 rounded-xl outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  />
+                  {userSearchQuery && (
+                    <button
+                      onClick={() => setUserSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Role Filter */}
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200">
+                  <Filter className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] font-bold text-slate-500 uppercase">Role:</span>
+                  <select
+                    value={userRoleFilter}
+                    onChange={e => setUserRoleFilter(e.target.value)}
+                    className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="All">All Roles</option>
+                    {allowedRoles.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase">Status:</span>
+                  <select
+                    value={userStatusFilter}
+                    onChange={e => setUserStatusFilter(e.target.value)}
+                    className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Active">Active</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Rejected">Rejected</option>
+                  </select>
+                </div>
+
+                {/* Reset Filters */}
+                {(userSearchQuery || userRoleFilter !== 'All' || userStatusFilter !== 'All') && (
+                  <button
+                    onClick={() => {
+                      setUserSearchQuery('');
+                      setUserRoleFilter('All');
+                      setUserStatusFilter('All');
+                    }}
+                    className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline px-2 py-1"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 self-end md:self-auto flex-shrink-0">
+                <button
+                  onClick={handleExportUsers_PDF}
+                  className="px-3 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-1.5 text-xs shadow-sm"
+                  title="Export current view to PDF"
+                >
+                  <Download className="w-3.5 h-3.5 text-red-500" /> PDF
                 </button>
-                <button onClick={handleExportUsers_Excel} className="px-3 py-1.5 bg-emerald-50 border border-emerald-100 text-emerald-700 font-semibold rounded-lg hover:bg-emerald-100 transition-colors flex items-center gap-2 text-xs shadow-sm">
-                  <FileSpreadsheet className="w-3 h-3" /> Excel
+                <button
+                  onClick={handleExportUsers_Excel}
+                  className="px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold rounded-xl hover:bg-emerald-100 transition-colors flex items-center gap-1.5 text-xs shadow-sm"
+                  title="Export current view to Excel"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Excel
                 </button>
-                <button onClick={() => setIsAddUserModalOpen(true)} className="px-3 py-1.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 text-xs shadow-sm">
-                  <Plus className="w-3 h-3" /> Add User
+                <button
+                  onClick={() => setIsAddUserModalOpen(true)}
+                  className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 text-xs shadow-sm"
+                >
+                  <Plus className="w-4 h-4" /> Add User
                 </button>
               </div>
             </div>
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-white text-slate-500 text-xs font-bold uppercase tracking-widest border-b border-slate-100">
-                  <th className="p-4">Name</th>
-                  <th className="p-4">Email</th>
-                  <th className="p-4">Role</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {usersList.map(user => (
-                  <tr key={user.id} className="hover:bg-slate-50/50">
-                    <td className="p-4 font-bold text-slate-900">{user.name}</td>
-                    <td className="p-4 text-slate-600">{user.email}</td>
-                    <td className="p-4 text-slate-600">{user.role}</td>
-                    <td className="p-4">
-                      <span className={cn(
-                        "px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border",
-                        user.status === 'Active' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                        user.status === 'Pending' ? "bg-amber-50 text-amber-700 border-amber-100" :
-                        "bg-red-50 text-red-700 border-red-100"
-                      )}>{user.status}</span>
-                    </td>
-                    <td className="p-4">
-                      {user.status === 'Pending' && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={async () => {
-                              try {
-                                await updateDoc(doc(db, 'users', user.id), { status: 'Active' });
-                              } catch (err) {
-                                console.error('Error approving user:', err);
-                              }
-                            }}
-                            className="text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={async () => {
-                              try {
-                                await updateDoc(doc(db, 'users', user.id), { status: 'Rejected' });
-                              } catch (err) {
-                                console.error('Error rejecting user:', err);
-                              }
-                            }}
-                            className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+            {/* Users Directory Table */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[850px]">
+                  <thead>
+                    <tr className="bg-slate-50/80 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200">
+                      <th className="p-4">User</th>
+                      <th className="p-4">Contact</th>
+                      <th className="p-4">Organization / Company</th>
+                      <th className="p-4">Role</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4">Credentials</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {displayUsers.map(u => (
+                      <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
+                        {/* User identity */}
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
+                              {(u.name || 'U').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900 text-sm truncate">{u.name || 'Unnamed User'}</span>
+                                {(u.id === currentUid || u.uid === currentUid || u.email?.toLowerCase() === currentEmail) && (
+                                  <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    You
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 text-xs text-slate-500 truncate mt-0.5">
+                                <Mail className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                <span className="truncate">{u.email}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Contact */}
+                        <td className="p-4 text-xs">
+                          {u.phone ? (
+                            <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              <span>{u.phone}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">No phone</span>
+                          )}
+                        </td>
+
+                        {/* Company / Org */}
+                        <td className="p-4">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Building className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            <span className={cn(
+                              "font-semibold truncate max-w-[160px]",
+                              u.companyName === 'Meta Green Global HQ' ? "text-indigo-700" : "text-slate-700"
+                            )}>
+                              {u.companyName || 'Meta Green Global HQ'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Role */}
+                        <td className="p-4">
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-lg text-[11px] font-bold border inline-flex items-center gap-1",
+                            getRoleBadgeColor(u.role)
+                          )}>
+                            <Shield className="w-3 h-3" />
+                            {u.role || 'Sales Executive'}
+                          </span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="p-4">
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border inline-flex items-center gap-1.5",
+                            u.status === 'Active' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                            u.status === 'Pending' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                            "bg-rose-50 text-rose-700 border-rose-200"
+                          )}>
+                            <span className={cn(
+                              "w-1.5 h-1.5 rounded-full",
+                              u.status === 'Active' ? "bg-emerald-500" :
+                              u.status === 'Pending' ? "bg-amber-500 animate-pulse" :
+                              "bg-rose-500"
+                            )} />
+                            {u.status || 'Active'}
+                          </span>
+                        </td>
+
+                        {/* Credentials */}
+                        <td className="p-4">
+                          {u.tempPassword ? (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleCopyPassword(u.tempPassword)}
+                                title="Click to copy initial password"
+                                className="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-mono flex items-center gap-1 border border-slate-200 transition-colors"
+                              >
+                                <KeyRound className="w-3 h-3 text-slate-500" />
+                                <span className="font-semibold">{u.tempPassword}</span>
+                                <Copy className="w-3 h-3 text-slate-400" />
+                              </button>
+                              {u.isFirstLogin && (
+                                <span className="text-[9px] font-black uppercase bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200" title="User has not changed password yet">
+                                  1st Login
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">Self-set password</span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {u.status === 'Pending' && (
+                              <>
+                                <button
+                                  onClick={() => handleUpdateUserStatus(u.id, 'Active')}
+                                  title="Approve user"
+                                  className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                                >
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateUserStatus(u.id, 'Rejected')}
+                                  title="Reject user"
+                                  className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-colors"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleOpenEditUser(u)}
+                              title="Edit user details"
+                              className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            {!(u.id === currentUid || u.uid === currentUid || u.email?.toLowerCase() === currentEmail) && (
+                              <button
+                                onClick={() => handleDeleteUser(u)}
+                                title="Delete user"
+                                className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {displayUsers.length === 0 && (
+                <div className="py-16 px-4 text-center">
+                  <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                    <Users className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900">No users found</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                    {userSearchQuery || userRoleFilter !== 'All' || userStatusFilter !== 'All'
+                      ? 'No users match your active search and filter criteria. Try adjusting your filters.'
+                      : isGlobalAdmin 
+                        ? 'There are currently no users in the database.' 
+                        : `No team members are currently assigned to ${userOrg || 'your organization'}.`}
+                  </p>
+                  <div className="mt-4 flex justify-center gap-2">
+                    {(userSearchQuery || userRoleFilter !== 'All' || userStatusFilter !== 'All') && (
+                      <button
+                        onClick={() => {
+                          setUserSearchQuery('');
+                          setUserRoleFilter('All');
+                          setUserStatusFilter('All');
+                        }}
+                        className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsAddUserModalOpen(true)}
+                      className="px-3.5 py-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add User
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         );
 
@@ -942,18 +1691,7 @@ export default function MasterSettings() {
       </header>
 
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {[
-          { id: 'logos', label: 'Import Logos & Branding', icon: ImageIcon },
-          ...(user?.role === 'Super Admin' ? [{ id: 'subscriptions', label: 'Subscription Plans & Trials', icon: CreditCard }] : []),
-          { id: 'users', label: 'Users', icon: Users },
-          { id: 'roles', label: 'Roles & Permissions', icon: ShieldCheck },
-          { id: 'roof-types', label: 'Roof Types Master', icon: Building2 },
-          { id: 'states', label: 'States & Taxes', icon: Percent },
-          { id: 'products', label: 'Products & Pricing', icon: Package },
-          { id: 'approvals', label: 'Approval Rules', icon: CheckSquare },
-          { id: 'audit', label: 'Audit Logs', icon: List },
-          { id: 'purge', label: 'System Reset & Data Purge', icon: Trash2 },
-        ].map(tab => (
+        {availableTabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as TabType)}
@@ -974,41 +1712,379 @@ export default function MasterSettings() {
 
       {/* Add User Modal */}
       {isAddUserModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-emerald-600" /> Add New User
-              </h3>
-              <button onClick={() => setIsAddUserModalOpen(false)} className="text-slate-400 hover:text-slate-600">&times;</button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-in zoom-in-95 my-8">
+            <div className="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black">Add New System User</h3>
+                  <p className="text-[11px] text-slate-400">
+                    {isGlobalAdmin ? 'Register user under any company or organization' : `Register team member for ${userOrg || user?.companyName || 'your organization'}`}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsAddUserModalOpen(false)} 
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <form onSubmit={handleAddUser} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                <input required type="text" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none" />
+
+            <form onSubmit={handleAddUser} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Full Name *
+                  </label>
+                  <input 
+                    required 
+                    type="text" 
+                    value={newUser.name} 
+                    onChange={e => setNewUser({...newUser, name: e.target.value})} 
+                    placeholder="e.g. Rahul Sharma"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Email Address *
+                  </label>
+                  <input 
+                    required 
+                    type="email" 
+                    value={newUser.email} 
+                    onChange={e => setNewUser({...newUser, email: e.target.value})} 
+                    placeholder="user@example.com"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                <input required type="email" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none" />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Phone Number
+                  </label>
+                  <input 
+                    type="tel" 
+                    value={newUser.phone} 
+                    onChange={e => setNewUser({...newUser, phone: e.target.value})} 
+                    placeholder="+91 98765 43210"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    User Role *
+                  </label>
+                  <select 
+                    value={newUser.role} 
+                    onChange={e => setNewUser({...newUser, role: e.target.value})} 
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                  >
+                    {allowedRoles.map(role => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              {/* Organization / Company field */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">User Role</label>
-                <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none">
-                  {USER_ROLES.map(role => (
-                    <option key={role} value={role}>{role}</option>
-                  ))}
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Organization / Company Name
+                </label>
+                {isGlobalAdmin ? (
+                  <input 
+                    type="text" 
+                    value={newUser.companyName} 
+                    onChange={e => setNewUser({...newUser, companyName: e.target.value})} 
+                    placeholder="Meta Green Global HQ (or vendor name e.g. Vikram Solar)"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                  />
+                ) : (
+                  <div className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl font-bold text-slate-700 flex items-center justify-between">
+                    <span>{userOrg || user?.companyName || 'My Organization'}</span>
+                    <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded bg-slate-200 text-slate-600">
+                      Locked to your org
+                    </span>
+                  </div>
+                )}
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {isGlobalAdmin ? 'Global admin can assign user to any company or vendor.' : 'User will automatically be scoped to your organization directory.'}
+                </p>
+              </div>
+
+              {/* Status & Temp Password */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Account Status
+                  </label>
+                  <select 
+                    value={newUser.status} 
+                    onChange={e => setNewUser({...newUser, status: e.target.value})} 
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                  >
+                    <option value="Active">Active (Ready to login)</option>
+                    <option value="Pending">Pending (Requires approval)</option>
+                    <option value="Inactive">Inactive (Disabled)</option>
+                  </select>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                      Initial Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const randomPass = 'Pass@' + Math.floor(1000 + Math.random() * 9000);
+                        setNewUser(prev => ({ ...prev, tempPassword: randomPass }));
+                      }}
+                      className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 underline"
+                    >
+                      Generate
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type={newUser.showPassword ? "text" : "password"}
+                      value={newUser.tempPassword} 
+                      onChange={e => setNewUser({...newUser, tempPassword: e.target.value})} 
+                      className="w-full pl-3 pr-9 py-2.5 border border-slate-300 rounded-xl font-mono font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewUser(prev => ({ ...prev, showPassword: !prev.showPassword }))}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {newUser.showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setIsAddUserModalOpen(false);
+                    setNewUser({ 
+                      name: '', 
+                      email: '', 
+                      phone: '',
+                      role: isGlobalAdmin ? 'Sales Executive' : 'Vendor Employee', 
+                      companyName: '',
+                      status: 'Active',
+                      tempPassword: 'User123!',
+                      showPassword: false
+                    });
+                  }} 
+                  className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-md shadow-emerald-200"
+                >
+                  Create User
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-in zoom-in-95 my-8">
+            <div className="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  <Edit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black">Edit User Profile</h3>
+                  <p className="text-[11px] text-slate-400">{editingUser.email}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setEditingUser(null)} 
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditUser} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Full Name *
+                  </label>
+                  <input 
+                    required 
+                    type="text" 
+                    value={editUserForm.name} 
+                    onChange={e => setEditUserForm({...editUserForm, name: e.target.value})} 
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Email Address *
+                  </label>
+                  <input 
+                    required 
+                    type="email" 
+                    value={editUserForm.email} 
+                    onChange={e => setEditUserForm({...editUserForm, email: e.target.value})} 
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Phone Number
+                  </label>
+                  <input 
+                    type="tel" 
+                    value={editUserForm.phone} 
+                    onChange={e => setEditUserForm({...editUserForm, phone: e.target.value})} 
+                    placeholder="+91 98765 43210"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    User Role *
+                  </label>
+                  <select 
+                    value={editUserForm.role} 
+                    onChange={e => setEditUserForm({...editUserForm, role: e.target.value})} 
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                  >
+                    {allowedRoles.map(role => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                    {!allowedRoles.includes(editUserForm.role) && (
+                      <option value={editUserForm.role}>{editUserForm.role}</option>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              {/* Organization / Company */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Organization / Company
+                </label>
+                {isGlobalAdmin ? (
+                  <input 
+                    type="text" 
+                    value={editUserForm.companyName} 
+                    onChange={e => setEditUserForm({...editUserForm, companyName: e.target.value})} 
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" 
+                  />
+                ) : (
+                  <div className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-xl font-bold text-slate-700">
+                    {editUserForm.companyName || userOrg || 'My Organization'}
+                  </div>
+                )}
+              </div>
+
+              {/* Account Status */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Account Status
+                </label>
+                <select 
+                  value={editUserForm.status} 
+                  onChange={e => setEditUserForm({...editUserForm, status: e.target.value})} 
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                >
+                  <option value="Active">Active (Approved)</option>
+                  <option value="Pending">Pending (Awaiting Approval)</option>
+                  <option value="Inactive">Inactive (Disabled)</option>
+                  <option value="Rejected">Rejected</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                <select value={newUser.status} onChange={e => setNewUser({...newUser, status: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 outline-none">
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
+
+              {/* Reset Password Toggle */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editUserForm.resetPassword}
+                    onChange={e => setEditUserForm({...editUserForm, resetPassword: e.target.checked})}
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-xs font-bold text-slate-800">Set New Temporary Password</span>
+                </label>
+
+                {editUserForm.resetPassword && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-slate-600 uppercase">
+                        New Password
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const randomPass = 'Pass@' + Math.floor(1000 + Math.random() * 9000);
+                          setEditUserForm(prev => ({ ...prev, newPassword: randomPass }));
+                        }}
+                        className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 underline"
+                      >
+                        Generate
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input 
+                        type={editUserForm.showPassword ? "text" : "password"}
+                        value={editUserForm.newPassword} 
+                        onChange={e => setEditUserForm({...editUserForm, newPassword: e.target.value})} 
+                        placeholder="Enter new temporary password"
+                        className="w-full pl-3 pr-9 py-2 border border-slate-300 rounded-xl font-mono text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white" 
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditUserForm(prev => ({ ...prev, showPassword: !prev.showPassword }))}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {editUserForm.showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      User will be required to change this password on next login.
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => {setIsAddUserModalOpen(false); setNewUser({ name: '', email: '', role: 'Sales Executive', status: 'Active' });}} className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 transition-colors">Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition-colors">Add User</button>
+
+              <div className="pt-4 border-t border-slate-100 flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingUser(null)} 
+                  className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-md shadow-emerald-200"
+                >
+                  Save Changes
+                </button>
               </div>
             </form>
           </div>

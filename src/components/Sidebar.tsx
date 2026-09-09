@@ -25,7 +25,9 @@ import {
   X,
   Search,
   ArrowRight,
-  Receipt
+  Receipt,
+  Archive,
+  Building2
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { ViewType, UserRole } from '@/src/types';
@@ -169,6 +171,14 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           description: 'Full GST 70:30 Tax Invoice generator with QR code and PDF print download',
           icon: Receipt,
           roles: ['Super Admin', 'Solar Company Admin', 'Finance Manager', 'Auditor', 'Sales Executive', 'Vendor', 'Installer']
+        },
+        {
+          id: 'quote-records',
+          label: 'Generated Documents',
+          subHeader: 'User-Wise Document Records',
+          description: 'All generated quotations, proposals, commercial & tax invoices',
+          icon: Archive,
+          roles: ['Super Admin', 'Solar Company Admin', 'Sales Executive', 'Finance Manager', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer', 'Auditor']
         }
       ]
     },
@@ -200,7 +210,15 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Create Purchase Order / RFQ',
           description: 'Multi-unit live price calculations by Meter, KW, MW, TON, KG with GST summary',
           icon: ShoppingCart,
-          roles: ['Super Admin', 'Solar Company Admin', 'Procurement Officer', 'Warehouse Manager']
+          roles: ['Super Admin', 'Solar Company Admin', 'Procurement Officer', 'Warehouse Manager', 'Solar Installer', 'Installer']
+        },
+        {
+          id: 'direct-suppliers',
+          label: 'Direct Suppliers',
+          subHeader: 'Offline Procurement Sources',
+          description: 'Manage private unregistered vendors, contact details, bank info & direct PO generation',
+          icon: Building2,
+          roles: ['Super Admin', 'Solar Company Admin', 'Procurement Officer', 'Warehouse Manager', 'Solar Installer', 'Installer', 'Vendor', 'Vendor Employee']
         }
       ]
     },
@@ -233,15 +251,22 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
       title: 'Finance',
       badge: 'Ledger',
       icon: IndianRupee,
-      directView: 'finance',
       items: [
         {
           id: 'finance',
-          label: 'Finance / Ledger',
-          subHeader: 'Dynamic Expense Types & Ledgers',
-          description: 'Customer payments, manageable expense categories, loans & balance ledgers',
+          label: 'Payments & Revenue',
+          subHeader: 'Customer Inflows & Invoices',
+          description: 'Record customer advance, milestones, generate PDF invoices & track inflows',
           icon: IndianRupee,
           roles: ['Super Admin', 'Solar Company Admin', 'Finance Manager', 'Auditor']
+        },
+        {
+          id: 'expenses',
+          label: 'Expenses',
+          subHeader: 'Operating & Direct Costs',
+          description: 'Manageable expense categories, labor wages, bills, material costs & project logs',
+          icon: Receipt,
+          roles: ['Super Admin', 'Solar Company Admin', 'Finance Manager', 'Auditor', 'Project Manager']
         }
       ]
     },
@@ -311,10 +336,10 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
         {
           id: 'settings',
           label: 'Master Settings',
-          subHeader: 'System Configuration & Branding',
-          description: 'Company logos, HSN codes, bank info, SMTP routing & user permissions',
+          subHeader: 'System Configuration & User Masters',
+          description: 'Team users, branding, system specifications & master data',
           icon: Sliders,
-          roles: ['Super Admin', 'Solar Company Admin']
+          roles: ['Super Admin', 'Solar Company Admin', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer', 'Regional Manager', 'Project Manager', 'Finance Manager', 'Warehouse Manager', 'Procurement Officer', 'Sales Executive']
         }
       ]
     }

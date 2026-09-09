@@ -22,6 +22,7 @@ import { collection, query, onSnapshot, orderBy, addDoc, serverTimestamp, update
 import { db } from '@/src/lib/firebase';
 import { useAuth } from '@/src/context/AuthContext';
 import { useToast } from '@/src/context/ToastContext';
+import DirectSuppliers from './DirectSuppliers';
 
 export type ProductType = 'Panel' | 'Inverter' | 'AC/DC Cable' | 'Battery' | 'Structure' | 'Accessories' | 'Other';
 export type POItemUnit = 'KW' | 'MW' | 'MTR' | 'TON' | 'KG' | 'PCS' | 'UNIT';
@@ -38,10 +39,10 @@ export interface POItemRow {
   taxRate: number;
 }
 
-export default function Procurement() {
+export default function Procurement({ initialTab = 'purchase' }: { initialTab?: 'purchase' | 'vendors' | 'direct_suppliers' } = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'purchase' | 'vendors'>('purchase');
+  const [activeTab, setActiveTab] = useState<'purchase' | 'vendors' | 'direct_suppliers'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [vendorFilter, setVendorFilter] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
@@ -229,7 +230,7 @@ export default function Procurement() {
 
   const userRole = user?.role || 'Super Admin';
   const isVendor = userRole === 'Vendor' || userRole === 'Vendor Employee' || userRole === 'Solar Supplier';
-  const isInstaller = userRole === 'Installer' || userRole === 'Solar Installer' || userRole === 'Technician';
+  const isInstaller = userRole === 'Installer' || userRole === 'Solar Installer' || (userRole as any) === 'Technician';
   const isGlobalAdmin = !isVendor && !isInstaller;
 
   const [vendorPoTab, setVendorPoTab] = useState<'received_requests' | 'my_pos'>('received_requests');
@@ -1271,6 +1272,7 @@ export default function Procurement() {
           {[
             { id: 'purchase', label: isVendor ? '1. Purchase Orders & Requests' : isInstaller ? '1. My Purchase Orders' : '1. Purchase Orders (PO Workflow)', icon: ShoppingCart },
             { id: 'vendors', label: '2. Registered Vendors Catalog', icon: Store },
+            { id: 'direct_suppliers', label: '3. Direct Suppliers (Offline)', icon: Building2 },
           ].map(tab => (
             <button
               key={tab.id}
@@ -1326,61 +1328,63 @@ export default function Procurement() {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-3">
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-64 flex items-center">
-            <Search className="w-4 h-4 absolute left-3 text-slate-400" />
-            <input
-              type="text"
-              placeholder={activeTab === 'purchase' ? "Search POs, requesters, or items..." : "Search Solar Suppliers..."}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500/20 outline-none"
-            />
+      {activeTab !== 'direct_suppliers' && (
+        <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-3">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            <div className="relative w-full sm:w-64 flex items-center">
+              <Search className="w-4 h-4 absolute left-3 text-slate-400" />
+              <input
+                type="text"
+                placeholder={activeTab === 'purchase' ? "Search POs, requesters, or items..." : "Search Solar Suppliers..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500/20 outline-none"
+              />
+            </div>
+
+            {/* Supplier Filter Dropdown for Admin */}
+            {activeTab === 'purchase' && isGlobalAdmin && (
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Supplier Scope:</label>
+                <select
+                  value={vendorFilter}
+                  onChange={e => setVendorFilter(e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="ALL">All Suppliers (Supplier-Wise Grouping)</option>
+                  {vendors.map(v => <option key={v.id} value={v.name}>{v.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            {activeTab === 'purchase' && isGlobalAdmin && (
+              <div className="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-bold">
+                <button
+                  onClick={() => setViewMode('grouped')}
+                  className={cn("px-2.5 py-1 rounded-md transition-all", viewMode === 'grouped' ? "bg-white text-slate-900 shadow-xs" : "text-slate-500")}
+                >
+                  Supplier Grouped
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={cn("px-2.5 py-1 rounded-md transition-all", viewMode === 'list' ? "bg-white text-slate-900 shadow-xs" : "text-slate-500")}
+                >
+                  All List
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Supplier Filter Dropdown for Admin */}
-          {activeTab === 'purchase' && isGlobalAdmin && (
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-bold text-slate-500 uppercase">Supplier Scope:</label>
-              <select
-                value={vendorFilter}
-                onChange={e => setVendorFilter(e.target.value)}
-                className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold bg-white outline-none focus:ring-2 focus:ring-emerald-500/20"
-              >
-                <option value="ALL">All Suppliers (Supplier-Wise Grouping)</option>
-                {vendors.map(v => <option key={v.id} value={v.name}>{v.name}</option>)}
-              </select>
-            </div>
-          )}
-
-          {activeTab === 'purchase' && isGlobalAdmin && (
-            <div className="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-bold">
-              <button
-                onClick={() => setViewMode('grouped')}
-                className={cn("px-2.5 py-1 rounded-md transition-all", viewMode === 'grouped' ? "bg-white text-slate-900 shadow-xs" : "text-slate-500")}
-              >
-                Supplier Grouped
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={cn("px-2.5 py-1 rounded-md transition-all", viewMode === 'list' ? "bg-white text-slate-900 shadow-xs" : "text-slate-500")}
-              >
-                All List
-              </button>
-            </div>
-          )}
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => activeTab === 'purchase' ? setIsPoModalOpen(true) : setIsVendorModalOpen(true)}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-xl transition-all flex items-center gap-2 text-xs shadow-md shadow-emerald-600/20 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> {activeTab === 'purchase' ? '+ Create Purchase Order / Request' : '+ Add Solar Supplier'}
+            </button>
+          </div>
         </div>
-
-        <div className="flex gap-2 shrink-0">
-          <button
-            onClick={() => activeTab === 'purchase' ? setIsPoModalOpen(true) : setIsVendorModalOpen(true)}
-            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-xl transition-all flex items-center gap-2 text-xs shadow-md shadow-emerald-600/20 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> {activeTab === 'purchase' ? '+ Create Purchase Order / Request' : '+ Add Solar Supplier'}
-          </button>
-        </div>
-      </div>
+      )}
 
       {activeTab === 'purchase' && (
         <div className="space-y-6">
@@ -1549,88 +1553,19 @@ export default function Procurement() {
               )}
             </div>
           </div>
-
-          {/* SECTION 2: MY DIRECT / UNREGISTERED SUPPLIERS (CREATED BY USER) */}
-          <div className="space-y-4 pt-4 border-t border-slate-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="px-3 py-1 bg-slate-100 text-slate-800 border border-slate-300 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-slate-600" />
-                  {isGlobalAdmin ? 'Direct / Unregistered Suppliers (All Users)' : 'My Direct / Offline Suppliers (Created by You)'}
-                </span>
-                <h3 className="text-xl font-black text-slate-900 mt-1">Direct Procurement Sources</h3>
-                <p className="text-xs text-slate-500">Unregistered suppliers created for POs are private and only visible to you.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsVendorModalOpen(true)}
-                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> + Add Direct Supplier
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {visibleUnregisteredVendors.length === 0 ? (
-                <div className="col-span-full p-8 bg-white rounded-3xl border border-slate-200 text-center text-slate-400">
-                  <Building2 className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                  <p className="font-bold text-sm">No direct suppliers added yet.</p>
-                  <p className="text-xs text-slate-400 mt-1">Click "+ Add Direct Supplier" to add suppliers private to your account.</p>
-                </div>
-              ) : (
-                visibleUnregisteredVendors.map(vendor => (
-                  <div key={vendor.id} className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow relative group">
-                    <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => { setEditingVendorId(vendor.id); setNewVendor({ name: vendor.name, category: vendor.category, contact: vendor.contact, phone: vendor.phone }); setIsVendorModalOpen(true); }} className="p-1.5 hover:bg-blue-50 text-blue-400 hover:text-blue-600 rounded-lg transition-colors bg-white shadow-xs border border-slate-100">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDeleteVendor(vendor.id)} className="p-1.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-lg transition-colors bg-white shadow-xs border border-slate-100">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div>
-                      <div className="pr-12">
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-black uppercase rounded-md border border-slate-200">
-                          {vendor.category || 'Direct Supplier'}
-                        </span>
-                        <h4 className="text-base font-black text-slate-900 mt-1.5 leading-tight">{vendor.name}</h4>
-                        {vendor.email && <p className="text-xs text-slate-500 font-medium mt-0.5">{vendor.email}</p>}
-                      </div>
-
-                      <div className="mt-3 p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1 text-xs text-slate-600 font-medium">
-                        {vendor.contact && <p><span className="font-bold text-slate-400 uppercase text-[10px]">Contact:</span> {vendor.contact}</p>}
-                        {vendor.phone && <p><span className="font-bold text-slate-400 uppercase text-[10px]">Phone:</span> {vendor.phone}</p>}
-                        {vendor.gstin && <p><span className="font-bold text-slate-400 uppercase text-[10px]">GSTIN:</span> {vendor.gstin}</p>}
-                        {isGlobalAdmin && vendor.createdBy && (
-                          <p className="text-[11px] text-teal-700 font-bold mt-1">Creator: {vendor.createdBy}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">
-                        Direct Sourcing
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedVendorName(vendor.name);
-                          setSelectedVendorId('');
-                          setSelectedVendorType('Unregistered');
-                          setIsPoModalOpen(true);
-                        }}
-                        className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-                      >
-                        + Create PO
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
         </div>
+      )}
+
+      {/* DEDICATED TAB 3: DIRECT / OFFLINE SUPPLIERS (FULL CRUD ENGINE) */}
+      {activeTab === 'direct_suppliers' && (
+        <DirectSuppliers
+          onCreatePO={(supplier) => {
+            setSelectedVendorName(supplier.name);
+            setSelectedVendorId('');
+            setSelectedVendorType('Unregistered');
+            setIsPoModalOpen(true);
+          }}
+        />
       )}
 
       {/* CREATE PO / RFQ MODAL */}

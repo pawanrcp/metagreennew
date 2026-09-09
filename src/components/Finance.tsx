@@ -16,7 +16,7 @@ import {
   PieChart,
   Landmark,
   Percent, Edit2, Trash2,
-  Package, Wrench, Layers, AlertCircle, Eye, X, Check, Filter
+  Package, Wrench, Layers, AlertCircle, Eye, X, Check, Filter, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { collection, query, onSnapshot, orderBy, addDoc, serverTimestamp, updateDoc, doc, deleteDoc } from 'firebase/firestore';
@@ -24,8 +24,19 @@ import { db } from '@/src/lib/firebase';
 import { downloadInvoicePDF, InvoiceData, InvoiceType } from '@/src/services/invoiceGenerator.service';
 import { useLogos } from '@/src/context/LogoContext';
 
-export default function Finance() {
-  const [activeTab, setActiveTab] = useState<'payments' | 'profit' | 'loans'>('payments');
+interface FinanceProps {
+  initialTab?: 'payments' | 'expenses' | 'profit' | 'loans';
+}
+
+export default function Finance({ initialTab = 'payments' }: FinanceProps = {}) {
+  const [activeTab, setActiveTab] = useState<'payments' | 'expenses' | 'profit' | 'loans'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -37,6 +48,14 @@ export default function Finance() {
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Dedicated Expenses View States
+  const [expenseSearchQuery, setExpenseSearchQuery] = useState('');
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState('ALL');
+  const [expenseProjectFilter, setExpenseProjectFilter] = useState('ALL');
+  const [expenseViewMode, setExpenseViewMode] = useState<'grid' | 'table'>('grid');
+  const [selectedExpenseForDetails, setSelectedExpenseForDetails] = useState<any | null>(null);
+  const [deleteConfirmExpenseId, setDeleteConfirmExpenseId] = useState<string | null>(null);
 
   // Project Breakdown Modal
   const [selectedProjectBreakdown, setSelectedProjectBreakdown] = useState<any | null>(null);
@@ -332,7 +351,7 @@ export default function Finance() {
       }
       setIsTxModalOpen(false);
       setEditingTxId(null);
-      setNewTx({ customer: '', projectId: '', amount: 0, type: 'Advance', category: 'Income', expenseType: 'Material & Hardware Purchase', gstEnabled: false, notes: '' });
+      setNewTx({ customer: '', projectId: '', amount: 0, type: 'Advance', category: 'Income', expenseType: 'Material & Hardware Purchase', gstEnabled: false, notes: '', receiptImageUrl: '' });
     } catch (err) {
       console.error('Error saving transaction:', err);
     }
@@ -444,6 +463,86 @@ export default function Finance() {
     };
   });
 
+  // Dedicated Expenses Data & Filtering
+  const allExpenseList = transactions.filter(t => t.category === 'Expense');
+
+  const filteredExpenses = allExpenseList.filter(t => {
+    // Project filter
+    if (expenseProjectFilter !== 'ALL') {
+      if (expenseProjectFilter === 'UNLINKED') {
+        if (t.projectId) return false;
+      } else if (t.projectId !== expenseProjectFilter) {
+        return false;
+      }
+    }
+    // Category filter
+    if (expenseCategoryFilter !== 'ALL') {
+      if ((t.expenseType || 'Other Expenses') !== expenseCategoryFilter) return false;
+    }
+    // Search query
+    if (expenseSearchQuery.trim()) {
+      const q = expenseSearchQuery.toLowerCase();
+      const payeeMatch = (t.customer || '').toLowerCase().includes(q);
+      const displayIdMatch = (t.displayId || t.id || '').toLowerCase().includes(q);
+      const notesMatch = (t.notes || '').toLowerCase().includes(q);
+      const empMatch = (t.employeeName || '').toLowerCase().includes(q);
+      const typeMatch = (t.expenseType || '').toLowerCase().includes(q);
+      const linkedProj = projects.find(p => p.id === t.projectId);
+      const projectMatch = linkedProj?.customerName?.toLowerCase().includes(q);
+      if (!payeeMatch && !displayIdMatch && !notesMatch && !empMatch && !typeMatch && !projectMatch) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const currentMonthStr = new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+  const thisMonthExpenses = allExpenseList
+    .filter(t => t.date && t.date.includes(currentMonthStr))
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+  const projectDirectCost = allExpenseList
+    .filter(t => !!t.projectId)
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+  const generalOverheadCost = allExpenseList
+    .filter(t => !t.projectId)
+    .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+  const projectLinkedCount = allExpenseList.filter(t => !!t.projectId).length;
+
+  const handleOpenAddExpense = () => {
+    setEditingTxId(null);
+    setNewTx({
+      customer: '',
+      projectId: '',
+      amount: 0,
+      type: 'Expense',
+      category: 'Expense',
+      expenseType: expenseTypes[0] || 'Material & Hardware Purchase',
+      gstEnabled: false,
+      notes: '',
+      receiptImageUrl: ''
+    });
+    setIsTxModalOpen(true);
+  };
+
+  const handleEditExpense = (t: any) => {
+    setEditingTxId(t.id);
+    setNewTx({
+      customer: t.customer || '',
+      projectId: t.projectId || '',
+      amount: t.amount || 0,
+      type: t.type || 'Expense',
+      category: 'Expense',
+      expenseType: t.expenseType || 'Material & Hardware Purchase',
+      gstEnabled: (t.gst || 0) > 0,
+      notes: t.notes || '',
+      receiptImageUrl: t.receiptImageUrl || ''
+    });
+    setIsTxModalOpen(true);
+  };
+
   const filteredTx = transactions.filter(t => 
     (t.customer || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
     (t.displayId || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -456,13 +555,14 @@ export default function Finance() {
           <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             <IndianRupee className="w-8 h-8 text-emerald-600" /> Finance & Ledger
           </h1>
-          <p className="text-slate-500 font-medium mt-1">Project revenue, inventory stock-out cost, Profit & Loss ledger, and customer EMIs</p>
+          <p className="text-slate-500 font-medium mt-1">Project revenue, operating expenses, Profit & Loss ledger, and customer EMIs</p>
         </div>
       </header>
 
       <div className="flex overflow-x-auto pb-4 gap-2 no-scrollbar border-b border-slate-100">
         {[
-          { id: 'payments', label: 'Payments & Invoices', icon: Receipt },
+          { id: 'payments', label: 'Payments & Inflows', icon: Receipt },
+          { id: 'expenses', label: 'Expenses & Outflows', icon: CreditCard, count: allExpenseList.length },
           { id: 'profit', label: 'Project-Wise Profit & Loss', icon: TrendingUp },
           { id: 'loans', label: 'Loan & EMI Integration', icon: Landmark },
         ].map(tab => (
@@ -472,12 +572,20 @@ export default function Finance() {
             className={cn(
               "flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all whitespace-nowrap cursor-pointer",
               activeTab === tab.id 
-                ? "bg-emerald-100/80 text-emerald-800 ring-2 ring-emerald-500/20" 
+                ? "bg-emerald-100/80 text-emerald-800 ring-2 ring-emerald-500/20 shadow-xs" 
                 : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
             )}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
+            {tab.count !== undefined && (
+              <span className={cn(
+                "ml-1 px-2 py-0.5 rounded-full text-[11px] font-black",
+                activeTab === tab.id ? "bg-emerald-200 text-emerald-900" : "bg-slate-100 text-slate-600"
+              )}>
+                {tab.count}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -498,7 +606,7 @@ export default function Finance() {
             </div>
             <button 
               onClick={() => { 
-                setNewTx({ customer: '', projectId: '', amount: 0, type: 'Advance', category: 'Income', expenseType: 'Material & Hardware Purchase', gstEnabled: false, notes: '' }); 
+                setNewTx({ customer: '', projectId: '', amount: 0, type: 'Advance', category: 'Income', expenseType: 'Material & Hardware Purchase', gstEnabled: false, notes: '', receiptImageUrl: '' }); 
                 setIsTxModalOpen(true); 
               }}
               className="px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2 text-sm shadow-sm shadow-emerald-200 cursor-pointer"
@@ -525,9 +633,13 @@ export default function Finance() {
                   const linkedProj = projects.find(p => p.id === t.projectId);
 
                   return (
-                    <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr 
+                      key={t.id} 
+                      onClick={() => { setSelectedTxForInvoice(t); setIsInvoiceModalOpen(true); }}
+                      className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                    >
                       <td className="p-4">
-                        <div className="font-bold text-slate-900">{t.displayId || t.id}</div>
+                        <div className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">{t.displayId || t.id}</div>
                         <div className="text-xs text-slate-500 mt-0.5">{t.date}</div>
                       </td>
                       <td className="p-4 font-medium text-slate-700">
@@ -561,18 +673,18 @@ export default function Finance() {
                           : <span className="flex items-center gap-1.5 text-xs font-bold text-amber-600"><Clock className="w-4 h-4"/> Pending</span>
                         }
                       </td>
-                      <td className="p-4 text-center">
+                      <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-2">
                           <button 
-                            onClick={() => { setSelectedTxForInvoice(t); setIsInvoiceModalOpen(true); }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedTxForInvoice(t); setIsInvoiceModalOpen(true); }}
                             className="px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-colors border border-blue-200 cursor-pointer"
                           >
                             <FileText className="w-3.5 h-3.5" /> PDF Invoice
                           </button>
-                          <button onClick={() => { setEditingTxId(t.id); setNewTx({ customer: t.customer, projectId: t.projectId || '', amount: t.amount, type: t.type, category: t.category, expenseType: t.expenseType || 'Material & Hardware Purchase', gstEnabled: t.gst > 0, notes: '' }); setIsTxModalOpen(true); }} className="p-1.5 hover:bg-blue-50 text-blue-400 hover:text-blue-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100 cursor-pointer" title="Edit">
+                          <button onClick={(e) => { e.stopPropagation(); setEditingTxId(t.id); setNewTx({ customer: t.customer, projectId: t.projectId || '', amount: t.amount, type: t.type, category: t.category, expenseType: t.expenseType || 'Material & Hardware Purchase', gstEnabled: t.gst > 0, notes: '', receiptImageUrl: t.receiptImageUrl || '' }); setIsTxModalOpen(true); }} className="p-1.5 hover:bg-blue-50 text-blue-400 hover:text-blue-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100 cursor-pointer" title="Edit">
                             <Edit2 className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDeleteTransaction(t.id)} className="p-1.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100 cursor-pointer" title="Delete">
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteTransaction(t.id); }} className="p-1.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100 cursor-pointer" title="Delete">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -591,43 +703,552 @@ export default function Finance() {
         </div>
       )}
 
-      {/* TAB 2: PROJECT-WISE PROFIT & LOSS (CALCULATED VIA INVENTORY IN/OUT & REVENUE) */}
+      {/* TAB 2: EXPENSES & OPERATING OUTFLOWS */}
+      {activeTab === 'expenses' && (
+        <div className="space-y-6">
+          {/* Executive Expense KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-red-500" /> Total Outflows
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-50 text-red-700">
+                  {allExpenseList.length} Total
+                </span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-slate-900">
+                ₹{totalExpenses.toLocaleString('en-IN')}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1 font-medium">All operating & project expenses</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-500" /> This Month
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700">
+                  Current
+                </span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-amber-600">
+                ₹{thisMonthExpenses.toLocaleString('en-IN')}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1 font-medium">{currentMonthStr} expenditure</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-1.5">
+                  <Building className="w-4 h-4 text-blue-500" /> Project Direct
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-700">
+                  {projectLinkedCount} Linked
+                </span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-blue-600">
+                ₹{projectDirectCost.toLocaleString('en-IN')}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1 font-medium">Direct site & material costs</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-slate-500 font-bold text-xs uppercase tracking-widest flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-purple-500" /> General Overhead
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-50 text-purple-700">
+                  {allExpenseList.length - projectLinkedCount} Vouchers
+                </span>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-purple-600">
+                ₹{generalOverheadCost.toLocaleString('en-IN')}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1 font-medium">Office, transport & non-site ops</p>
+            </div>
+          </div>
+
+          {/* Action Bar & Filtering Controls */}
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+              {/* Search input */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search by payee, category, project, voucher ID, notes..." 
+                  value={expenseSearchQuery}
+                  onChange={(e) => setExpenseSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-9 py-2.5 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                />
+                {expenseSearchQuery && (
+                  <button 
+                    onClick={() => setExpenseSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-black cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Project dropdown filter */}
+              <div className="w-full lg:w-72 shrink-0">
+                <select
+                  value={expenseProjectFilter}
+                  onChange={(e) => setExpenseProjectFilter(e.target.value)}
+                  className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                >
+                  <option value="ALL">All Projects & Overhead</option>
+                  <option value="UNLINKED">General Overhead (No Project)</option>
+                  <optgroup label="Filter by Solar Project">
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.customerName} ({p.capacityKw} kW)
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+
+              {/* View Mode & Add Button */}
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                  <button
+                    onClick={() => setExpenseViewMode('grid')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                      expenseViewMode === 'grid' 
+                        ? "bg-white text-slate-900 shadow-xs" 
+                        : "text-slate-500 hover:text-slate-800"
+                    )}
+                    title="Cards View"
+                  >
+                    Cards
+                  </button>
+                  <button
+                    onClick={() => setExpenseViewMode('table')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                      expenseViewMode === 'table' 
+                        ? "bg-white text-slate-900 shadow-xs" 
+                        : "text-slate-500 hover:text-slate-800"
+                    )}
+                    title="Table View"
+                  >
+                    Table
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddExpense}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-sm shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <Plus className="w-4 h-4" /> Record Expense
+                </button>
+              </div>
+            </div>
+
+            {/* Dynamic Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 no-scrollbar border-t border-slate-100 text-xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 shrink-0">
+                Category:
+              </span>
+              <button
+                type="button"
+                onClick={() => setExpenseCategoryFilter('ALL')}
+                className={cn(
+                  "px-3 py-1 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer",
+                  expenseCategoryFilter === 'ALL'
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                )}
+              >
+                All ({allExpenseList.length})
+              </button>
+
+              {expenseTypes.map((et, idx) => {
+                const count = allExpenseList.filter(t => t.expenseType === et).length;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setExpenseCategoryFilter(et)}
+                    className={cn(
+                      "px-3 py-1 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5",
+                      expenseCategoryFilter === et
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    )}
+                  >
+                    <span>{et}</span>
+                    <span className={cn(
+                      "px-1.5 py-0.2 rounded-full text-[10px] font-black",
+                      expenseCategoryFilter === et ? "bg-emerald-700 text-white" : "bg-white text-slate-500"
+                    )}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* EXPENSES CONTENT: GRID VIEW */}
+          {expenseViewMode === 'grid' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredExpenses.map(t => {
+                const linkedProj = projects.find(p => p.id === t.projectId);
+
+                return (
+                  <div
+                    key={t.id}
+                    className="bg-white rounded-2xl border border-slate-100 hover:border-slate-300 shadow-xs hover:shadow-md transition-all p-5 flex flex-col justify-between group"
+                  >
+                    <div>
+                      {/* Card Top: Category Badge & Voucher ID */}
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <span className={cn(
+                          "px-2.5 py-1 rounded-lg text-[11px] font-black border",
+                          t.expenseType === 'Employee Commission'
+                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                            : t.expenseType === 'Material & Hardware Purchase'
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : t.expenseType === 'Labor & Installation Wages'
+                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                            : t.expenseType === 'Logistics & Transport'
+                            ? "bg-sky-50 text-sky-700 border-sky-200"
+                            : t.expenseType === 'DISCOM Application Fees'
+                            ? "bg-teal-50 text-teal-700 border-teal-200"
+                            : "bg-slate-50 text-slate-700 border-slate-200"
+                        )}>
+                          {t.expenseType || 'General Expense'}
+                        </span>
+
+                        <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider font-mono">
+                          {t.displayId || t.id.slice(-6)}
+                        </span>
+                      </div>
+
+                      {/* Payee / Vendor Title */}
+                      <h4 className="text-base font-black text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1">
+                        {t.customer || 'Expense Entry'}
+                      </h4>
+
+                      {/* Notes / Description */}
+                      {t.notes && (
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-2 italic">
+                          "{t.notes}"
+                        </p>
+                      )}
+
+                      {/* Project / Employee Badge */}
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                        {linkedProj ? (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                            <Building className="w-3 h-3 text-emerald-600" />
+                            {linkedProj.customerName} ({linkedProj.capacityKw} kW)
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            General Overhead
+                          </span>
+                        )}
+
+                        {t.employeeName && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                            Emp: {t.employeeName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card Footer: Amount, Receipt proof & Actions */}
+                    <div className="pt-4 mt-4 border-t border-slate-100 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                            Amount Paid
+                          </span>
+                          <span className="text-xl font-black text-red-600">
+                            -₹{t.amount?.toLocaleString('en-IN')}
+                          </span>
+                        </div>
+
+                        {t.receiptImageUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReceiptImage(t.receiptImageUrl)}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <img src={t.receiptImageUrl} alt="Proof" className="w-4 h-4 object-cover rounded" />
+                            <span>View Bill</span>
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">No receipt attached</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-1">
+                        <div className="flex items-center gap-1 text-[11px] text-slate-400 font-medium">
+                          <Clock className="w-3 h-3" /> {t.date}
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedExpenseForDetails(t)}
+                            className="px-2 py-1 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                            title="View Full Details"
+                          >
+                            <Eye className="w-3.5 h-3.5" /> Details
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEditExpense(t)}
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Expense"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmExpenseId(t.id)}
+                            className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            title="Delete Expense"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* EXPENSES CONTENT: TABLE VIEW */}
+          {expenseViewMode === 'table' && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-100">
+                      <th className="p-4">Voucher ID & Date</th>
+                      <th className="p-4">Payee & Details</th>
+                      <th className="p-4">Category</th>
+                      <th className="p-4">Linked Project</th>
+                      <th className="p-4 text-center">Receipt Proof</th>
+                      <th className="p-4 text-right">Amount (₹)</th>
+                      <th className="p-4 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {filteredExpenses.map(t => {
+                      const linkedProj = projects.find(p => p.id === t.projectId);
+
+                      return (
+                        <tr key={t.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="p-4">
+                            <span className="font-mono font-extrabold text-slate-900 block">{t.displayId || t.id.slice(-6)}</span>
+                            <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3" /> {t.date}
+                            </span>
+                          </td>
+
+                          <td className="p-4">
+                            <span className="font-bold text-slate-900 block">{t.customer}</span>
+                            {t.notes && <span className="text-[11px] text-slate-500 italic block mt-0.5">{t.notes}</span>}
+                            {t.employeeName && (
+                              <span className="text-[10px] font-bold text-indigo-600 block mt-0.5">
+                                Emp: {t.employeeName}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="p-4">
+                            <span className={cn(
+                              "px-2.5 py-1 rounded-lg text-[10px] font-black border",
+                              t.expenseType === 'Employee Commission'
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : t.expenseType === 'Material & Hardware Purchase'
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : t.expenseType === 'Labor & Installation Wages'
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-slate-100 text-slate-700 border-slate-200"
+                            )}>
+                              {t.expenseType || 'Expense'}
+                            </span>
+                          </td>
+
+                          <td className="p-4">
+                            {linkedProj ? (
+                              <div>
+                                <span className="font-bold text-slate-900 block">{linkedProj.customerName}</span>
+                                <span className="text-[10px] text-emerald-700 font-semibold">{linkedProj.capacityKw} kW Solar</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">General Overhead</span>
+                            )}
+                          </td>
+
+                          <td className="p-4 text-center">
+                            {t.receiptImageUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedReceiptImage(t.receiptImageUrl)}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-[11px] font-bold text-slate-700 cursor-pointer transition-colors"
+                              >
+                                <Eye className="w-3 h-3 text-emerald-600" /> View
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">-</span>
+                            )}
+                          </td>
+
+                          <td className="p-4 text-right">
+                            <span className="font-black text-red-600 text-sm">-₹{t.amount?.toLocaleString('en-IN')}</span>
+                          </td>
+
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedExpenseForDetails(t)}
+                                className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                                title="View Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEditExpense(t)}
+                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                title="Edit"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmExpenseId(t.id)}
+                                className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* EMPTY STATE */}
+          {filteredExpenses.length === 0 && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                <CreditCard className="w-6 h-6" />
+              </div>
+              <h4 className="text-base font-black text-slate-800">No Expenses Found</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                {expenseSearchQuery || expenseCategoryFilter !== 'ALL' || expenseProjectFilter !== 'ALL'
+                  ? "No expenses matched your search or filter criteria. Try clearing filters or searching for something else."
+                  : "No expenses have been recorded yet. Click the button below to log your first business or site expense."}
+              </p>
+              <div className="pt-2 flex items-center justify-center gap-2">
+                {(expenseSearchQuery || expenseCategoryFilter !== 'ALL' || expenseProjectFilter !== 'ALL') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpenseSearchQuery('');
+                      setExpenseCategoryFilter('ALL');
+                      setExpenseProjectFilter('ALL');
+                    }}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleOpenAddExpense}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-4 h-4" /> Record Expense
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: PROJECT-WISE PROFIT & LOSS (CALCULATED VIA INVENTORY IN/OUT & REVENUE) */}
       {activeTab === 'profit' && (
         <div className="space-y-6">
-          {/* Executive P&L Overview Cards */}
+          {/* Executive P&L Overview Cards - Interactive */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-widest mb-3">
-                <Wallet className="w-4 h-4 text-blue-500" /> Revenue Inflow (Collected)
+            <button
+              type="button"
+              onClick={() => setActiveTab('payments')}
+              className="text-left bg-white hover:bg-blue-50/40 p-6 rounded-2xl border border-slate-100 hover:border-blue-300 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-widest">
+                  <Wallet className="w-4 h-4 text-blue-500" /> Revenue Inflow
+                </div>
+                <ArrowRight className="w-4 h-4 text-blue-400 group-hover:translate-x-1 transition-transform" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-slate-900">₹{totalRevenue.toLocaleString('en-IN')}</div>
-              <p className="text-[11px] text-slate-400 mt-1.5 font-medium">Customer milestone payments received</p>
-            </div>
+              <p className="text-[11px] text-blue-600 mt-1.5 font-semibold">View client receipts &rarr;</p>
+            </button>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-widest mb-3">
-                <Package className="w-4 h-4 text-amber-500" /> Inventory Out Cost (COGS)
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('project-pl-ledger');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="text-left bg-white hover:bg-amber-50/40 p-6 rounded-2xl border border-slate-100 hover:border-amber-300 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-widest">
+                  <Package className="w-4 h-4 text-amber-500" /> Inventory Out (COGS)
+                </div>
+                <ArrowRight className="w-4 h-4 text-amber-400 group-hover:translate-x-1 transition-transform" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-amber-600">₹{totalInventoryOutCost.toLocaleString('en-IN')}</div>
-              <p className="text-[11px] text-slate-400 mt-1.5 font-medium">Panels, Inverters, BOS consumed on site</p>
-            </div>
+              <p className="text-[11px] text-amber-600 mt-1.5 font-semibold">Site hardware consumed &rarr;</p>
+            </button>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-widest mb-3">
-                <Receipt className="w-4 h-4 text-red-500" /> Direct & Operational Expenses
+            <button
+              type="button"
+              onClick={() => setActiveTab('expenses')}
+              className="text-left bg-white hover:bg-red-50/40 p-6 rounded-2xl border border-slate-100 hover:border-red-300 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-widest">
+                  <CreditCard className="w-4 h-4 text-red-500" /> Direct Expenses
+                </div>
+                <ArrowRight className="w-4 h-4 text-red-400 group-hover:translate-x-1 transition-transform" />
               </div>
               <div className="text-2xl sm:text-3xl font-black text-red-600">₹{totalExpenses.toLocaleString('en-IN')}</div>
-              <p className="text-[11px] text-slate-400 mt-1.5 font-medium">Labor wages, transport & DISCOM fees</p>
-            </div>
+              <p className="text-[11px] text-red-600 mt-1.5 font-semibold">View dedicated expenses page &rarr;</p>
+            </button>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm">
               <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs uppercase tracking-widest mb-3">
                 <TrendingUp className="w-4 h-4" /> Net Realized Profit
               </div>
               <div className={cn("text-2xl sm:text-3xl font-black", netProfit >= 0 ? "text-emerald-600" : "text-red-600")}>
                 ₹{netProfit.toLocaleString('en-IN')}
               </div>
-              <p className="text-[11px] text-emerald-600/80 mt-1.5 font-bold uppercase tracking-wider">{margin}% Realized Margin</p>
+              <p className="text-[11px] text-emerald-600/90 mt-1.5 font-bold uppercase tracking-wider">{margin}% Realized Margin</p>
             </div>
           </div>
 
@@ -746,98 +1367,10 @@ export default function Finance() {
               </table>
             </div>
           </div>
-
-          {/* GENERAL EXPENSE LOG SECTION */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-base font-black text-slate-900">Direct & Operating Expense Log</h3>
-                <p className="text-xs text-slate-500">Record wages, shipping, permissions & overhead expenses</p>
-              </div>
-              <button 
-                onClick={() => { setNewTx({ customer: '', projectId: '', amount: 0, type: 'Expense', category: 'Expense', expenseType: 'Material & Hardware Purchase', gstEnabled: false, notes: '' }); setIsTxModalOpen(true); }}
-                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-400 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> Add Expense
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {transactions.filter(t => t.category === 'Expense').map(t => {
-                const linkedProj = projects.find(p => p.id === t.projectId);
-
-                return (
-                  <div key={t.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors bg-slate-50/50 group">
-                    <div className="flex items-start gap-4">
-                      <div className="mt-1">
-                        <Receipt className="w-5 h-5 text-slate-400" />
-                      </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-bold text-slate-900">{t.customer}</h4>
-                          {t.expenseType && (
-                            <span className={cn(
-                              "px-2 py-0.5 rounded text-[10px] font-black border",
-                              t.expenseType === 'Employee Commission' 
-                                ? "bg-purple-50 text-purple-800 border-purple-200" 
-                                : "bg-amber-50 text-amber-800 border-amber-200"
-                            )}>
-                              {t.expenseType}
-                            </span>
-                          )}
-                          {t.employeeName && t.expenseType === 'Employee Commission' && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-50 text-indigo-800 border border-indigo-200">
-                              Employee: {t.employeeName}
-                            </span>
-                          )}
-                          {linkedProj && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                              Project: {linkedProj.customerName}
-                            </span>
-                          )}
-                          {t.receiptImageUrl && (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedReceiptImage(t.receiptImageUrl)}
-                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
-                            >
-                              <Eye className="w-3 h-3 text-emerald-600" /> View Bill / Receipt
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 text-xs font-medium text-slate-500 mt-1">
-                          <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {t.date}</span>
-                          <span className="font-bold uppercase tracking-wider">{t.displayId || t.id}</span>
-                          {t.notes && <span className="text-slate-400 italic font-normal truncate max-w-xs">{t.notes}</span>}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => { setEditingTxId(t.id); setNewTx({ customer: t.customer, projectId: t.projectId || '', amount: t.amount, type: t.type, category: t.category, expenseType: t.expenseType || 'Material & Hardware Purchase', gstEnabled: t.gst > 0, notes: '' }); setIsTxModalOpen(true); }} className="p-1.5 hover:bg-blue-50 text-blue-400 hover:text-blue-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100 cursor-pointer" title="Edit">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDeleteTransaction(t.id)} className="p-1.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100 cursor-pointer" title="Delete">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-black text-red-600">-₹{t.amount?.toLocaleString('en-IN')}</div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Paid</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {transactions.filter(t => t.category === 'Expense').length === 0 && (
-                <p className="text-center text-slate-500 text-sm py-4">No expenses recorded yet.</p>
-              )}
-            </div>
-          </div>
         </div>
       )}
 
-      {/* TAB 3: LOANS & EMIs */}
+      {/* TAB 4: LOANS & EMIs */}
       {activeTab === 'loans' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1569,6 +2102,236 @@ export default function Finance() {
                     Splits plant cost into 70% Solar Goods (@ 5% GST) and 30% Services/Labor (@ 18% GST).
                   </p>
                 </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EXPENSE DETAILS & RECEIPT PROOF MODAL */}
+      {selectedExpenseForDetails && (
+        <div 
+          className="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-[200] overflow-y-auto p-4 sm:p-6 flex items-start justify-center pt-24 sm:pt-28 pb-16"
+          onClick={() => setSelectedExpenseForDetails(null)}
+        >
+          <div 
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[calc(100vh-8.5rem)] flex flex-col min-h-0 overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200 font-sans"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4.5 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center font-black">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black">Expense Voucher Details</h3>
+                  <p className="text-[11px] text-slate-400 font-medium font-mono">
+                    {selectedExpenseForDetails.displayId || selectedExpenseForDetails.id} • {selectedExpenseForDetails.date}
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setSelectedExpenseForDetails(null)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white font-black text-xs transition-all shadow-xs border border-red-500/30 hover:border-red-500 cursor-pointer shrink-0"
+              >
+                <span className="text-sm font-black">✕</span>
+                <span>Close</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5 text-xs">
+              {/* Amount Banner */}
+              <div className="p-4 bg-red-50/70 border border-red-200/80 rounded-2xl flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider block">
+                    Total Amount Disbursed
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-black text-red-700">
+                    -₹{selectedExpenseForDetails.amount?.toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <span className="px-3 py-1 rounded-xl text-xs font-black bg-red-100 text-red-800 border border-red-300">
+                  {selectedExpenseForDetails.expenseType || 'Expense'}
+                </span>
+              </div>
+
+              {/* Details Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Payee / Vendor / Party
+                  </span>
+                  <span className="text-sm font-black text-slate-900 mt-0.5 block">
+                    {selectedExpenseForDetails.customer}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Payment Mode / Type
+                  </span>
+                  <span className="text-sm font-bold text-slate-800 mt-0.5 block">
+                    {selectedExpenseForDetails.type || 'Cash / Bank Transfer'}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Expense Classification
+                  </span>
+                  <span className="text-xs font-bold text-slate-800 mt-0.5 block">
+                    {selectedExpenseForDetails.expenseType || 'Material & Hardware Purchase'}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Linked Solar Project
+                  </span>
+                  {(() => {
+                    const proj = projects.find(p => p.id === selectedExpenseForDetails.projectId);
+                    return proj ? (
+                      <span className="text-xs font-black text-emerald-700 mt-0.5 block">
+                        {proj.customerName} ({proj.capacityKw} kW)
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium text-slate-500 mt-0.5 block italic">
+                        General Overhead (Unlinked)
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Employee if commission */}
+              {selectedExpenseForDetails.employeeName && (
+                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider block">
+                    Associated Employee
+                  </span>
+                  <span className="text-xs font-black text-indigo-950 mt-0.5 block">
+                    {selectedExpenseForDetails.employeeName} {selectedExpenseForDetails.employeeId ? `(ID: ${selectedExpenseForDetails.employeeId})` : ''}
+                  </span>
+                </div>
+              )}
+
+              {/* Remarks / Notes */}
+              {selectedExpenseForDetails.notes && (
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Notes & Remarks
+                  </span>
+                  <p className="text-xs text-slate-700 font-medium whitespace-pre-wrap">
+                    {selectedExpenseForDetails.notes}
+                  </p>
+                </div>
+              )}
+
+              {/* Bill / Receipt Proof Image Attachment */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                  Bill / Voucher Attachment
+                </span>
+                {selectedExpenseForDetails.receiptImageUrl ? (
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-900/5 p-2">
+                    <img 
+                      src={selectedExpenseForDetails.receiptImageUrl} 
+                      alt="Expense Bill Proof" 
+                      className="w-full max-h-72 object-contain rounded-xl bg-white border border-slate-100 shadow-xs cursor-pointer hover:opacity-95 transition-opacity"
+                      onClick={() => setSelectedReceiptImage(selectedExpenseForDetails.receiptImageUrl)}
+                    />
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedReceiptImage(selectedExpenseForDetails.receiptImageUrl)}
+                        className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Open Full Screen Preview
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 font-medium">
+                    No receipt photo or invoice file was attached to this voucher.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const exp = selectedExpenseForDetails;
+                  setSelectedExpenseForDetails(null);
+                  handleEditExpense(exp);
+                }}
+                className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer border border-blue-200"
+              >
+                <Edit2 className="w-3.5 h-3.5" /> Edit Expense
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedExpenseForDetails(null)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EXPENSE DELETE CONFIRMATION MODAL */}
+      {deleteConfirmExpenseId && (
+        <div 
+          className="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-[200] overflow-y-auto p-4 flex items-center justify-center"
+          onClick={() => setDeleteConfirmExpenseId(null)}
+        >
+          <div 
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 border border-slate-100 animate-in zoom-in-95 duration-200 font-sans space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-black text-slate-900">Delete Expense Record?</h3>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to delete this expense record? This action will permanently remove it from financial calculations and reports.
+              </p>
+            </div>
+
+            <div className="pt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmExpenseId(null)}
+                className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const id = deleteConfirmExpenseId;
+                  setDeleteConfirmExpenseId(null);
+                  if (id) {
+                    try {
+                      await deleteDoc(doc(db, 'financeTransactions', id));
+                    } catch (err) {
+                      console.error('Error deleting expense:', err);
+                    }
+                  }
+                }}
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white font-extrabold rounded-xl text-xs hover:bg-red-700 transition-all shadow-md shadow-red-600/20 cursor-pointer"
+              >
+                Yes, Delete
               </button>
             </div>
           </div>

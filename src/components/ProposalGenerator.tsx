@@ -24,6 +24,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
 import { useLogos } from '@/src/context/LogoContext';
 import { useAuth } from '@/src/context/AuthContext';
+import { saveGeneratedDocument } from '@/src/services/generatedDocuments.service';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 
@@ -139,7 +140,41 @@ export default function ProposalGenerator() {
         heightLeft -= pageHeight;
       }
       
+      const docNumber = `PROP-${new Date().getFullYear()}-${proposalData.customerName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'SOLAR'}`;
       pdf.save(`Proposal_${proposalData.customerName.replace(/\s+/g, '_')}.pdf`);
+
+      // Store in unified user-wise generated documents collection
+      try {
+        await saveGeneratedDocument({
+          type: 'proposal',
+          docNumber,
+          customerName: proposalData.customerName,
+          customerAddress: proposalData.customerAddress,
+          systemCapacityKw: proposalData.systemCapacity,
+          totalAmount: proposalData.totalCost,
+          subtotal: netCost,
+          discount: proposalData.subsidy,
+          status: 'Generated',
+          userId: user?.uid || 'admin',
+          userName: user?.name || 'Solar Consultant',
+          userEmail: user?.email || '',
+          userRole: user?.role || 'Sales Executive',
+          companyName: vendorCompanyName,
+          metadata: {
+            estimatedGeneration: proposalData.estimatedGeneration,
+            emiMonths: proposalData.emiMonths,
+            interestRate: proposalData.interestRate,
+            paybackPeriod: proposalData.paybackPeriod,
+            roi: proposalData.roi,
+            timelineDays: proposalData.timelineDays,
+            panelWarranty: proposalData.panelWarranty,
+            inverterWarranty: proposalData.inverterWarranty,
+            customMatter: proposalData.customMatter
+          }
+        });
+      } catch (saveErr) {
+        console.warn('Could not auto-record generated proposal:', saveErr);
+      }
     } catch (err) {
       console.error('Error generating PDF', err);
       alert('Error generating PDF.');
@@ -178,6 +213,37 @@ export default function ProposalGenerator() {
         emiAmount,
         createdAt: serverTimestamp()
       });
+
+      // Save to user-wise generated documents collection
+      const docNumber = `PROP-${new Date().getFullYear()}-${proposalData.customerName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'SOLAR'}`;
+      await saveGeneratedDocument({
+        type: 'proposal',
+        docNumber,
+        customerName: proposalData.customerName,
+        customerAddress: proposalData.customerAddress,
+        systemCapacityKw: proposalData.systemCapacity,
+        totalAmount: proposalData.totalCost,
+        subtotal: netCost,
+        discount: proposalData.subsidy,
+        status: 'Generated',
+        userId: user?.uid || 'admin',
+        userName: user?.name || 'Solar Consultant',
+        userEmail: user?.email || '',
+        userRole: user?.role || 'Sales Executive',
+        companyName: vendorCompanyName,
+        metadata: {
+          estimatedGeneration: proposalData.estimatedGeneration,
+          emiMonths: proposalData.emiMonths,
+          interestRate: proposalData.interestRate,
+          paybackPeriod: proposalData.paybackPeriod,
+          roi: proposalData.roi,
+          timelineDays: proposalData.timelineDays,
+          panelWarranty: proposalData.panelWarranty,
+          inverterWarranty: proposalData.inverterWarranty,
+          customMatter: proposalData.customMatter
+        }
+      });
+
       alert('✅ Proposal saved successfully to the database.');
     } catch (err) {
       console.error('Error saving proposal:', err);

@@ -14,10 +14,11 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
 import { Lead, LeadStatus } from '@/src/types';
-import { Plus, Search, Filter, MoreVertical, Mail, Phone, MapPin, Users, FileText, Edit2, Trash2, ShieldCheck, Sparkles, Building2, Loader2, Compass, LocateFixed, Box, Sun, Zap, Wrench } from 'lucide-react';
+import { Plus, Search, Filter, MoreVertical, Mail, Phone, MapPin, Users, FileText, Edit2, Trash2, ShieldCheck, Sparkles, Building2, Loader2, Compass, LocateFixed, Box, Sun, Zap, Wrench, CheckCircle2, Clock, ArrowRight } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
 import Solar3DViewer from './Solar3DViewer';
+import { saveGeneratedDocument } from '@/src/services/generatedDocuments.service';
 
 export default function CRM({ initialFilter }: { initialFilter?: string }) {
   const { user } = useAuth();
@@ -82,13 +83,24 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
     );
   });
 
-  const filteredLeads = roleScopedLeads.filter(lead =>
-    (showTrash ? lead.isDeleted : !lead.isDeleted) &&
-    (lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const [selectedStageGroup, setSelectedStageGroup] = useState<'all' | 'qualified' | 'proposal' | 'approved'>('all');
+
+  const filteredLeads = roleScopedLeads.filter(lead => {
+    const matchesTrash = showTrash ? lead.isDeleted : !lead.isDeleted;
+    const matchesSearch =
+      lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.status.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+      lead.status.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesGroup = 
+      selectedStageGroup === 'all' ? true :
+      selectedStageGroup === 'qualified' ? ['Qualified', 'Site Survey'].includes(lead.status) :
+      selectedStageGroup === 'proposal' ? ['Proposal', 'Negotiation'].includes(lead.status) :
+      selectedStageGroup === 'approved' ? ['Approved', 'Installation', 'Completed', 'AMC'].includes(lead.status) : true;
+
+    return matchesTrash && matchesSearch && matchesGroup;
+  });
   const [newLead, setNewLead] = useState<Partial<Lead>>({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', roofType: '', monthlyUnits: '', expectedLoad: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
   const [selectedLeadForQuotation, setSelectedLeadForQuotation] = useState<Lead | null>(null);
@@ -383,7 +395,55 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
     const targetLead = selectedLeadForApproval;
 
     try {
-      // 1. Dynamically update lead status to Approved with assigned regional officer details
+      // 1. Check & Auto-create Customer in DB upon Lead Approval / Conversion
+      const rawCapacity = parseFloat(targetLead.expectedLoad || '5') || 5;
+      const capacityKw = targetLead.expectedLoadUnit === 'MW' ? rawCapacity * 1000 : rawCapacity;
+      const totalCost = capacityKw * 55000;
+
+      let customerId = targetLead.customerId || '';
+      if (!customerId) {
+        const existingCustSnap = await getDocs(query(collection(db, 'customers'), where('phone', '==', targetLead.phone)));
+        if (!existingCustSnap.empty) {
+          customerId = existingCustSnap.docs[0].id;
+          await updateDoc(doc(db, 'customers', customerId), {
+            leadId: targetLead.id,
+            systemCapacityKw: capacityKw,
+            totalProjectValue: totalCost,
+            assignedTo: assignedOfficer.name,
+            status: 'Active',
+            updatedAt: serverTimestamp()
+          });
+        } else {
+          const newCustRef = await addDoc(collection(db, 'customers'), {
+            name: targetLead.name,
+            phone: targetLead.phone,
+            email: targetLead.email || '',
+            address: targetLead.address || '',
+            city: targetLead.city || '',
+            district: targetLead.district || '',
+            state: targetLead.state || '',
+            pincode: targetLead.pincode || '',
+            roofType: targetLead.roofType || 'RCC Flat Roof',
+            sanctionedLoad: targetLead.expectedLoad || '5',
+            systemCapacityKw: capacityKw,
+            totalProjectValue: totalCost,
+            leadId: targetLead.id,
+            creatorId: user?.uid || '',
+            createdBy: user?.email || '',
+            creatorName: user?.name || '',
+            companyName: user?.companyName || user?.vendorAccount?.companyName || '',
+            assignedTo: assignedOfficer.name,
+            status: 'Active',
+            notes: `Converted from CRM Lead (Approved & Assigned to ${assignedOfficer.name})`,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          customerId = newCustRef.id;
+        }
+      }
+      targetLead.customerId = customerId;
+
+      // 2. Dynamically update lead status to Approved with assigned regional officer & customerId
       await updateDoc(doc(db, 'leads', targetLead.id), {
         status: 'Approved',
         assignedTo: assignedOfficer.name,
@@ -391,14 +451,11 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
         assignedRole: assignedOfficer.role,
         assignedRegion: assignedOfficer.region,
         assignmentNotes: assignmentNotes,
+        customerId: customerId,
         updatedAt: serverTimestamp()
       });
 
-      // 2. Check if a project already exists for this lead or customer to prevent duplicates
-      const rawCapacity = parseFloat(targetLead.expectedLoad || '5') || 5;
-      const capacityKw = targetLead.expectedLoadUnit === 'MW' ? rawCapacity * 1000 : rawCapacity;
-      const totalCost = capacityKw * 55000;
-
+      // 3. Check if a project already exists for this lead or customer to prevent duplicates
       const existingProjectsSnap = await getDocs(query(collection(db, 'projects'), where('leadId', '==', targetLead.id)));
       let projectId = '';
 
@@ -406,6 +463,7 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
         const existingDoc = existingProjectsSnap.docs[0];
         projectId = existingDoc.id;
         await updateDoc(doc(db, 'projects', projectId), {
+          customerId: customerId,
           assignedTo: assignedOfficer.name,
           assignedToId: assignedOfficer.id,
           assignedRole: assignedOfficer.role,
@@ -417,6 +475,7 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
       } else {
         const projectRef = await addDoc(collection(db, 'projects'), {
           leadId: targetLead.id,
+          customerId: customerId,
           name: `${targetLead.name} Solar Installation`,
           customerName: targetLead.name,
           phone: targetLead.phone,
@@ -567,6 +626,96 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
         </button>
       </header>
 
+      {/* Interactive KPI Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedStageGroup('all');
+            setSearchTerm('');
+          }}
+          className={cn(
+            "text-left p-4 rounded-2xl border transition-all cursor-pointer space-y-1 group",
+            selectedStageGroup === 'all'
+              ? "bg-slate-900 text-white border-slate-900 ring-2 ring-slate-400/40 shadow-md"
+              : "bg-white border-slate-100 shadow-sm hover:border-slate-300 hover:shadow-md"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <p className={cn("text-[10px] font-black uppercase tracking-wider", selectedStageGroup === 'all' ? "text-slate-300" : "text-slate-400")}>
+              Total Leads
+            </p>
+            {selectedStageGroup === 'all' && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />}
+          </div>
+          <p className={cn("text-2xl font-black", selectedStageGroup === 'all' ? "text-white" : "text-slate-900")}>
+            {roleScopedLeads.filter(l => !l.isDeleted).length}
+          </p>
+          <p className={cn("text-[11px] font-medium", selectedStageGroup === 'all' ? "text-slate-300" : "text-slate-500")}>
+            Full sales pipeline (Click to view)
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setSelectedStageGroup(selectedStageGroup === 'qualified' ? 'all' : 'qualified')}
+          className={cn(
+            "text-left p-4 rounded-2xl border transition-all cursor-pointer space-y-1 group",
+            selectedStageGroup === 'qualified'
+              ? "bg-blue-50 border-blue-300 ring-2 ring-blue-500/40 shadow-md"
+              : "bg-white border-slate-100 shadow-sm hover:border-blue-200 hover:shadow-md"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-wider text-blue-600">Qualified & Surveys</p>
+            {selectedStageGroup === 'qualified' && <span className="w-2 h-2 rounded-full bg-blue-500" />}
+          </div>
+          <p className="text-2xl font-black text-blue-600">
+            {roleScopedLeads.filter(l => !l.isDeleted && ['Qualified', 'Site Survey'].includes(l.status)).length}
+          </p>
+          <p className="text-[11px] text-blue-600 font-medium">Ready for proposal (Click to filter)</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setSelectedStageGroup(selectedStageGroup === 'proposal' ? 'all' : 'proposal')}
+          className={cn(
+            "text-left p-4 rounded-2xl border transition-all cursor-pointer space-y-1 group",
+            selectedStageGroup === 'proposal'
+              ? "bg-purple-50 border-purple-300 ring-2 ring-purple-500/40 shadow-md"
+              : "bg-white border-slate-100 shadow-sm hover:border-purple-200 hover:shadow-md"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-wider text-purple-600">Proposals & Quotes</p>
+            {selectedStageGroup === 'proposal' && <span className="w-2 h-2 rounded-full bg-purple-500" />}
+          </div>
+          <p className="text-2xl font-black text-purple-600">
+            {roleScopedLeads.filter(l => !l.isDeleted && ['Proposal', 'Negotiation'].includes(l.status)).length}
+          </p>
+          <p className="text-[11px] text-purple-600 font-medium">Under negotiation (Click to filter)</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setSelectedStageGroup(selectedStageGroup === 'approved' ? 'all' : 'approved')}
+          className={cn(
+            "text-left p-4 rounded-2xl border transition-all cursor-pointer space-y-1 group",
+            selectedStageGroup === 'approved'
+              ? "bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/40 shadow-md"
+              : "bg-white border-slate-100 shadow-sm hover:border-emerald-200 hover:shadow-md"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Approved / In Pipeline</p>
+            {selectedStageGroup === 'approved' && <span className="w-2 h-2 rounded-full bg-emerald-500" />}
+          </div>
+          <p className="text-2xl font-black text-emerald-600">
+            {roleScopedLeads.filter(l => !l.isDeleted && ['Approved', 'Installation', 'Completed', 'AMC'].includes(l.status)).length}
+          </p>
+          <p className="text-[11px] text-emerald-600 font-medium">Converted to execution (Click to filter)</p>
+        </button>
+      </div>
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row gap-3 sm:gap-4 items-center">
           <div className="relative flex-1 w-full">
@@ -602,11 +751,19 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
         {/* Mobile View: Touch-Optimized Cards (< md breakpoint) */}
         <div className="block md:hidden divide-y divide-slate-100">
           {filteredLeads.map((lead) => (
-            <div key={lead.id} className="p-4 space-y-3 hover:bg-slate-50/60 transition-colors">
+            <div 
+              key={lead.id} 
+              onClick={() => {
+                setEditingLeadId(lead.id);
+                setNewLead(lead);
+                setIsModalOpen(true);
+              }}
+              className="p-4 space-y-3 hover:bg-slate-50/60 transition-colors cursor-pointer group"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-bold text-slate-900 text-base">{lead.name}</span>
+                    <span className="font-bold text-slate-900 text-base group-hover:text-emerald-700 transition-colors">{lead.name}</span>
                     {lead.expectedLoad && (
                       <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
                         {lead.expectedLoad} {lead.expectedLoadUnit || 'KW'}
@@ -624,18 +781,26 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <a href={`mailto:${lead.email}`} className="flex items-center gap-2 text-slate-600 font-medium hover:text-emerald-600 transition-colors bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 truncate">
+                <a 
+                  href={`mailto:${lead.email}`} 
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 text-slate-600 font-medium hover:text-emerald-600 transition-colors bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 truncate"
+                >
                   <Mail className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   <span className="truncate">{lead.email}</span>
                 </a>
-                <a href={`tel:${lead.phone}`} className="flex items-center gap-2 text-slate-600 font-medium hover:text-emerald-600 transition-colors bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+                <a 
+                  href={`tel:${lead.phone}`} 
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 text-slate-600 font-medium hover:text-emerald-600 transition-colors bg-slate-50 px-3 py-2 rounded-xl border border-slate-100"
+                >
                   <Phone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   <span>{lead.phone}</span>
                 </a>
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100/80">
-                <div>
+                <div onClick={(e) => e.stopPropagation()}>
                   <select
                     value={lead.status}
                     onChange={(e) => updateLeadStatus(lead.id, e.target.value as LeadStatus, lead)}
@@ -656,16 +821,20 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                   </select>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                   <button
-                    onClick={() => setSelected3DLead(lead)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelected3DLead(lead);
+                    }}
                     className="p-2 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-xl transition-all border border-teal-100 cursor-pointer"
                     title="View 3D Rooftop Solar Model"
                   >
                     <Box className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setSelectedLeadForQuotation(lead);
                       setIsQuotationModalOpen(true);
                     }}
@@ -675,7 +844,8 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                     <FileText className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setEditingLeadId(lead.id);
                       setNewLead(lead);
                       setIsModalOpen(true);
@@ -688,7 +858,8 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                   {showTrash ? (
                     <>
                       <button
-                        onClick={async () => {
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           if (window.confirm("Restore this lead?")) {
                             await updateDoc(doc(db, 'leads', lead.id), { isDeleted: false });
                           }
@@ -699,7 +870,10 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
                       </button>
                       <button
-                        onClick={() => handleDeleteLead(lead.id, true)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteLead(lead.id, true);
+                        }}
                         className="p-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-all border border-red-100 cursor-pointer"
                         title="Delete Permanently"
                       >
@@ -708,7 +882,10 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                     </>
                   ) : (
                     <button
-                      onClick={() => handleDeleteLead(lead.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteLead(lead.id);
+                      }}
                       className="p-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-all border border-red-100 cursor-pointer"
                       title="Move to Trash"
                     >
@@ -747,7 +924,15 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredLeads.map((lead) => (
-                <tr key={lead.id} className="hover:bg-emerald-50/30 transition-colors group">
+                <tr 
+                  key={lead.id} 
+                  onClick={() => {
+                    setEditingLeadId(lead.id);
+                    setNewLead(lead);
+                    setIsModalOpen(true);
+                  }}
+                  className="hover:bg-emerald-50/30 transition-colors group cursor-pointer"
+                >
                   <td className="px-6 py-5">
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
@@ -764,16 +949,16 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-5">
+                  <td className="px-6 py-5" onClick={(e) => e.stopPropagation()}>
                     <div className="space-y-1.5">
-                      <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
+                      <a href={`mailto:${lead.email}`} className="flex items-center gap-2 text-xs text-slate-600 font-medium hover:text-emerald-600">
                         <Mail className="w-3.5 h-3.5 text-emerald-500" />
                         {lead.email}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
+                      </a>
+                      <a href={`tel:${lead.phone}`} className="flex items-center gap-2 text-xs text-slate-600 font-medium hover:text-emerald-600">
                         <Phone className="w-3.5 h-3.5 text-emerald-500" />
                         {lead.phone}
-                      </div>
+                      </a>
                     </div>
                   </td>
                   <td className="px-6 py-5">
@@ -781,7 +966,7 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                       {lead.source}
                     </span>
                   </td>
-                  <td className="px-6 py-5">
+                  <td className="px-6 py-5" onClick={(e) => e.stopPropagation()}>
                     <select
                       value={lead.status}
                       onChange={(e) => updateLeadStatus(lead.id, e.target.value as LeadStatus, lead)}
@@ -801,9 +986,12 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                       <option value="AMC">AMC</option>
                     </select>
                   </td>
-                  <td className="px-6 py-5 text-right space-x-2">
+                  <td className="px-6 py-5 text-right space-x-2" onClick={(e) => e.stopPropagation()}>
                     <button
-                      onClick={() => setSelected3DLead(lead)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelected3DLead(lead);
+                      }}
                       className="p-2 hover:bg-teal-50 hover:shadow-sm rounded-lg text-teal-600 transition-all border border-transparent hover:border-teal-100 group cursor-pointer"
                       title="View 3D Rooftop Solar Model (GPS Lat/Long)"
                     >
@@ -811,7 +999,8 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                     </button>
 
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setSelectedLeadForQuotation(lead);
                         setIsQuotationModalOpen(true);
                       }}
@@ -821,7 +1010,8 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                       <FileText className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setEditingLeadId(lead.id);
                         setNewLead(lead);
                         setIsModalOpen(true);
@@ -834,7 +1024,8 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                     {showTrash ? (
                       <>
                         <button
-                          onClick={async () => {
+                          onClick={async (e) => {
+                            e.stopPropagation();
                             if (window.confirm("Restore this lead?")) {
                               await updateDoc(doc(db, 'leads', lead.id), { isDeleted: false });
                             }
@@ -845,7 +1036,10 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
                         </button>
                         <button
-                          onClick={() => handleDeleteLead(lead.id, true)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteLead(lead.id, true);
+                          }}
                           className="p-2 hover:bg-red-50 hover:shadow-sm rounded-lg text-red-600 transition-all border border-transparent hover:border-red-100 cursor-pointer"
                           title="Delete Permanently"
                         >
@@ -854,7 +1048,10 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                       </>
                     ) : (
                       <button
-                        onClick={() => handleDeleteLead(lead.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteLead(lead.id);
+                        }}
                         className="p-2 hover:bg-red-50 hover:shadow-sm rounded-lg text-red-600 transition-all border border-transparent hover:border-red-100 cursor-pointer"
                         title="Move to Trash"
                       >
@@ -1352,6 +1549,29 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                   totalCost: quotationDetails.totalCost,
                   estimatedGeneration: quotationDetails.estimatedGeneration,
                   createdAt: serverTimestamp()
+                });
+
+                // Also save into user-wise generatedDocuments repository
+                const quoteTotal = parseFloat(quotationDetails.totalCost) || 0;
+                await saveGeneratedDocument({
+                  docNumber: `QT-${Date.now().toString().slice(-6)}`,
+                  type: 'quotation',
+                  customerName: selectedLeadForQuotation.name,
+                  customerEmail: selectedLeadForQuotation.email,
+                  customerPhone: selectedLeadForQuotation.phone,
+                  leadId: selectedLeadForQuotation.id,
+                  customerId: selectedLeadForQuotation.customerId,
+                  systemCapacityKw: parseFloat(quotationDetails.systemSize) || undefined,
+                  totalAmount: quoteTotal,
+                  taxAmount: quoteTotal * 0.138,
+                  status: 'Approved',
+                  user: user || undefined,
+                  metadata: {
+                    panelType: quotationDetails.panelType,
+                    inverterType: quotationDetails.inverterType,
+                    estimatedGeneration: quotationDetails.estimatedGeneration,
+                    source: 'CRM Quotation Modal'
+                  }
                 });
 
                 // Update lead in Firestore with quotation details

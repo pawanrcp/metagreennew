@@ -42,6 +42,7 @@ export interface Lead {
   salesRep?: string;
   installerId?: string;
   region?: string;
+  customerId?: string;
 }
 
 export type ProjectStatus = 
@@ -101,6 +102,11 @@ export interface Project {
   quotationId?: string;
   quotationAmount?: number;
   quotationDate?: string;
+  name?: string;
+  assignedRole?: string;
+  region?: string;
+  customerId?: string;
+  payments?: any[];
   rating?: number;
   review?: string;
   siteSurveyImagesUrls?: string[];
@@ -217,4 +223,74 @@ export interface AuthenticatedUser {
   permissions?: RolePermissions;
 }
 
-export type ViewType = 'dashboard' | 'crm' | 'customers' | 'site-survey' | 'solar-design' | 'proposal' | 'quotation' | 'invoice' | 'tax-invoice' | 'subsidy' | 'procurement' | 'projects' | 'inventory' | 'work-orders' | 'finance' | 'support' | 'warranty' | 'documents' | 'compliance' | 'hr' | 'vendors' | 'reports' | 'portal' | 'settings';
+export type ViewType = 'dashboard' | 'crm' | 'customers' | 'site-survey' | 'solar-design' | 'proposal' | 'quotation' | 'invoice' | 'tax-invoice' | 'quote-records' | 'subsidy' | 'procurement' | 'projects' | 'inventory' | 'work-orders' | 'finance' | 'expenses' | 'support' | 'warranty' | 'documents' | 'compliance' | 'hr' | 'vendors' | 'direct-suppliers' | 'reports' | 'portal' | 'settings';
+
+export interface DirectSupplier {
+  id: string;
+  displayId?: string;
+  name: string;
+  category: string;
+  categories?: string[];
+  contact?: string;
+  phone?: string;
+  secondaryPhone?: string;
+  email?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  gstin?: string;
+  pan?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
+  paymentTerms?: string;
+  notes?: string;
+  rating?: number;
+  status?: 'Active' | 'Inactive' | 'Archived';
+  vendorType?: 'Unregistered' | 'Registered';
+  isRegistered?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: any;
+  creatorId?: string;
+  createdBy?: string;
+  creatorName?: string;
+  creatorRole?: string;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export type GeneratedDocType = 'quotation' | 'proposal' | 'invoice' | 'tax-invoice';
+
+export interface GeneratedDocument {
+  id: string;
+  type: GeneratedDocType;
+  docNumber: string;
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  city?: string;
+  district?: string;
+  state?: string;
+  pincode?: string;
+  customerId?: string;
+  leadId?: string;
+  projectId?: string;
+  totalAmount: number;
+  subtotal?: number;
+  taxAmount?: number;
+  discount?: number;
+  systemCapacityKw?: number;
+  items?: any[];
+  status: 'Draft' | 'Generated' | 'Sent' | 'Approved' | 'Paid';
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  companyName: string;
+  pdfUrl?: string;
+  metadata?: Record<string, any>;
+  createdAt: any;
+  updatedAt?: any;
+}

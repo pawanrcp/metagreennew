@@ -32,6 +32,7 @@ import { db } from '@/src/lib/firebase';
 import { Lead } from '@/src/types';
 import { useLogos } from '@/src/context/LogoContext';
 import { useAuth } from '@/src/context/AuthContext';
+import { saveGeneratedDocument } from '@/src/services/generatedDocuments.service';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 
@@ -344,6 +345,42 @@ export default function QuotationBuilder() {
       const docRef = await addDoc(collection(db, 'quotationVersions'), newVersion);
       setActiveVersionId(docRef.id);
       setIsHistoryOpen(false);
+
+      // Store in unified user-wise generated documents collection
+      const docNumber = `GES25-${newVersion.versionNumber.toString().padStart(6, '0')}`;
+      await saveGeneratedDocument({
+        type: 'quotation',
+        docNumber,
+        customerName: customerDetails.name,
+        customerPhone: customerDetails.mobile,
+        customerEmail: customerEmail || '',
+        customerAddress: `${customerDetails.addressLine1}, ${customerDetails.city}`,
+        city: customerDetails.city,
+        district: customerDetails.district,
+        state: customerDetails.state,
+        pincode: customerDetails.pincode,
+        systemCapacityKw: parseFloat(customerDetails.systemSize.replace('kWp', '').trim()) || 5,
+        totalAmount: grandTotal,
+        subtotal: totalBeforeTax,
+        taxAmount: gstAmount,
+        discount: activeVersion.discount,
+        items: activeVersion.items,
+        status: isMainAdmin ? 'Approved' : 'Generated',
+        userId: user?.uid || 'admin',
+        userName: user?.name || 'Solar Consultant',
+        userEmail: user?.email || '',
+        userRole: user?.role || 'Sales Executive',
+        companyName: vendorCompanyName,
+        metadata: {
+          versionNumber: newVersion.versionNumber,
+          labourCost: activeVersion.labourCost,
+          transportCost: activeVersion.transportCost,
+          gstRate: activeVersion.gstRate,
+          use7030Split: activeVersion.use7030Split,
+          estimateMatter: activeVersion.estimateMatter || DEFAULT_ESTIMATE_MATTER
+        }
+      });
+
       alert(isMainAdmin 
         ? `✅ Created & Approved new estimate version v${newVersion.versionNumber}!` 
         : `✅ Created estimate v${newVersion.versionNumber} - Sent to Main Admin for approval!`
@@ -441,7 +478,46 @@ export default function QuotationBuilder() {
         heightLeft -= pageHeight;
       }
       
-      pdf.save(`Estimate_GES25-${activeVersion.versionNumber.toString().padStart(6, '0')}.pdf`);
+      const docNumber = `GES25-${activeVersion.versionNumber.toString().padStart(6, '0')}`;
+      pdf.save(`Estimate_${docNumber}.pdf`);
+
+      // Store in unified user-wise generated documents collection
+      try {
+        await saveGeneratedDocument({
+          type: 'quotation',
+          docNumber,
+          customerName: customerDetails.name,
+          customerPhone: customerDetails.mobile,
+          customerEmail: customerEmail || '',
+          customerAddress: `${customerDetails.addressLine1}, ${customerDetails.city}`,
+          city: customerDetails.city,
+          district: customerDetails.district,
+          state: customerDetails.state,
+          pincode: customerDetails.pincode,
+          systemCapacityKw: parseFloat(customerDetails.systemSize.replace('kWp', '').trim()) || 5,
+          totalAmount: grandTotal,
+          subtotal: totalBeforeTax,
+          taxAmount: gstAmount,
+          discount: activeVersion.discount,
+          items: activeVersion.items,
+          status: activeVersion.status === 'Approved' ? 'Approved' : 'Generated',
+          userId: user?.uid || 'admin',
+          userName: user?.name || 'Solar Consultant',
+          userEmail: user?.email || '',
+          userRole: user?.role || 'Sales Executive',
+          companyName: vendorCompanyName,
+          metadata: {
+            versionNumber: activeVersion.versionNumber,
+            labourCost: activeVersion.labourCost,
+            transportCost: activeVersion.transportCost,
+            gstRate: activeVersion.gstRate,
+            use7030Split: activeVersion.use7030Split,
+            estimateMatter: activeVersion.estimateMatter || DEFAULT_ESTIMATE_MATTER
+          }
+        });
+      } catch (saveErr) {
+        console.warn('Could not save generated document record:', saveErr);
+      }
     } catch (err) {
       console.error('Error generating PDF', err);
       alert('Error generating PDF.');

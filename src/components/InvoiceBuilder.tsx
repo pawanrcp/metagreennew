@@ -25,6 +25,7 @@ import { useAuth } from '@/src/context/AuthContext';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
 import { Lead } from '@/src/types';
+import { saveGeneratedDocument } from '@/src/services/generatedDocuments.service';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 
@@ -76,6 +77,7 @@ export default function InvoiceBuilder() {
     city: 'Pedapadu Village, Eluru',
     state: 'Andhra Pradesh',
     pincode: '534001',
+    systemCapacityKw: 5,
     items: [
       {
         id: '1',
@@ -212,6 +214,42 @@ export default function InvoiceBuilder() {
         grandTotal,
         createdAt: serverTimestamp()
       });
+
+      // Save to user-wise generated documents
+      await saveGeneratedDocument({
+        type: 'invoice',
+        docNumber: invoiceForm.invoiceNo,
+        customerName: invoiceForm.customerName,
+        customerPhone: invoiceForm.phone,
+        customerEmail: invoiceForm.email,
+        customerAddress: `${invoiceForm.address}, ${invoiceForm.city}, ${invoiceForm.state} ${invoiceForm.pincode}`,
+        city: invoiceForm.city,
+        state: invoiceForm.state,
+        pincode: invoiceForm.pincode,
+        systemCapacityKw: Number(invoiceForm.systemCapacityKw) || 5,
+        totalAmount: grandTotal,
+        subtotal: totalBeforeTax,
+        taxAmount: gstAmount,
+        discount: invoiceForm.discount,
+        items: invoiceForm.items,
+        status: 'Generated',
+        userId: user?.uid || 'admin',
+        userName: user?.name || 'Solar Consultant',
+        userEmail: user?.email || '',
+        userRole: user?.role || 'Sales Executive',
+        companyName: vendorCompanyName,
+        metadata: {
+          invoiceType: invoiceForm.invoiceType,
+          invoiceDate: invoiceForm.invoiceDate,
+          dueDate: invoiceForm.dueDate,
+          poReferenceNo: invoiceForm.poReferenceNo,
+          paymentTerms: invoiceForm.paymentTerms,
+          use7030Split: invoiceForm.use7030Split,
+          gstRate: invoiceForm.gstRate,
+          notes: invoiceForm.notes
+        }
+      });
+
       alert('✅ Invoice saved successfully to Cloud database!');
     } catch (err) {
       console.error(err);
@@ -244,6 +282,45 @@ export default function InvoiceBuilder() {
         heightLeft -= pageHeight;
       }
       pdf.save(`Invoice_${invoiceForm.invoiceNo}.pdf`);
+
+      // Automatically record generated invoice in database
+      try {
+        await saveGeneratedDocument({
+          type: 'invoice',
+          docNumber: invoiceForm.invoiceNo,
+          customerName: invoiceForm.customerName,
+          customerPhone: invoiceForm.phone,
+          customerEmail: invoiceForm.email,
+          customerAddress: `${invoiceForm.address}, ${invoiceForm.city}, ${invoiceForm.state} ${invoiceForm.pincode}`,
+          city: invoiceForm.city,
+          state: invoiceForm.state,
+          pincode: invoiceForm.pincode,
+          systemCapacityKw: Number(invoiceForm.systemCapacityKw) || 5,
+          totalAmount: grandTotal,
+          subtotal: totalBeforeTax,
+          taxAmount: gstAmount,
+          discount: invoiceForm.discount,
+          items: invoiceForm.items,
+          status: 'Generated',
+          userId: user?.uid || 'admin',
+          userName: user?.name || 'Solar Consultant',
+          userEmail: user?.email || '',
+          userRole: user?.role || 'Sales Executive',
+          companyName: vendorCompanyName,
+          metadata: {
+            invoiceType: invoiceForm.invoiceType,
+            invoiceDate: invoiceForm.invoiceDate,
+            dueDate: invoiceForm.dueDate,
+            poReferenceNo: invoiceForm.poReferenceNo,
+            paymentTerms: invoiceForm.paymentTerms,
+            use7030Split: invoiceForm.use7030Split,
+            gstRate: invoiceForm.gstRate,
+            notes: invoiceForm.notes
+          }
+        });
+      } catch (saveErr) {
+        console.warn('Could not auto-record generated invoice:', saveErr);
+      }
     } catch (err) {
       console.error('Error generating PDF', err);
       alert('Failed to generate PDF.');

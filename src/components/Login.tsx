@@ -24,6 +24,7 @@ import { MetaGreenLogo } from './MetaGreenLogo';
 import { authService } from '../services/auth.service';
 import { subscriptionService, SubscriptionPlan } from '../services/subscription.service';
 import VendorRegistrationModal from './VendorRegistrationModal';
+import ForgotPasswordModal from './ForgotPasswordModal';
 import { cn } from '../lib/utils';
 
 export default function Login() {
@@ -38,6 +39,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
 
   // Dedicated Persona Specifications
   const PERSONAS = [
@@ -384,6 +386,14 @@ export default function Login() {
                   />
                   Remember login
                 </label>
+
+                <button
+                  type="button"
+                  onClick={() => setIsForgotPasswordOpen(true)}
+                  className="font-bold text-emerald-400 hover:text-emerald-300 hover:underline transition-colors cursor-pointer"
+                >
+                  Forgot password?
+                </button>
               </div>
 
               {/* Sign In Button */}
@@ -456,7 +466,17 @@ export default function Login() {
           }}
         />
       )}
+
+      {/* Forgot Password Modal */}
+      {isForgotPasswordOpen && (
+        <ForgotPasswordModal
+          isOpen={isForgotPasswordOpen}
+          defaultEmail={email}
+          onClose={() => setIsForgotPasswordOpen(false)}
+        />
+      )}
     </div>
   );
 }
+
 
