@@ -6,7 +6,7 @@ import {
   Star, Phone, Check, ArrowRight, IndianRupee, MessageSquare, Zap,
   Camera, Upload, Image as ImageIcon, Eye, Sparkles, X, Package,
   UserPlus, Loader2, Briefcase, Layers, CheckSquare, Square,
-  CreditCard, Receipt
+  CreditCard, Receipt, LayoutGrid
 } from 'lucide-react';
 import { Project, ProjectTask, ProjectStatus } from '@/src/types';
 import { cn, formatCurrency } from '@/src/lib/utils';
@@ -71,7 +71,7 @@ const SAMPLE_INSTALLATION_PHOTOS = [
 export default function ProjectDetails({ project, onBack }: ProjectDetailsProps) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'team' | 'photos' | 'payments' | 'review'>('pipeline');
+  const [activeTab, setActiveTab] = useState<'cards' | 'pipeline' | 'team' | 'photos' | 'payments' | 'review' | 'lifecycle'>('cards');
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [staffList, setStaffList] = useState<StaffMember[]>(DEFAULT_STAFF);
   const [currentProject, setCurrentProject] = useState<Project>(project);
@@ -603,197 +603,532 @@ export default function ProjectDetails({ project, onBack }: ProjectDetailsProps)
 
   return (
     <div className="space-y-6 animate-in slide-in-from-right-6 duration-500 font-sans">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={onBack}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-black text-slate-900">{currentProject.customerName}</h1>
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider border border-emerald-200">
-                {currentProject.status || 'Initial'}
+      {/* ========================================================================= */}
+      {/* 1. PROJECT NAVIGATION CARDS HUB (DEFAULT VIEW: activeTab === 'cards') */}
+      {/* ========================================================================= */}
+      {activeTab === 'cards' && (
+        <div className="space-y-6">
+          {/* Top Project Header */}
+          <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={onBack}
+                title="Back to Projects"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors cursor-pointer shrink-0"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">
+                  <h1 className="text-2xl font-black text-slate-900">{currentProject.customerName}</h1>
+                  <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider border border-emerald-200">
+                    {currentProject.status || 'Initial'}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200/60">
+                    ID: {currentProject.id.slice(0, 8)}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400" /> {currentProject.address || 'Site Location'}</span>
+                  <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-amber-500" /> {currentProject.capacityKw} kW System</span>
+                  <span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-emerald-600" /> Lead: {currentProject.assignedTo || 'Unassigned'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button 
+                onClick={() => setPhotoModalType('survey')}
+                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+              >
+                <Camera className="w-4 h-4 text-emerald-400" /> Add Site Photos
+              </button>
+
+              <button 
+                onClick={() => setIsTaskModalOpen(true)}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-emerald-200 flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                <Plus className="w-4 h-4" /> Add Task
+              </button>
+            </div>
+          </header>
+
+          {/* Project Summary & Snapshot Banner */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                <span>Customer Details</span>
+                <span className="text-[10px] font-bold text-emerald-600">Active Account</span>
+              </h3>
+              <div className="space-y-1 text-xs">
+                <p className="font-black text-slate-900 text-sm">{currentProject.customerName}</p>
+                {currentProject.phone && (
+                  <p className="text-slate-600 flex items-center gap-1.5 font-semibold">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" /> {currentProject.phone}
+                  </p>
+                )}
+                <p className="text-slate-600 flex items-center gap-1.5 font-medium">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" /> {currentProject.address || 'Address on file'}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                <span>System Specs & Engineering</span>
+                <span className="text-[10px] font-bold text-amber-600">{currentProject.capacityKw} kW</span>
+              </h3>
+              <div className="space-y-1.5 text-xs font-bold text-slate-700">
+                <p><span className="text-slate-400 font-medium">System Capacity:</span> {currentProject.capacityKw} kW Monocrystalline</p>
+                <p><span className="text-slate-400 font-medium">Assigned Team Lead:</span> {currentProject.assignedTo || 'Lead Installer'}</p>
+                <p><span className="text-slate-400 font-medium">Captured Proofs:</span> <span className="text-emerald-600 font-black">{surveyPhotoCount} Survey / {installationPhotoCount} Install Photos</span></p>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                <span>Financial Ledger Snapshot</span>
+                <span className="text-[10px] font-bold text-emerald-600">
+                  {Math.min(100, Math.round(((currentProject.amountPaid || 0) / (currentProject.totalCost || 250000)) * 100))}% Paid
+                </span>
+              </h3>
+              <div className="space-y-1.5 text-xs font-bold">
+                <p className="flex items-center justify-between">
+                  <span className="text-slate-400 font-medium">Total Contract:</span>
+                  <span className="text-slate-900">₹{(currentProject.totalCost || 250000).toLocaleString()}</span>
+                </p>
+                <p className="flex items-center justify-between">
+                  <span className="text-slate-400 font-medium">Amount Collected:</span>
+                  <span className="text-emerald-600 font-black">₹{(currentProject.amountPaid || 0).toLocaleString()}</span>
+                </p>
+                <p className="flex items-center justify-between">
+                  <span className="text-slate-400 font-medium">Balance Pending:</span>
+                  <span className="text-amber-600 font-black">₹{((currentProject.totalCost || 250000) - (currentProject.amountPaid || 0)).toLocaleString()}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Current 10-Stage Pipeline Overview Strip */}
+          <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 text-white shadow-lg space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-400">Current Lifecycle Stage:</span>
+                <span className="text-xs font-extrabold text-white">
+                  Stage {currentStageIndex + 1} of 10 ({currentProject.status || 'Initial'})
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveTab('lifecycle')}
+                className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 cursor-pointer self-start sm:self-auto hover:underline"
+              >
+                Open Full 10-Stage Pipeline Tracker &rarr;
+              </button>
+            </div>
+
+            {/* Mini Stage Steps Dots */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+              {PIPELINE_STAGES.map((st, i) => {
+                const isPast = i < currentStageIndex;
+                const isCurr = i === currentStageIndex;
+                return (
+                  <button
+                    key={st}
+                    onClick={() => setActiveTab('lifecycle')}
+                    className={cn(
+                      "h-7 px-2.5 rounded-lg text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap shrink-0",
+                      isCurr 
+                        ? "bg-emerald-500 text-slate-950 ring-2 ring-emerald-400/40" 
+                        : isPast 
+                        ? "bg-slate-800 text-emerald-400 hover:bg-slate-750" 
+                        : "bg-slate-950/80 text-slate-500 hover:text-slate-400"
+                    )}
+                    title={`Stage ${i + 1}: ${st}`}
+                  >
+                    <span>{i + 1}.</span>
+                    <span>{st}</span>
+                    {isPast && <Check className="w-3 h-3 text-emerald-400" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* NAVIGATION MODULE CARDS SECTION */}
+          <div className="space-y-4 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <LayoutGrid className="w-5 h-5 text-emerald-600" />
+                  Project Navigation & Management Modules
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Click on any card below to open its dedicated workspace and manage tasks, stage photos, payments, or team
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold self-start sm:self-auto border border-slate-200/60">
+                6 Workspaces Available
               </span>
             </div>
-            <div className="flex items-center gap-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
-              <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400" /> {currentProject.address || 'Site Location'}</span>
-              <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-amber-500" /> {currentProject.capacityKw} kW System</span>
-              <span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-emerald-600" /> Lead: {currentProject.assignedTo || 'Unassigned'}</span>
+
+            {/* 6 Clickable Navigation Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {/* CARD 1: TASKS & WORKFLOW */}
+              <div
+                onClick={() => setActiveTab('pipeline')}
+                className="bg-white hover:bg-gradient-to-br hover:from-white hover:to-emerald-50/40 p-6 rounded-2xl border border-slate-200/80 hover:border-emerald-500/50 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/60">
+                      Operations & Work Orders
+                    </span>
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100/80 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                      <ListTodo className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 group-hover:text-emerald-700 transition-colors">
+                      1. Tasks & Workflow Engine
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">
+                      Manage execution task checklists, track work order milestones, assign roles, and monitor progress bars.
+                    </p>
+                  </div>
+
+                  {/* Task Progress Stats */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-600">Completion Progress</span>
+                      <span className="font-black text-emerald-600">{progressPercent}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div className="bg-emerald-500 h-full rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }} />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-bold text-slate-500">
+                      <span className="bg-slate-100 px-2 py-0.5 rounded">Total: {tasks.length}</span>
+                      <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">Done: {completedTasksCount}</span>
+                      <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded">Pending: {tasks.length - completedTasksCount}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs font-black text-emerald-700 group-hover:text-emerald-800">
+                  <span>Open Tasks & Workflow</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+
+              {/* CARD 2: STAGE PHOTOS */}
+              <div
+                onClick={() => setActiveTab('photos')}
+                className="bg-white hover:bg-gradient-to-br hover:from-white hover:to-sky-50/40 p-6 rounded-2xl border border-slate-200/80 hover:border-sky-500/50 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-500 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200/60">
+                      Site Documentation
+                    </span>
+                    <div className="w-10 h-10 rounded-xl bg-sky-100/80 text-sky-700 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 group-hover:text-sky-700 transition-colors">
+                      2. Stage Photos (Site, Material, After)
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">
+                      Upload and verify site survey inspection images, delivered solar hardware, and post-installation proofs.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-600">Total Captured Proofs</span>
+                      <span className="font-black text-sky-600">
+                        {(currentProject.materialPhotos?.length || 0) + (currentProject.siteSurveyImagesUrls?.length || 0) + (currentProject.installationImagesUrls?.length || 0)} Photos
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-bold text-slate-500">
+                      <span className="bg-sky-50 text-sky-700 px-2 py-0.5 rounded">Survey: {surveyPhotoCount}</span>
+                      <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded">Materials: {currentProject.materialPhotos?.length || 0}</span>
+                      <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">Install: {installationPhotoCount}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs font-black text-sky-700 group-hover:text-sky-800">
+                  <span>Open Stage Photos</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+
+              {/* CARD 3: STAGE MILESTONE PAYMENTS */}
+              <div
+                onClick={() => setActiveTab('payments')}
+                className="bg-white hover:bg-gradient-to-br hover:from-white hover:to-purple-50/40 p-6 rounded-2xl border border-slate-200/80 hover:border-purple-500/50 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200/60">
+                      Accounts & Ledger
+                    </span>
+                    <div className="w-10 h-10 rounded-xl bg-purple-100/80 text-purple-700 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                      <CreditCard className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 group-hover:text-purple-700 transition-colors">
+                      3. Stage Milestone Payments
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">
+                      Record stage milestone collections, upload payment receipts, track transaction reference IDs, and view balances.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-600">Collected Amount</span>
+                      <span className="font-black text-purple-700">₹{(currentProject.amountPaid || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-bold text-slate-500">
+                      <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded">Paid: ₹{(currentProject.amountPaid || 0).toLocaleString()}</span>
+                      <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded">Due: ₹{((currentProject.totalCost || 250000) - (currentProject.amountPaid || 0)).toLocaleString()}</span>
+                      <span className="bg-slate-100 px-2 py-0.5 rounded">Txns: {currentProject.payments?.length || 0}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs font-black text-purple-700 group-hover:text-purple-800">
+                  <span>Open Payments Ledger</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+
+              {/* CARD 4: ASSIGNED TEAM */}
+              <div
+                onClick={() => setActiveTab('team')}
+                className="bg-white hover:bg-gradient-to-br hover:from-white hover:to-amber-50/40 p-6 rounded-2xl border border-slate-200/80 hover:border-amber-500/50 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200/60">
+                      Field Crew & Roster
+                    </span>
+                    <div className="w-10 h-10 rounded-xl bg-amber-100/80 text-amber-800 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                      <Users className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 group-hover:text-amber-800 transition-colors">
+                      4. Assigned Engineering Team
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">
+                      Allocate project lead supervisors, assign certified electricians and survey staff, and assign task crew.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-600">Lead Supervisor</span>
+                      <span className="font-black text-amber-800">{currentProject.assignedTo || 'Unassigned'}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-bold text-slate-500">
+                      <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded">Lead: {currentProject.assignedTo || 'None'}</span>
+                      <span className="bg-slate-100 px-2 py-0.5 rounded">Crew Pool: {staffList.length} Staff</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs font-black text-amber-800 group-hover:text-amber-900">
+                  <span>Open Team Roster</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+
+              {/* CARD 5: 10-STAGE LIFECYCLE PIPELINE */}
+              <div
+                onClick={() => setActiveTab('lifecycle')}
+                className="bg-white hover:bg-gradient-to-br hover:from-white hover:to-indigo-50/40 p-6 rounded-2xl border border-slate-200/80 hover:border-indigo-500/50 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-sky-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200/60">
+                      Stage Gate Engine
+                    </span>
+                    <div className="w-10 h-10 rounded-xl bg-indigo-100/80 text-indigo-700 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                      <Milestone className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 group-hover:text-indigo-700 transition-colors">
+                      5. 10-Stage Pipeline Lifecycle
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">
+                      Visual stage-by-stage progression from Initial Survey to Net Metering, Subsidy Release, and Commissioning.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-600">Active Gate</span>
+                      <span className="font-black text-indigo-700">Stage {currentStageIndex + 1} of 10</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-bold text-slate-500">
+                      <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">{currentProject.status || 'Initial'}</span>
+                      <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">{currentStageIndex} Completed</span>
+                      <span className="bg-slate-100 px-2 py-0.5 rounded">{10 - currentStageIndex} Remaining</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs font-black text-indigo-700 group-hover:text-indigo-800">
+                  <span>Open Stage Pipeline</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+
+              {/* CARD 6: CUSTOMER REVIEW & RATINGS */}
+              <div
+                onClick={() => setActiveTab('review')}
+                className="bg-white hover:bg-gradient-to-br hover:from-white hover:to-rose-50/40 p-6 rounded-2xl border border-slate-200/80 hover:border-rose-500/50 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-amber-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200/60">
+                      Commissioning & Quality
+                    </span>
+                    <div className="w-10 h-10 rounded-xl bg-rose-100/80 text-rose-700 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                      <Star className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 group-hover:text-rose-700 transition-colors">
+                      6. Customer Review & Ratings
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">
+                      Collect customer satisfaction star rating, record final commissioning testimonials, and capture client feedback.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-600">Client Rating</span>
+                      <span className="font-black text-amber-500">
+                        {currentProject.rating ? `${currentProject.rating} / 5 Stars ⭐` : 'Pending Review'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-bold text-slate-500">
+                      <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded">
+                        Rating: {currentProject.rating ? `${currentProject.rating} ⭐` : 'Pending'}
+                      </span>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded",
+                        currentProject.review ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
+                      )}>
+                        {currentProject.review ? 'Review Submitted' : 'Awaiting Review'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs font-black text-rose-700 group-hover:text-rose-800">
+                  <span>Open Customer Review</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
+      )}
 
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setPhotoModalType('survey')}
-            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
-          >
-            <Camera className="w-4 h-4 text-emerald-400" /> Add Site Photos
-          </button>
-
-          <button 
-            onClick={() => setIsTaskModalOpen(true)}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-emerald-200 flex items-center gap-2 cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" /> Add Task
-          </button>
-        </div>
-      </header>
-
-      {/* 10-Stage Pipeline Progression Tracker */}
-      <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-white shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-          <div>
-            <h3 className="text-xs font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
-              <Milestone className="w-4 h-4" /> 10-Stage Solar Installation Pipeline Progress
-            </h3>
-            <span className="text-xs font-bold text-slate-300 mt-0.5 block">
-              Stage {currentStageIndex + 1} of 10 ({currentProject.status}) • Collected: ₹{(currentProject.amountPaid || 0).toLocaleString()} / ₹{(currentProject.totalCost || 250000).toLocaleString()}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
+      {/* ========================================================================= */}
+      {/* 2. OPENED MODULE WORKSPACE HEADER (WHEN activeTab !== 'cards') */}
+      {/* ========================================================================= */}
+      {activeTab !== 'cards' && (
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                setSelectedPaymentStage(currentProject.status || 'Initial');
-                setIsPaymentModalOpen(true);
-              }}
-              className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+              onClick={() => setActiveTab('cards')}
+              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl flex items-center gap-2 shadow-sm transition-all cursor-pointer group shrink-0"
+              title="Return to Navigation Cards"
             >
-              <CreditCard className="w-4 h-4" /> Record Payment
+              <ArrowLeft className="w-4 h-4 text-emerald-400 group-hover:-translate-x-0.5 transition-transform" />
+              Back to Navigation Cards
             </button>
+            <div className="h-6 w-px bg-slate-200 hidden sm:block" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 truncate">
+                <span className="truncate">{currentProject.customerName}</span>
+                <span>/</span>
+                <span className="text-emerald-700 font-black uppercase tracking-wider whitespace-nowrap">
+                  {activeTab === 'pipeline' && '1. Tasks & Workflow'}
+                  {activeTab === 'photos' && '2. Stage Photos'}
+                  {activeTab === 'payments' && '3. Stage Payments'}
+                  {activeTab === 'team' && '4. Assigned Team'}
+                  {activeTab === 'lifecycle' && '5. 10-Stage Pipeline'}
+                  {activeTab === 'review' && '6. Customer Review'}
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Pipeline Steps Horizontal Bar */}
-        <div className="grid grid-cols-5 lg:grid-cols-10 gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {PIPELINE_STAGES.map((stage, idx) => {
-            const isCompleted = idx < currentStageIndex;
-            const isCurrent = idx === currentStageIndex;
-            const isNext = idx === currentStageIndex + 1;
-            const isLocked = idx > currentStageIndex + 1;
-
-            return (
+          {/* Quick Module Switcher Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+            <button
+              onClick={() => setActiveTab('cards')}
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+              title="View All Navigation Cards"
+            >
+              <LayoutGrid className="w-3.5 h-3.5 text-slate-500" />
+              <span>Cards Hub</span>
+            </button>
+            {[
+              { id: 'pipeline', label: 'Tasks', icon: ListTodo, count: `${completedTasksCount}/${tasks.length}` },
+              { id: 'photos', label: 'Photos', icon: Camera, count: (currentProject.materialPhotos?.length || 0) + (currentProject.siteSurveyImagesUrls?.length || 0) + (currentProject.installationImagesUrls?.length || 0) },
+              { id: 'payments', label: 'Payments', icon: CreditCard, count: `₹${(currentProject.amountPaid || 0).toLocaleString()}` },
+              { id: 'team', label: 'Team', icon: Users },
+              { id: 'lifecycle', label: '10-Stage Pipeline', icon: Milestone, count: `${currentStageIndex + 1}/10` },
+              { id: 'review', label: 'Review', icon: Star },
+            ].map(tab => (
               <button
-                key={stage}
-                onClick={() => handleUpdateStage(stage)}
-                title={
-                  isCurrent 
-                    ? `Current Active Stage: ${stage}` 
-                    : isCompleted 
-                    ? `Stage ${idx + 1} (${stage}) Completed` 
-                    : isNext 
-                    ? `Next Step: Click to advance to Stage ${idx + 1} (${stage})` 
-                    : `⚠️ Locked: Complete Stage ${currentStageIndex + 2} (${PIPELINE_STAGES[currentStageIndex + 1]}) first`
-                }
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
                 className={cn(
-                  "p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between h-20 relative group",
-                  isCurrent 
-                    ? "bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-lg ring-2 ring-emerald-400/40" 
-                    : isCompleted 
-                    ? "bg-slate-800 text-emerald-400 border-emerald-500/30 font-bold hover:bg-slate-750" 
-                    : isNext
-                    ? "bg-slate-900 text-emerald-300 border-emerald-500/50 hover:border-emerald-400 font-bold hover:bg-slate-850"
-                    : "bg-slate-950/80 text-slate-500 border-slate-800 hover:border-amber-500/40 font-semibold"
+                  "px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0",
+                  activeTab === tab.id
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60"
                 )}
               >
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black">{idx + 1}</span>
-                  {isCompleted ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : isCurrent ? (
-                    <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse" />
-                  ) : isNext ? (
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  ) : isLocked ? (
-                    <span className="text-[10px] text-amber-500/60 group-hover:text-amber-400 transition-colors">🔒</span>
-                  ) : null}
-                </div>
-                <p className="text-[10px] leading-tight font-extrabold line-clamp-2">{stage}</p>
+                <tab.icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span className={cn(
+                    "text-[10px] px-1.5 py-0.2 rounded-full font-black",
+                    activeTab === tab.id ? "bg-emerald-700 text-white" : "bg-slate-200 text-slate-700"
+                  )}>
+                    {tab.count}
+                  </span>
+                )}
               </button>
-            );
-          })}
-        </div>
-
-        {/* Quick Payment Action for Current Stage */}
-        <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-black uppercase">
-              Current Stage Payment
-            </span>
-            <span className="text-slate-300 font-medium">
-              Record milestone payment for <strong className="text-white">Stage {currentStageIndex + 1}: {currentProject.status}</strong>
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              setSelectedPaymentStage(currentProject.status || 'Initial');
-              setIsPaymentModalOpen(true);
-            }}
-            className="text-xs font-bold text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1 cursor-pointer"
-          >
-            + Record Payment for {currentProject.status} &rarr;
-          </button>
-        </div>
-      </div>
-
-      {/* Customer Info & Financial Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Customer Details</h3>
-          <div className="space-y-1 text-xs">
-            <p className="font-black text-slate-900 text-sm">{currentProject.customerName}</p>
-            {currentProject.phone && <p className="text-slate-600 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {currentProject.phone}</p>}
-            <p className="text-slate-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400" /> {currentProject.address || 'Address on file'}</p>
+            ))}
           </div>
         </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">System & Specs</h3>
-          <div className="space-y-1 text-xs font-bold text-slate-700">
-            <p><span className="text-slate-400">System Capacity:</span> {currentProject.capacityKw} kW Monocrystalline</p>
-            <p><span className="text-slate-400">Assigned Team:</span> {currentProject.assignedTo || 'Lead Installer'}</p>
-            <p><span className="text-slate-400">Site Proofs:</span> <span className="text-emerald-600 font-black">{surveyPhotoCount} Survey / {installationPhotoCount} Install Photos</span></p>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Financial Ledger</h3>
-          <div className="space-y-1 text-xs font-bold">
-            <p><span className="text-slate-400">Total Project Value:</span> <span className="text-slate-900">₹{currentProject.totalCost?.toLocaleString()}</span></p>
-            <p><span className="text-slate-400">Amount Collected:</span> <span className="text-emerald-600">₹{(currentProject.amountPaid || 0).toLocaleString()}</span></p>
-            <p><span className="text-slate-400">Balance Pending:</span> <span className="text-amber-600">₹{(currentProject.totalCost - (currentProject.amountPaid || 0)).toLocaleString()}</span></p>
-          </div>
-        </div>
-      </div>
-
-      {/* Workspace Tabs */}
-      <div className="flex gap-2 border-b border-slate-100 pb-2 overflow-x-auto">
-        {[
-          { id: 'pipeline', label: `1. Tasks & Workflow (${completedTasksCount}/${tasks.length})`, icon: ListTodo },
-          { id: 'photos', label: `📷 2. Stage Photos (Site, Material, After) (${(currentProject.materialPhotos?.length || 0) + (currentProject.siteSurveyImagesUrls?.length || 0) + (currentProject.installationImagesUrls?.length || 0)})`, icon: Camera },
-          { id: 'payments', label: `💰 3. Stage Payments (${currentProject.payments?.length || 0})`, icon: CreditCard },
-          { id: 'team', label: '4. Assigned Team', icon: Users },
-          { id: 'review', label: '5. Customer Review & Ratings', icon: Star },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={cn(
-              "px-4 py-2 rounded-full text-xs font-extrabold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
-              activeTab === tab.id 
-                ? "bg-slate-900 text-white shadow-md" 
-                : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
-            )}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      )}
 
       {/* TAB 1: TASKS & PROGRESSION */}
       {activeTab === 'pipeline' && (
@@ -1359,6 +1694,165 @@ export default function ProjectDetails({ project, onBack }: ProjectDetailsProps)
               Submit Final Customer Review
             </button>
           </form>
+        </div>
+      )}
+
+      {/* TAB 5: 10-STAGE LIFECYCLE PIPELINE TRACKER */}
+      {activeTab === 'lifecycle' && (
+        <div className="space-y-6">
+          {/* 10-Stage Pipeline Progression Tracker */}
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-white shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+              <div>
+                <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-black rounded-full border border-emerald-500/20 uppercase tracking-widest">
+                  Stage Gate Engine
+                </span>
+                <h3 className="text-base font-black text-white mt-1 flex items-center gap-2">
+                  <Milestone className="w-5 h-5 text-emerald-400" /> 10-Stage Solar Installation Pipeline Progress
+                </h3>
+                <span className="text-xs font-bold text-slate-300 mt-0.5 block">
+                  Current: <strong className="text-emerald-400">Stage {currentStageIndex + 1} of 10 ({currentProject.status})</strong> • Collected: ₹{(currentProject.amountPaid || 0).toLocaleString()} / ₹{(currentProject.totalCost || 250000).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setSelectedPaymentStage(currentProject.status || 'Initial');
+                    setIsPaymentModalOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+                >
+                  <CreditCard className="w-4 h-4" /> Record Payment
+                </button>
+              </div>
+            </div>
+
+            {/* Pipeline Steps Horizontal Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2 overflow-x-auto pb-2 no-scrollbar">
+              {PIPELINE_STAGES.map((stage, idx) => {
+                const isCompleted = idx < currentStageIndex;
+                const isCurrent = idx === currentStageIndex;
+                const isNext = idx === currentStageIndex + 1;
+                const isLocked = idx > currentStageIndex + 1;
+
+                return (
+                  <button
+                    key={stage}
+                    onClick={() => handleUpdateStage(stage)}
+                    title={
+                      isCurrent 
+                        ? `Current Active Stage: ${stage}` 
+                        : isCompleted 
+                        ? `Stage ${idx + 1} (${stage}) Completed` 
+                        : isNext 
+                        ? `Next Step: Click to advance to Stage ${idx + 1} (${stage})` 
+                        : `⚠️ Locked: Complete Stage ${currentStageIndex + 2} (${PIPELINE_STAGES[currentStageIndex + 1]}) first`
+                    }
+                    className={cn(
+                      "p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between h-20 relative group",
+                      isCurrent 
+                        ? "bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-lg ring-2 ring-emerald-400/40" 
+                        : isCompleted 
+                        ? "bg-slate-800 text-emerald-400 border-emerald-500/30 font-bold hover:bg-slate-750" 
+                        : isNext
+                        ? "bg-slate-900 text-emerald-300 border-emerald-500/50 hover:border-emerald-400 font-bold hover:bg-slate-850"
+                        : "bg-slate-950/80 text-slate-500 border-slate-800 hover:border-amber-500/40 font-semibold"
+                    )}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black">{idx + 1}</span>
+                      {isCompleted ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : isCurrent ? (
+                        <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse" />
+                      ) : isNext ? (
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      ) : isLocked ? (
+                        <span className="text-[10px] text-amber-500/60 group-hover:text-amber-400 transition-colors">🔒</span>
+                      ) : null}
+                    </div>
+                    <p className="text-[10px] leading-tight font-extrabold line-clamp-2">{stage}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quick Payment Action for Current Stage */}
+            <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-black uppercase">
+                  Current Stage Payment
+                </span>
+                <span className="text-slate-300 font-medium">
+                  Record milestone payment for <strong className="text-white">Stage {currentStageIndex + 1}: {currentProject.status}</strong>
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedPaymentStage(currentProject.status || 'Initial');
+                  setIsPaymentModalOpen(true);
+                }}
+                className="text-xs font-bold text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                + Record Payment for {currentProject.status} &rarr;
+              </button>
+            </div>
+          </div>
+
+          {/* Stage Gate Rules & Audit Trail */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Stage Gate Prerequisites</h4>
+              <div className="space-y-3 text-xs">
+                <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl">
+                  <CheckCircle2 className={cn("w-4 h-4 shrink-0 mt-0.5", surveyPhotoCount > 0 ? "text-emerald-600" : "text-amber-500")} />
+                  <div>
+                    <p className="font-black text-slate-900">Site Survey Proofs ({surveyPhotoCount} uploaded)</p>
+                    <p className="text-slate-500 text-[11px]">Required for progressing through initial engineering and site approvals.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl">
+                  <CheckCircle2 className={cn("w-4 h-4 shrink-0 mt-0.5", (currentProject.materialPhotos?.length || 0) > 0 ? "text-emerald-600" : "text-amber-500")} />
+                  <div>
+                    <p className="font-black text-slate-900">Material Hardware Proofs ({currentProject.materialPhotos?.length || 0} uploaded)</p>
+                    <p className="text-slate-500 text-[11px]">Required before advancing from Stage 2 to Assigned Installation.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl">
+                  <CheckCircle2 className={cn("w-4 h-4 shrink-0 mt-0.5", installationPhotoCount > 0 ? "text-emerald-600" : "text-amber-500")} />
+                  <div>
+                    <p className="font-black text-slate-900">Installation Completion Proofs ({installationPhotoCount} uploaded)</p>
+                    <p className="text-slate-500 text-[11px]">Mandatory for Department Verification & Net Metering.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Project Stage Audit Trail</h4>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {currentProject.history && currentProject.history.length > 0 ? (
+                  currentProject.history.map((h, i) => (
+                    <div key={i} className="flex items-start justify-between p-2.5 bg-slate-50 rounded-xl text-xs">
+                      <div>
+                        <span className="font-black text-slate-900">{h.stage}</span>
+                        {h.note && <p className="text-slate-500 text-[11px] mt-0.5">{h.note}</p>}
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-2">
+                        {h.timestamp ? new Date(h.timestamp).toLocaleDateString() : ''}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-slate-400 text-xs font-semibold">
+                    Current stage initialized as {currentProject.status || 'Initial'}.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -19,7 +19,9 @@ import {
   Wrench, 
   Tag, 
   Gift, 
-  Percent 
+  Percent,
+  Globe,
+  Check
 } from 'lucide-react';
 import { subscriptionService, SubscriptionPlan, SubscriptionCoupon } from '@/src/services/subscription.service';
 import { authService } from '@/src/services/auth.service';
@@ -43,6 +45,8 @@ export default function VendorRegistrationModal({
   const [activeStep, setActiveStep] = useState<1 | 2>(1);
   const [chosenPlan, setChosenPlan] = useState<SubscriptionPlan>(selectedPlan);
   const [billingCycle, setBillingCycle] = useState<'annual' | 'monthly'>('annual');
+  // Optional Website Subscription Add-On (₹999/-)
+  const [hasWebsiteSubscription, setHasWebsiteSubscription] = useState<boolean>(false);
 
   // Coupon & Discount states (Coupon is completely optional)
   const [couponCodeInput, setCouponCodeInput] = useState('');
@@ -75,12 +79,13 @@ export default function VendorRegistrationModal({
         formData.accountType
       );
       if (res.valid && res.coupon) {
+        const websiteAddon = hasWebsiteSubscription ? 999 : 0;
         setAppliedCoupon(res.coupon);
         setCouponBreakdown({
-          originalAmount: res.originalAmount,
+          originalAmount: res.originalAmount + websiteAddon,
           discountPercentage: res.discountPercentage,
           discountAmount: res.discountAmount,
-          finalPrice: res.finalPrice
+          finalPrice: res.finalPrice + websiteAddon
         });
         setCouponFeedback({ type: 'success', message: res.message });
       } else {
@@ -120,12 +125,12 @@ export default function VendorRegistrationModal({
     }
   };
 
-  // Automatically recalculate coupon discount if user changes chosen plan or billing cycle
+  // Automatically recalculate coupon discount if user changes chosen plan, billing cycle, or website subscription
   useEffect(() => {
     if (appliedCoupon) {
       handleApplyCoupon(appliedCoupon.code);
     }
-  }, [chosenPlan, billingCycle]);
+  }, [chosenPlan, billingCycle, hasWebsiteSubscription]);
 
   const [formData, setFormData] = useState({
     accountType: 'Vendor' as 'Vendor' | 'Installer',
@@ -278,11 +283,12 @@ export default function VendorRegistrationModal({
         plan: chosenPlan,
         billingCycle,
         accountType: formData.accountType,
-        couponCode: appliedCoupon?.code
+        couponCode: appliedCoupon?.code,
+        hasWebsiteSubscription: hasWebsiteSubscription
       });
 
       toast.success(
-        `🎉 ${formData.accountType === 'Installer' ? 'Solar Installer Contractor' : 'Equipment Vendor'} Account registered successfully! Free Trial for ${chosenPlan.name} (${billingCycle === 'annual' ? 'Annual Plan' : 'Monthly Plan'}${appliedCoupon ? ` with ${appliedCoupon.code} discount` : ''}) is now active.`,
+        `🎉 ${formData.accountType === 'Installer' ? 'Solar Installer Contractor' : 'Equipment Vendor'} Account registered successfully! Free Trial for ${chosenPlan.name} (${billingCycle === 'annual' ? 'Annual Plan' : 'Monthly Plan'}${hasWebsiteSubscription ? ' + Website Subscription (₹999)' : ''}${appliedCoupon ? ` with ${appliedCoupon.code} discount` : ''}) is now active.`,
         'Account Registered'
       );
       onSuccess();
@@ -710,6 +716,40 @@ export default function VendorRegistrationModal({
               </div>
             </div>
 
+            {/* OPTIONAL WEBSITE SUBSCRIPTION ADD-ON (₹999/-) */}
+            <div className={cn(
+              "p-4 rounded-2xl border transition-all",
+              hasWebsiteSubscription 
+                ? "bg-emerald-500/10 border-emerald-500/60 ring-2 ring-emerald-500/20 shadow-lg shadow-emerald-500/5" 
+                : "bg-slate-950 border-slate-800 hover:border-slate-700"
+            )}>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasWebsiteSubscription}
+                  onChange={e => setHasWebsiteSubscription(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-emerald-500 focus:ring-offset-slate-900 cursor-pointer accent-emerald-500"
+                />
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black text-white uppercase tracking-wide flex items-center gap-1.5">
+                      <Globe className="w-4 h-4 text-emerald-400" />
+                      Website Subscription (Branded Landing Page)
+                    </span>
+                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-black rounded-full uppercase border border-emerald-500/30 shrink-0">
+                      +₹999/- • Optional
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
+                    Check this option to get your own <strong>personalized branded landing page</strong> featuring your company logo, name, phone, address, and direct customer lead capture.
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    ⚠️ <span className="underline">Access Rule</span>: If unchecked, your account will use <strong>only the standard MetaGreen landing page</strong>.
+                  </p>
+                </div>
+              </label>
+            </div>
+
             {/* Promo / Particular Person Coupon Code Input (Optional) */}
             <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
@@ -794,7 +834,6 @@ export default function VendorRegistrationModal({
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {/* Dynamic Calculation Breakdown */}
                   <div className="p-3.5 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 rounded-xl space-y-2.5">
                     <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
                       <div className="flex items-center gap-2">
@@ -822,8 +861,19 @@ export default function VendorRegistrationModal({
                     <div className="space-y-1.5 text-xs">
                       <div className="flex justify-between text-slate-400">
                         <span>Selected Plan ({chosenPlan.name} • {billingCycle === 'annual' ? 'Annual' : 'Monthly'}):</span>
-                        <span className="font-bold text-white">₹{couponBreakdown?.originalAmount.toLocaleString()}</span>
+                        <span className="font-bold text-white">
+                          ₹{(billingCycle === 'annual' 
+                            ? (chosenPlan.priceAnnual ?? Math.round((chosenPlan.priceMonthly || 4999) * 12 * 0.8))
+                            : (chosenPlan.priceMonthly || 4999)
+                          ).toLocaleString()}
+                        </span>
                       </div>
+                      {hasWebsiteSubscription && (
+                        <div className="flex justify-between text-emerald-400 font-medium">
+                          <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Website Subscription Add-On:</span>
+                          <span className="font-bold">+₹999</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-emerald-400 font-medium">
                         <span>Coupon Discount ({couponBreakdown?.discountPercentage}%):</span>
                         <span className="font-bold">-₹{couponBreakdown?.discountAmount.toLocaleString()}</span>
@@ -849,6 +899,40 @@ export default function VendorRegistrationModal({
                 </div>
               )}
             </div>
+
+            {/* Total Subscription Breakdown when no coupon applied */}
+            {!appliedCoupon && (
+              <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 text-xs space-y-2">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span>Selected Plan ({chosenPlan.name} • {billingCycle === 'annual' ? 'Annual' : 'Monthly'}):</span>
+                  <span className="font-bold text-white">
+                    ₹{(billingCycle === 'annual' 
+                      ? (chosenPlan.priceAnnual ?? Math.round((chosenPlan.priceMonthly || 4999) * 12 * 0.8))
+                      : (chosenPlan.priceMonthly || 4999)
+                    ).toLocaleString()}{billingCycle === 'annual' ? '/yr' : '/mo'}
+                  </span>
+                </div>
+                {hasWebsiteSubscription && (
+                  <div className="flex items-center justify-between text-emerald-400 font-medium">
+                    <span className="flex items-center gap-1"><Globe className="w-3.5 h-3.5" /> Website Subscription Add-On:</span>
+                    <span className="font-bold">+₹999</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-xs font-black pt-1.5 border-t border-slate-800 text-white">
+                  <span>Post-Trial Subscription Payable:</span>
+                  <span className="text-emerald-400 text-sm font-black">
+                    ₹{(
+                      (billingCycle === 'annual' 
+                        ? (chosenPlan.priceAnnual ?? Math.round((chosenPlan.priceMonthly || 4999) * 12 * 0.8))
+                        : (chosenPlan.priceMonthly || 4999)) + (hasWebsiteSubscription ? 999 : 0)
+                    ).toLocaleString()}
+                    <span className="text-[10px] text-slate-400 font-bold ml-1">
+                      {billingCycle === 'annual' ? '/year' : '/month'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Trial Banner Confirmation */}
             <div className="p-4 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 rounded-2xl flex items-center justify-between">

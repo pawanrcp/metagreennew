@@ -13,14 +13,60 @@ import {
   where
 } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
-import { Lead, LeadStatus } from '@/src/types';
-import { Plus, Search, Filter, MoreVertical, Mail, Phone, MapPin, Users, FileText, Edit2, Trash2, ShieldCheck, Sparkles, Building2, Loader2, Compass, LocateFixed, Box, Sun, Zap, Wrench, CheckCircle2, Clock, ArrowRight, FileCheck, X, Download } from 'lucide-react';
+import { Lead, LeadStatus, CustomerType, CustomerRecord } from '@/src/types';
+import { Plus, Search, Filter, MoreVertical, Mail, Phone, MapPin, Users, FileText, Edit2, Trash2, ShieldCheck, Sparkles, Building2, Loader2, Compass, LocateFixed, Box, Sun, Zap, Wrench, CheckCircle2, Clock, ArrowRight, FileCheck, X, Download, UserCheck, UserPlus, PackageCheck, RefreshCw, Tag } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
 import { useLogos } from '@/src/context/LogoContext';
 import Solar3DViewer from './Solar3DViewer';
 import { saveGeneratedDocument, subscribeGeneratedDocuments, downloadDocumentPDF } from '@/src/services/generatedDocuments.service';
 import { GeneratedDocument } from '@/src/types';
+
+const DEFAULT_VENDORS = [
+  { id: 'v1', name: 'Waaree Energies Ltd', category: 'Solar Panels (Mono/Poly PV)' },
+  { id: 'v2', name: 'Adani Solar (Mundra Solar)', category: 'Solar Panels (Bifacial TopCon)' },
+  { id: 'v3', name: 'Tata Power Solar Systems', category: 'Solar Panels & EPC Kits' },
+  { id: 'v4', name: 'Havells India (Enviro)', category: 'String & Hybrid Inverters' },
+  { id: 'v5', name: 'Growatt New Energy', category: 'Solar Inverters & Storage' },
+  { id: 'v6', name: 'Luminous Power Technologies', category: 'Batteries & Inverters' },
+  { id: 'v7', name: 'Vikram Solar Limited', category: 'Solar PV Modules' },
+  { id: 'v8', name: 'Sungrow Power Supply', category: 'Utility & Commercial Inverters' }
+];
+
+const STOCK_CATEGORIES = [
+  'Solar Panels (Mono/Poly PV)',
+  'Inverters (String/Hybrid/Micro)',
+  'Mounting Structures & Rails',
+  'Batteries & Storage (LiFePO4/Lead-Acid)',
+  'Balance of System & Wiring',
+  'Other Vendor Consignment Stock'
+];
+
+const initialLeadState: Partial<Lead> = {
+  name: '',
+  email: '',
+  phone: '',
+  source: 'Website',
+  address: '',
+  city: '',
+  district: '',
+  state: '',
+  pincode: '',
+  gpsLocation: '',
+  roofType: '',
+  monthlyUnits: '',
+  expectedLoad: '',
+  expectedLoadUnit: 'KW',
+  electricityBillUrl: '',
+  propertyImagesUrls: [],
+  roofImagesUrls: [],
+  customerType: 'Normal Customer',
+  vendor: '',
+  stockCategory: '',
+  vendorStockRef: '',
+  vendorStockNotes: '',
+  assignedTo: ''
+};
 
 export default function CRM({ 
   initialFilter, 
@@ -41,6 +87,12 @@ export default function CRM({
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
   const [isSubmittingQuotation, setIsSubmittingQuotation] = useState(false);
   const [isSubmittingAssign, setIsSubmittingAssign] = useState(false);
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
+
+  // Customer Differentiation Filters for Leads
+  const [customerTypeFilter, setCustomerTypeFilter] = useState<'ALL' | 'Normal Customer' | 'Vendor Related Stock'>('ALL');
+  const [selectedVendorFilter, setSelectedVendorFilter] = useState<string>('ALL');
+  const [vendorsList, setVendorsList] = useState<{ id: string; name: string; category?: string }[]>(DEFAULT_VENDORS);
 
   const [showTrash, setShowTrash] = useState(false);
   const [selected3DLead, setSelected3DLead] = useState<Lead | null>(null);
@@ -96,13 +148,71 @@ export default function CRM({
 
   const [selectedStageGroup, setSelectedStageGroup] = useState<'all' | 'qualified' | 'proposal' | 'approved'>('all');
 
+  // Customer Differentiation Metrics for Leads
+  const normalLeadsCount = React.useMemo(() => {
+    return roleScopedLeads.filter(l => !l.isDeleted && (l.customerType || (l.vendor && l.vendor !== 'Default Vendor' ? 'Vendor Related Stock' : 'Normal Customer')) === 'Normal Customer').length;
+  }, [roleScopedLeads]);
+
+  const vendorStockLeadsCount = React.useMemo(() => {
+    return roleScopedLeads.filter(l => !l.isDeleted && (l.customerType === 'Vendor Related Stock' || (l.vendor && l.vendor !== 'Default Vendor' && !l.customerType))).length;
+  }, [roleScopedLeads]);
+
+  const normalLeadsCapacity = React.useMemo(() => {
+    return roleScopedLeads
+      .filter(l => !l.isDeleted && (l.customerType || (l.vendor && l.vendor !== 'Default Vendor' ? 'Vendor Related Stock' : 'Normal Customer')) === 'Normal Customer')
+      .reduce((sum, l) => {
+        const raw = parseFloat(l.expectedLoad || '0') || 0;
+        return sum + (l.expectedLoadUnit === 'MW' ? raw * 1000 : raw);
+      }, 0);
+  }, [roleScopedLeads]);
+
+  const vendorStockLeadsCapacity = React.useMemo(() => {
+    return roleScopedLeads
+      .filter(l => !l.isDeleted && (l.customerType === 'Vendor Related Stock' || (l.vendor && l.vendor !== 'Default Vendor' && !l.customerType)))
+      .reduce((sum, l) => {
+        const raw = parseFloat(l.expectedLoad || '0') || 0;
+        return sum + (l.expectedLoadUnit === 'MW' ? raw * 1000 : raw);
+      }, 0);
+  }, [roleScopedLeads]);
+
+  const uniqueVendorsFromLeads = React.useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach(l => {
+      if (l.vendor && l.vendor.trim() && l.vendor !== 'Default Vendor') {
+        set.add(l.vendor.trim());
+      }
+    });
+    vendorsList.forEach(v => {
+      if (v.name?.trim()) set.add(v.name.trim());
+    });
+    return Array.from(set).sort();
+  }, [leads, vendorsList]);
+
   const filteredLeads = roleScopedLeads.filter(lead => {
     const matchesTrash = showTrash ? lead.isDeleted : !lead.isDeleted;
+
+    const leadCustType = lead.customerType || (lead.vendor && lead.vendor.trim() && lead.vendor !== 'Default Vendor' ? 'Vendor Related Stock' : 'Normal Customer');
+    if (customerTypeFilter !== 'ALL' && leadCustType !== customerTypeFilter) {
+      return false;
+    }
+
+    if (selectedVendorFilter !== 'ALL') {
+      const vName = (lead.vendor || '').trim().toLowerCase();
+      if (vName !== selectedVendorFilter.toLowerCase()) {
+        return false;
+      }
+    }
+
     const matchesSearch =
       lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.status.toLowerCase().includes(searchTerm.toLowerCase());
+      lead.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (lead.assignedTo && lead.assignedTo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (lead.vendor && lead.vendor.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (lead.stockCategory && lead.stockCategory.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (lead.vendorStockRef && lead.vendorStockRef.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      leadCustType.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesGroup = 
       selectedStageGroup === 'all' ? true :
@@ -112,7 +222,8 @@ export default function CRM({
 
     return matchesTrash && matchesSearch && matchesGroup;
   });
-  const [newLead, setNewLead] = useState<Partial<Lead>>({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', roofType: '', monthlyUnits: '', expectedLoad: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
+
+  const [newLead, setNewLead] = useState<Partial<Lead>>(initialLeadState);
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
   const [selectedLeadForQuotation, setSelectedLeadForQuotation] = useState<Lead | null>(null);
   const [quotationDetails, setQuotationDetails] = useState({
@@ -257,31 +368,174 @@ export default function CRM({
     );
   };
 
+  // Sync Lead to Customers Collection upon Assignment or Approval
+  const syncLeadToCustomer = async (
+    leadData: Partial<Lead>,
+    leadId: string,
+    assignedOfficerName: string
+  ): Promise<string> => {
+    try {
+      const rawCapacity = parseFloat(leadData.expectedLoad || '5') || 5;
+      const capacityKw = leadData.expectedLoadUnit === 'MW' ? rawCapacity * 1000 : rawCapacity;
+      const totalCost = Number(leadData.quotationTotalCost || leadData.estimatedSystemCost) || (capacityKw * 55000);
+
+      const isVendorStock = leadData.customerType === 'Vendor Related Stock' || Boolean(leadData.vendor && leadData.vendor.trim() && leadData.vendor !== 'Default Vendor');
+      const custType: CustomerType = isVendorStock ? 'Vendor Related Stock' : 'Normal Customer';
+      const vendorName = isVendorStock ? (leadData.vendor || '').trim() : '';
+
+      // Check existing customer by leadId first, or by phone
+      let existingCustomerId = leadData.customerId || '';
+
+      if (!existingCustomerId && leadId) {
+        const qByLeadId = query(collection(db, 'customers'), where('leadId', '==', leadId));
+        const snapLead = await getDocs(qByLeadId);
+        if (!snapLead.empty) {
+          existingCustomerId = snapLead.docs[0].id;
+        }
+      }
+
+      if (!existingCustomerId && leadData.phone) {
+        const qByPhone = query(collection(db, 'customers'), where('phone', '==', leadData.phone));
+        const snapPhone = await getDocs(qByPhone);
+        if (!snapPhone.empty) {
+          existingCustomerId = snapPhone.docs[0].id;
+        }
+      }
+
+      const isApprovedOrActive = ['Approved', 'Installation', 'Completed', 'AMC'].includes(leadData.status || '');
+      const customerStatus = isApprovedOrActive ? 'Active' : 'Lead';
+
+      const customerPayload: any = {
+        name: leadData.name || 'Prospect Client',
+        phone: leadData.phone || '',
+        email: leadData.email || '',
+        address: leadData.address || '',
+        city: leadData.city || '',
+        district: leadData.district || '',
+        state: leadData.state || 'Maharashtra',
+        pincode: leadData.pincode || '',
+        roofType: leadData.roofType || 'RCC Flat Roof',
+        sanctionedLoad: leadData.expectedLoad || '5',
+        systemCapacityKw: capacityKw,
+        totalProjectValue: totalCost,
+        leadId: leadId,
+        source: leadData.source || 'Website',
+        assignedTo: assignedOfficerName || 'Solar Team',
+        customerType: custType,
+        vendorName: vendorName,
+        stockCategory: isVendorStock ? (leadData.stockCategory || 'Solar Panels (Mono/Poly PV)') : '',
+        vendorStockRef: isVendorStock ? (leadData.vendorStockRef || '') : '',
+        vendorStockNotes: isVendorStock ? (leadData.vendorStockNotes || '') : '',
+        status: customerStatus,
+        notes: `Customer account linked to CRM Lead (${custType}, assigned to ${assignedOfficerName || 'Solar Team'})`,
+        updatedAt: serverTimestamp()
+      };
+
+      if (existingCustomerId) {
+        await updateDoc(doc(db, 'customers', existingCustomerId), customerPayload);
+        return existingCustomerId;
+      } else {
+        const newCustRef = await addDoc(collection(db, 'customers'), {
+          ...customerPayload,
+          creatorId: user?.uid || '',
+          createdBy: user?.email || '',
+          creatorName: user?.name || '',
+          companyName: user?.companyName || user?.vendorAccount?.companyName || '',
+          createdAt: serverTimestamp()
+        });
+        return newCustRef.id;
+      }
+    } catch (error) {
+      console.error('Error syncing lead to customer:', error);
+      return '';
+    }
+  };
+
   const handleSubmitLead = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmittingLead(true);
     try {
+      const assignedToName = (newLead.assignedTo || user?.name || 'Sales Representative').trim();
+      const isVendorStock = newLead.customerType === 'Vendor Related Stock' || Boolean(newLead.vendor && newLead.vendor.trim() && newLead.vendor !== 'Default Vendor');
+      const custType: CustomerType = isVendorStock ? 'Vendor Related Stock' : 'Normal Customer';
+      const vendorName = isVendorStock ? (newLead.vendor || '').trim() : '';
+
       if (editingLeadId) {
-        await updateDoc(doc(db, 'leads', editingLeadId), newLead);
-      } else {
-        await addDoc(collection(db, 'leads'), {
+        await updateDoc(doc(db, 'leads', editingLeadId), {
           ...newLead,
+          customerType: custType,
+          vendor: vendorName,
+          assignedTo: assignedToName,
+          updatedAt: serverTimestamp()
+        });
+
+        // Automatically sync to Customers collection when lead is assigned!
+        const custId = await syncLeadToCustomer(
+          { ...newLead, id: editingLeadId, customerType: custType, vendor: vendorName },
+          editingLeadId,
+          assignedToName
+        );
+        if (custId) {
+          await updateDoc(doc(db, 'leads', editingLeadId), { customerId: custId });
+        }
+      } else {
+        const leadRef = await addDoc(collection(db, 'leads'), {
+          ...newLead,
+          customerType: custType,
+          vendor: vendorName,
           createdBy: user?.email || 'admin@metagreen.com',
           creatorName: user?.name || 'Admin',
-          vendor: user?.companyName || user?.name || 'Default Vendor',
-          assignedTo: newLead.assignedTo || user?.name || 'Sales Rep',
-          status: 'New Lead',
-          createdAt: serverTimestamp()
+          assignedTo: assignedToName,
+          status: newLead.status || 'New Lead',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
         });
+
+        // Automatically sync to Customers collection when lead is assigned!
+        const custId = await syncLeadToCustomer(
+          { ...newLead, id: leadRef.id, customerType: custType, vendor: vendorName },
+          leadRef.id,
+          assignedToName
+        );
+        if (custId) {
+          await updateDoc(doc(db, 'leads', leadRef.id), { customerId: custId });
+        }
       }
+
       setIsModalOpen(false);
       setEditingLeadId(null);
-      setNewLead({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', roofType: '', monthlyUnits: '', expectedLoad: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] });
+      setNewLead(initialLeadState);
     } catch (err) {
       console.error('Error saving lead:', err);
       alert('Failed to save lead. Please check network connection.');
     } finally {
       setIsSubmittingLead(false);
+    }
+  };
+
+  // Batch Sync All Assigned Historical Leads to Customers Collection
+  const handleBatchSyncAssignedLeads = async () => {
+    const assignedLeads = leads.filter(l => !l.isDeleted && l.assignedTo && l.assignedTo.trim());
+    if (assignedLeads.length === 0) {
+      alert("No assigned leads found to sync.");
+      return;
+    }
+    setIsBatchSyncing(true);
+    let count = 0;
+    try {
+      for (const l of assignedLeads) {
+        const custId = await syncLeadToCustomer(l, l.id, l.assignedTo!);
+        if (custId && l.customerId !== custId) {
+          await updateDoc(doc(db, 'leads', l.id), { customerId: custId });
+        }
+        count++;
+      }
+      alert(`Successfully synced ${count} assigned leads to Customers!`);
+    } catch (err) {
+      console.error("Batch sync error:", err);
+      alert("Encountered an error while syncing leads to customers.");
+    } finally {
+      setIsBatchSyncing(false);
     }
   };
 
@@ -331,6 +585,7 @@ export default function CRM({
 
   // Approval & Assignment Modal States
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignModalMode, setAssignModalMode] = useState<'assign' | 'approve'>('approve');
   const [selectedLeadForApproval, setSelectedLeadForApproval] = useState<Lead | null>(null);
   const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('');
   const [assignmentNotes, setAssignmentNotes] = useState<string>('');
@@ -370,10 +625,44 @@ export default function CRM({
       setGeneratedDocumentsList(docs);
     });
 
+    // 4. Dynamic Vendors Subscription
+    const qVendors = query(collection(db, 'vendors'), orderBy('name', 'asc'));
+    const unsubVendors = onSnapshot(qVendors, (snapshot) => {
+      const vDocs = snapshot.docs.map(d => ({
+        id: d.id,
+        name: (d.data().name || 'Vendor').trim(),
+        category: d.data().category || d.data().categories?.[0] || 'Solar Supplier'
+      }));
+      setVendorsList(prev => {
+        const existingNames = new Set(vDocs.map(v => v.name.toLowerCase()));
+        const preserved = prev.filter(p => !existingNames.has(p.name.toLowerCase()));
+        return [...vDocs, ...preserved];
+      });
+    });
+
+    // 5. Registered Vendor Users Subscription
+    const unsubUsers = onSnapshot(query(collection(db, 'users')), (snapshot) => {
+      const regVendors = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() } as any))
+        .filter(u => u.role === 'Vendor' || u.role === 'Solar Supplier' || u.role === 'Vendor Employee')
+        .map(u => ({
+          id: u.id,
+          name: (u.companyName || u.name || 'Vendor Partner').trim(),
+          category: 'Registered Vendor'
+        }));
+      setVendorsList(prev => {
+        const existingNames = new Set(prev.map(v => v.name.toLowerCase()));
+        const newOnes = regVendors.filter(rv => !existingNames.has(rv.name.toLowerCase()));
+        return [...prev, ...newOnes];
+      });
+    });
+
     return () => {
       unsubLeads();
       unsubEmployees();
       unsubDocs();
+      unsubVendors();
+      unsubUsers();
     };
   }, []);
 
@@ -488,9 +777,15 @@ export default function CRM({
   };
 
   const handleOpenApprovalModal = (lead: Lead) => {
+    handleOpenAssignModal(lead, 'approve');
+  };
+
+  const handleOpenAssignModal = (lead: Lead, mode: 'assign' | 'approve' = 'assign') => {
     setSelectedLeadForApproval(lead);
+    setAssignModalMode(mode);
     const matched = getMatchedRegionalOfficers(lead);
-    setSelectedAssigneeId(matched[0]?.id || officers[0]?.id || '');
+    const existingOfficer = officers.find(o => o.name.toLowerCase() === (lead.assignedTo || '').toLowerCase());
+    setSelectedAssigneeId(existingOfficer?.id || matched[0]?.id || officers[0]?.id || '');
     setAssignmentNotes('');
     setShowAllOfficers(false);
     setIsAssignModalOpen(true);
@@ -503,59 +798,27 @@ export default function CRM({
     setIsSubmittingAssign(true);
     const assignedOfficer = officers.find(o => o.id === selectedAssigneeId) || officers[0];
     const targetLead = selectedLeadForApproval;
+    const isApproveMode = assignModalMode === 'approve';
 
     try {
-      // 1. Check & Auto-create Customer in DB upon Lead Approval / Conversion
-      const rawCapacity = parseFloat(targetLead.expectedLoad || '5') || 5;
-      const capacityKw = targetLead.expectedLoadUnit === 'MW' ? rawCapacity * 1000 : rawCapacity;
-      const totalCost = capacityKw * 55000;
-
-      let customerId = targetLead.customerId || '';
-      if (!customerId) {
-        const existingCustSnap = await getDocs(query(collection(db, 'customers'), where('phone', '==', targetLead.phone)));
-        if (!existingCustSnap.empty) {
-          customerId = existingCustSnap.docs[0].id;
-          await updateDoc(doc(db, 'customers', customerId), {
-            leadId: targetLead.id,
-            systemCapacityKw: capacityKw,
-            totalProjectValue: totalCost,
-            assignedTo: assignedOfficer.name,
-            status: 'Active',
-            updatedAt: serverTimestamp()
-          });
-        } else {
-          const newCustRef = await addDoc(collection(db, 'customers'), {
-            name: targetLead.name,
-            phone: targetLead.phone,
-            email: targetLead.email || '',
-            address: targetLead.address || '',
-            city: targetLead.city || '',
-            district: targetLead.district || '',
-            state: targetLead.state || '',
-            pincode: targetLead.pincode || '',
-            roofType: targetLead.roofType || 'RCC Flat Roof',
-            sanctionedLoad: targetLead.expectedLoad || '5',
-            systemCapacityKw: capacityKw,
-            totalProjectValue: totalCost,
-            leadId: targetLead.id,
-            creatorId: user?.uid || '',
-            createdBy: user?.email || '',
-            creatorName: user?.name || '',
-            companyName: user?.companyName || user?.vendorAccount?.companyName || '',
-            assignedTo: assignedOfficer.name,
-            status: 'Active',
-            notes: `Converted from CRM Lead (Approved & Assigned to ${assignedOfficer.name})`,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-          customerId = newCustRef.id;
-        }
-      }
+      // 1. Check & Auto-create/Update Customer in DB upon Lead Assignment or Approval
+      const customerId = await syncLeadToCustomer(
+        {
+          ...targetLead,
+          status: isApproveMode ? 'Approved' : (targetLead.status || 'Qualified')
+        },
+        targetLead.id,
+        assignedOfficer.name
+      );
       targetLead.customerId = customerId;
 
-      // 2. Dynamically update lead status to Approved with assigned regional officer & customerId
+      // 2. Dynamically update lead with assigned officer & customerId
+      const nextStatus: LeadStatus = isApproveMode
+        ? 'Approved'
+        : (targetLead.status === 'New Lead' ? 'Qualified' : (targetLead.status || 'Qualified'));
+
       await updateDoc(doc(db, 'leads', targetLead.id), {
-        status: 'Approved',
+        status: nextStatus,
         assignedTo: assignedOfficer.name,
         assignedToId: assignedOfficer.id,
         assignedRole: assignedOfficer.role,
@@ -565,97 +828,108 @@ export default function CRM({
         updatedAt: serverTimestamp()
       });
 
-      // 3. Check if a project already exists for this lead or customer to prevent duplicates
-      const existingProjectsSnap = await getDocs(query(collection(db, 'projects'), where('leadId', '==', targetLead.id)));
-      let projectId = '';
+      // 3. If in Approve mode, create or update Project in DB
+      if (isApproveMode) {
+        const rawCapacity = parseFloat(targetLead.expectedLoad || '5') || 5;
+        const capacityKw = targetLead.expectedLoadUnit === 'MW' ? rawCapacity * 1000 : rawCapacity;
+        const totalCost = Number(targetLead.quotationTotalCost || targetLead.estimatedSystemCost) || (capacityKw * 55000);
 
-      if (!existingProjectsSnap.empty) {
-        const existingDoc = existingProjectsSnap.docs[0];
-        projectId = existingDoc.id;
-        await updateDoc(doc(db, 'projects', projectId), {
-          customerId: customerId,
-          assignedTo: assignedOfficer.name,
-          assignedToId: assignedOfficer.id,
-          assignedRole: assignedOfficer.role,
-          region: assignedOfficer.region,
-          capacityKw: capacityKw,
-          totalCost: totalCost,
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        const projectRef = await addDoc(collection(db, 'projects'), {
-          leadId: targetLead.id,
-          customerId: customerId,
-          name: `${targetLead.name} Solar Installation`,
-          customerName: targetLead.name,
-          phone: targetLead.phone,
-          address: targetLead.address,
-          city: targetLead.city || '',
-          state: targetLead.state || '',
-          capacityKw: capacityKw,
-          totalCost: totalCost,
-          amountPaid: 0,
-          assignedTo: assignedOfficer.name,
-          assignedToId: assignedOfficer.id,
-          assignedRole: assignedOfficer.role,
-          region: assignedOfficer.region,
-          status: 'Initial',
-          priority: 'High',
-          history: [
-            { stage: 'Initial', timestamp: new Date().toISOString(), note: `Project created from CRM Lead: ${targetLead.name} and assigned to ${assignedOfficer.name}` }
-          ],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        projectId = projectRef.id;
+        const existingProjectsSnap = await getDocs(query(collection(db, 'projects'), where('leadId', '==', targetLead.id)));
+        let projectId = '';
 
-        // Auto-generate 10-stage workflow tasks
-        const DEFAULT_TASKS = [
-          { name: '1. Site Survey & Roof Inspection', requiredRole: 'Survey Engineer', start: 0, duration: 2, status: 'Pending' },
-          { name: '2. Solar PV System Design', requiredRole: 'Design Engineer', start: 2, duration: 3, status: 'Pending' },
-          { name: '3. Material Requisition & PO Creation', requiredRole: 'Procurement Officer', start: 5, duration: 2, status: 'Pending' },
-          { name: '4. Structure Fabrication & Panel Mounting', requiredRole: 'Lead Installer', start: 7, duration: 4, status: 'Pending' },
-          { name: '5. AC/DC Wiring & Net Meter Application', requiredRole: 'Electrician', start: 11, duration: 3, status: 'Pending' },
-          { name: '6. PM Surya Ghar Subsidy Claim Submission', requiredRole: 'Subsidy Specialist', start: 14, duration: 2, status: 'Pending' }
-        ];
-
-        for (const t of DEFAULT_TASKS) {
-          await addDoc(collection(db, 'projectTasks'), {
-            ...t,
-            projectId: projectRef.id,
-            createdAt: serverTimestamp()
+        if (!existingProjectsSnap.empty) {
+          const existingDoc = existingProjectsSnap.docs[0];
+          projectId = existingDoc.id;
+          await updateDoc(doc(db, 'projects', projectId), {
+            customerId: customerId,
+            assignedTo: assignedOfficer.name,
+            assignedToId: assignedOfficer.id,
+            assignedRole: assignedOfficer.role,
+            region: assignedOfficer.region,
+            capacityKw: capacityKw,
+            totalCost: totalCost,
+            updatedAt: serverTimestamp()
           });
+        } else {
+          const projectRef = await addDoc(collection(db, 'projects'), {
+            leadId: targetLead.id,
+            customerId: customerId,
+            name: `${targetLead.name} Solar Installation`,
+            customerName: targetLead.name,
+            phone: targetLead.phone,
+            address: targetLead.address,
+            city: targetLead.city || '',
+            state: targetLead.state || '',
+            capacityKw: capacityKw,
+            totalCost: totalCost,
+            amountPaid: 0,
+            assignedTo: assignedOfficer.name,
+            assignedToId: assignedOfficer.id,
+            assignedRole: assignedOfficer.role,
+            region: assignedOfficer.region,
+            status: 'Initial',
+            priority: 'High',
+            history: [
+              { stage: 'Initial', timestamp: new Date().toISOString(), note: `Project created from CRM Lead: ${targetLead.name} and assigned to ${assignedOfficer.name}` }
+            ],
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          projectId = projectRef.id;
+
+          // Auto-generate 10-stage workflow tasks
+          const DEFAULT_TASKS = [
+            { name: '1. Site Survey & Roof Inspection', requiredRole: 'Survey Engineer', start: 0, duration: 2, status: 'Pending' },
+            { name: '2. Solar PV System Design', requiredRole: 'Design Engineer', start: 2, duration: 3, status: 'Pending' },
+            { name: '3. Material Requisition & PO Creation', requiredRole: 'Procurement Officer', start: 5, duration: 2, status: 'Pending' },
+            { name: '4. Structure Fabrication & Panel Mounting', requiredRole: 'Lead Installer', start: 7, duration: 4, status: 'Pending' },
+            { name: '5. AC/DC Wiring & Net Meter Application', requiredRole: 'Electrician', start: 11, duration: 3, status: 'Pending' },
+            { name: '6. PM Surya Ghar Subsidy Claim Submission', requiredRole: 'Subsidy Specialist', start: 14, duration: 2, status: 'Pending' }
+          ];
+
+          for (const t of DEFAULT_TASKS) {
+            await addDoc(collection(db, 'projectTasks'), {
+              ...t,
+              projectId: projectRef.id,
+              createdAt: serverTimestamp()
+            });
+          }
         }
-      }
 
-      // Close assignment modal
-      setIsAssignModalOpen(false);
-      setSelectedLeadForApproval(null);
+        // Close assignment modal
+        setIsAssignModalOpen(false);
+        setSelectedLeadForApproval(null);
 
-      // Pre-calculate quotation details based on system size
-      const estGeneration = `${Math.round(capacityKw * 120)}`;
-      const estCost = `${Math.round(capacityKw * 55000)}`;
+        // Pre-calculate quotation details based on system size
+        const estGeneration = `${Math.round(capacityKw * 120)}`;
+        const estCost = `${Math.round(capacityKw * 55000)}`;
 
-      setQuotationDetails({
-        systemSize: capacityKw.toString(),
-        panelType: 'Monocrystalline',
-        inverterType: 'String Inverter',
-        totalCost: estCost,
-        estimatedGeneration: estGeneration
-      });
-      setSelectedLeadForQuotation(targetLead);
+        setQuotationDetails({
+          systemSize: capacityKw.toString(),
+          panelType: 'Monocrystalline',
+          inverterType: 'String Inverter',
+          totalCost: estCost,
+          estimatedGeneration: estGeneration
+        });
+        setSelectedLeadForQuotation(targetLead);
 
-      // Prompt user to generate formal Quotation after assigning
-      const wantQuotation = window.confirm(
-        `✅ Lead "${targetLead.name}" has been Approved & Assigned to ${assignedOfficer.name} (${assignedOfficer.region})!\n\nProject created in the pipeline.\n\nWould you like to generate and record the formal Sales Quotation for ${targetLead.name} now?`
-      );
+        // Prompt user to generate formal Quotation after assigning
+        const wantQuotation = window.confirm(
+          `✅ Lead "${targetLead.name}" has been Approved & Assigned to ${assignedOfficer.name} (${assignedOfficer.region})!\n\nCustomer account synced.\n\nWould you like to generate the formal Sales Quotation now?`
+        );
 
-      if (wantQuotation) {
-        setIsQuotationModalOpen(true);
+        if (wantQuotation) {
+          setIsQuotationModalOpen(true);
+        }
+      } else {
+        // Simple assignment mode
+        setIsAssignModalOpen(false);
+        setSelectedLeadForApproval(null);
+        alert(`✅ Lead "${targetLead.name}" has been assigned to ${assignedOfficer.name} and successfully synced to Customers!`);
       }
     } catch (err) {
-      console.error('Error assigning and approving lead:', err);
-      alert('Failed to approve and assign regional officer.');
+      console.error('Error assigning lead:', err);
+      alert('Failed to assign lead.');
     } finally {
       setIsSubmittingAssign(false);
     }
@@ -762,7 +1036,64 @@ export default function CRM({
             {roleScopedLeads.filter(l => !l.isDeleted).length}
           </p>
           <p className={cn("text-[11px] font-medium", selectedStageGroup === 'all' ? "text-slate-300" : "text-slate-500")}>
-            Full sales pipeline (Click to view)
+            Full sales pipeline
+          </p>
+        </button>
+
+        {/* 2. Normal Customers Lead Metric */}
+        <button
+          type="button"
+          onClick={() => {
+            setCustomerTypeFilter(customerTypeFilter === 'Normal Customer' ? 'ALL' : 'Normal Customer');
+            setSelectedVendorFilter('ALL');
+          }}
+          className={cn(
+            "text-left p-4 rounded-2xl border transition-all cursor-pointer space-y-1 group",
+            customerTypeFilter === 'Normal Customer'
+              ? "bg-emerald-800 text-white border-emerald-800 ring-2 ring-emerald-500/40 shadow-md"
+              : "bg-white border-slate-100 shadow-sm hover:border-emerald-300 hover:shadow-md"
+          )}
+          title="Click to filter Normal / Direct Retail leads"
+        >
+          <div className="flex items-center justify-between">
+            <p className={cn("text-[10px] font-black uppercase tracking-wider", customerTypeFilter === 'Normal Customer' ? "text-emerald-200" : "text-emerald-700")}>
+              Normal Customers
+            </p>
+            <UserCheck className={cn("w-3.5 h-3.5", customerTypeFilter === 'Normal Customer' ? "text-emerald-300" : "text-emerald-600")} />
+          </div>
+          <p className={cn("text-2xl font-black", customerTypeFilter === 'Normal Customer' ? "text-white" : "text-emerald-700")}>
+            {normalLeadsCount}
+          </p>
+          <p className={cn("text-[11px] font-semibold", customerTypeFilter === 'Normal Customer' ? "text-emerald-100" : "text-emerald-600")}>
+            {normalLeadsCapacity.toFixed(1)} kW Direct Stock
+          </p>
+        </button>
+
+        {/* 3. Vendor Related Stock Metric */}
+        <button
+          type="button"
+          onClick={() => {
+            setCustomerTypeFilter(customerTypeFilter === 'Vendor Related Stock' ? 'ALL' : 'Vendor Related Stock');
+          }}
+          className={cn(
+            "text-left p-4 rounded-2xl border transition-all cursor-pointer space-y-1 group",
+            customerTypeFilter === 'Vendor Related Stock'
+              ? "bg-cyan-900 text-white border-cyan-900 ring-2 ring-cyan-500/40 shadow-md"
+              : "bg-white border-slate-100 shadow-sm hover:border-cyan-300 hover:shadow-md"
+          )}
+          title="Click to filter Vendor-supplied Consignment Stock leads"
+        >
+          <div className="flex items-center justify-between">
+            <p className={cn("text-[10px] font-black uppercase tracking-wider", customerTypeFilter === 'Vendor Related Stock' ? "text-cyan-200" : "text-cyan-700")}>
+              Vendor Stock Leads
+            </p>
+            <Building2 className={cn("w-3.5 h-3.5", customerTypeFilter === 'Vendor Related Stock' ? "text-cyan-300" : "text-cyan-600")} />
+          </div>
+          <p className={cn("text-2xl font-black", customerTypeFilter === 'Vendor Related Stock' ? "text-white" : "text-cyan-700")}>
+            {vendorStockLeadsCount}
+          </p>
+          <p className={cn("text-[11px] font-semibold", customerTypeFilter === 'Vendor Related Stock' ? "text-cyan-100" : "text-cyan-600")}>
+            {vendorStockLeadsCapacity.toFixed(1)} kW Consignment
           </p>
         </button>
 
@@ -783,7 +1114,7 @@ export default function CRM({
           <p className="text-2xl font-black text-blue-600">
             {roleScopedLeads.filter(l => !l.isDeleted && ['Qualified', 'Site Survey'].includes(l.status)).length}
           </p>
-          <p className="text-[11px] text-blue-600 font-medium">Ready for proposal (Click to filter)</p>
+          <p className="text-[11px] text-blue-600 font-medium">Ready for proposal</p>
         </button>
 
         <button
@@ -803,7 +1134,7 @@ export default function CRM({
           <p className="text-2xl font-black text-purple-600">
             {roleScopedLeads.filter(l => !l.isDeleted && ['Proposal', 'Negotiation'].includes(l.status)).length}
           </p>
-          <p className="text-[11px] text-purple-600 font-medium">Under negotiation (Click to filter)</p>
+          <p className="text-[11px] text-purple-600 font-medium">Under negotiation</p>
         </button>
 
         <button
@@ -823,8 +1154,97 @@ export default function CRM({
           <p className="text-2xl font-black text-emerald-600">
             {roleScopedLeads.filter(l => !l.isDeleted && ['Approved', 'Installation', 'Completed', 'AMC'].includes(l.status)).length}
           </p>
-          <p className="text-[11px] text-emerald-600 font-medium">Converted to execution (Click to filter)</p>
+          <p className="text-[11px] text-emerald-600 font-medium">Converted to execution</p>
         </button>
+      </div>
+
+      {/* Customer Differentiation Segmented Tabs & Vendor Filter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-black uppercase tracking-wider text-slate-500 mr-1 flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5 text-emerald-600" /> Pipeline Type:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCustomerTypeFilter('ALL');
+              setSelectedVendorFilter('ALL');
+            }}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5",
+              customerTypeFilter === 'ALL'
+                ? "bg-slate-900 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            )}
+          >
+            <span>All Leads</span>
+            <span className={cn("px-1.5 py-0.2 rounded-full text-[10px]", customerTypeFilter === 'ALL' ? "bg-slate-700 text-white" : "bg-slate-200 text-slate-700")}>
+              {roleScopedLeads.filter(l => !l.isDeleted).length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCustomerTypeFilter('Normal Customer');
+              setSelectedVendorFilter('ALL');
+            }}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 border",
+              customerTypeFilter === 'Normal Customer'
+                ? "bg-emerald-700 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-500/30"
+                : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+            )}
+          >
+            <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Normal Customers</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-600 text-white">
+              {normalLeadsCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCustomerTypeFilter('Vendor Related Stock');
+            }}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 border",
+              customerTypeFilter === 'Vendor Related Stock'
+                ? "bg-cyan-800 text-white border-cyan-800 shadow-sm ring-2 ring-cyan-500/30"
+                : "bg-cyan-50 text-cyan-900 border-cyan-200 hover:bg-cyan-100"
+            )}
+          >
+            <Building2 className="w-3.5 h-3.5 text-cyan-600" />
+            <span>Vendor Related Stock</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-700 text-white">
+              {vendorStockLeadsCount}
+            </span>
+          </button>
+        </div>
+
+        {/* Dynamic Vendor Selector Filter when Vendor Stock is Active or Available */}
+        {uniqueVendorsFromLeads.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500">Filter Vendor:</span>
+            <select
+              value={selectedVendorFilter}
+              onChange={(e) => {
+                setSelectedVendorFilter(e.target.value);
+                if (e.target.value !== 'ALL') {
+                  setCustomerTypeFilter('Vendor Related Stock');
+                }
+              }}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+            >
+              <option value="ALL">All Vendors ({uniqueVendorsFromLeads.length})</option>
+              {uniqueVendorsFromLeads.map(v => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -835,11 +1255,23 @@ export default function CRM({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search leads by name, email or ID..."
+              placeholder="Search leads by name, email, vendor, stock ref or ID..."
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-sm font-medium"
             />
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            {/* Batch Sync Assigned Leads to Customers Button */}
+            <button
+              type="button"
+              onClick={handleBatchSyncAssignedLeads}
+              disabled={isBatchSyncing}
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl font-bold text-xs transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+              title="Ensure all assigned leads appear as accounts in Customers module"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5 text-emerald-600", isBatchSyncing && "animate-spin")} />
+              <span>{isBatchSyncing ? 'Syncing...' : 'Sync to Customers'}</span>
+            </button>
+
             <button
               onClick={() => setShowTrash(!showTrash)}
               className={cn(
@@ -852,9 +1284,18 @@ export default function CRM({
               <Trash2 className="w-4 h-4" />
               {showTrash ? 'Hide Trash' : 'View Trash'}
             </button>
-            <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-600 font-bold text-xs sm:text-sm hover:bg-slate-50 transition-colors shadow-xs cursor-pointer">
+            <button 
+              type="button"
+              onClick={() => {
+                setCustomerTypeFilter('ALL');
+                setSelectedVendorFilter('ALL');
+                setSelectedStageGroup('all');
+                setSearchTerm('');
+              }}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-600 font-bold text-xs sm:text-sm hover:bg-slate-50 transition-colors shadow-xs cursor-pointer"
+            >
               <Filter className="w-4 h-4" />
-              Pipeline Filter
+              Reset Filters
             </button>
           </div>
         </div>
@@ -913,6 +1354,46 @@ export default function CRM({
                       </span>
                     )}
                   </div>
+
+                  {/* Customer Classification and Assigned Officer Badges */}
+                  <div className="flex flex-wrap items-center gap-1.5 my-1">
+                    {(lead.customerType === 'Vendor Related Stock' || (lead.vendor && lead.vendor.trim() && lead.vendor !== 'Default Vendor')) ? (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-cyan-100 text-cyan-800 border border-cyan-300 flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-cyan-600" /> {lead.vendor || 'Vendor Stock'}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                        <UserCheck className="w-3 h-3 text-emerald-600" /> Normal Customer
+                      </span>
+                    )}
+
+                    {lead.assignedTo ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenAssignModal(lead, 'assign');
+                        }}
+                        className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Assigned Officer (Click to reassign)"
+                      >
+                        <UserCheck className="w-3 h-3 text-purple-600" /> Assigned: {lead.assignedTo}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenAssignModal(lead, 'assign');
+                        }}
+                        className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer animate-pulse"
+                        title="Unassigned. Click to assign officer and sync to Customers"
+                      >
+                        <UserPlus className="w-3 h-3 text-amber-600" /> Assign Officer
+                      </button>
+                    )}
+                  </div>
+
                   <div className="flex items-center gap-1 text-xs text-slate-500 font-medium">
                     <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>{lead.address || 'Address N/A'}</span>
@@ -965,6 +1446,16 @@ export default function CRM({
                 </div>
 
                 <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenAssignModal(lead, 'assign');
+                    }}
+                    className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl transition-all border border-purple-100 cursor-pointer"
+                    title="Assign or Reassign Officer (Syncs to Customers)"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1065,6 +1556,7 @@ export default function CRM({
               <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-[0.15em]">
                 <th className="px-6 py-4">Lead Information</th>
                 <th className="px-6 py-4">Engagement</th>
+                <th className="px-6 py-4">Classification & Assignee</th>
                 <th className="px-6 py-4">Source</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4 text-right">Action</th>
@@ -1144,6 +1636,57 @@ export default function CRM({
                       </a>
                     </div>
                   </td>
+                  <td className="px-6 py-5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-col items-start gap-1.5">
+                      {lead.customerType === 'Vendor Related Stock' ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                            <PackageCheck className="w-3 h-3 text-purple-600" />
+                            <span>Vendor Stock</span>
+                          </span>
+                          {lead.vendorName && (
+                            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1 pl-1">
+                              <Tag className="w-3 h-3 text-purple-500" />
+                              <span className="truncate max-w-[130px]">{lead.vendorName}</span>
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          <span>Normal Customer</span>
+                        </span>
+                      )}
+
+                      {lead.assignedOfficer ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenAssignModal(lead, 'assign');
+                          }}
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer group/as"
+                          title="Assigned to field officer (Click to change)"
+                        >
+                          <UserCheck className="w-3 h-3 text-emerald-600" />
+                          <span className="truncate max-w-[130px]">{lead.assignedOfficer}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenAssignModal(lead, 'assign');
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                          title="Click to Assign Lead to Field Officer"
+                        >
+                          <UserPlus className="w-3 h-3 text-amber-600" />
+                          <span>Assign Officer</span>
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-6 py-5">
                     <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 uppercase tracking-widest">
                       {lead.source}
@@ -1200,6 +1743,23 @@ export default function CRM({
                         <FileText className="w-4 h-4" />
                       )}
                     </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenAssignModal(lead, 'assign');
+                      }}
+                      className={cn(
+                        "p-2 hover:shadow-sm rounded-lg transition-all border cursor-pointer",
+                        lead.assignedOfficer
+                          ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                          : "hover:bg-amber-50 text-amber-600 border-transparent hover:border-amber-200"
+                      )}
+                      title={lead.assignedOfficer ? `Reassign Lead (Currently: ${lead.assignedOfficer})` : "Assign Lead to Officer"}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                    </button>
+
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1255,7 +1815,7 @@ export default function CRM({
             })}
               {filteredLeads.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center">
+                  <td colSpan={6} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center">
                         <Users className="w-6 h-6 text-slate-300" />
@@ -1277,6 +1837,7 @@ export default function CRM({
           onClick={() => {
             setIsModalOpen(false);
             setEditingLeadId(null);
+            setNewLead(initialLeadState);
           }}
         >
           <div 
@@ -1297,7 +1858,7 @@ export default function CRM({
                 onClick={() => { 
                   setIsModalOpen(false); 
                   setEditingLeadId(null); 
-                  setNewLead({ name: '', email: '', phone: '', source: 'Website', address: '', city: '', district: '', state: '', pincode: '', gpsLocation: '', roofType: '', monthlyUnits: '', expectedLoad: '', electricityBillUrl: '', propertyImagesUrls: [], roofImagesUrls: [] }); 
+                  setNewLead(initialLeadState); 
                 }} 
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-500 text-red-600 hover:text-white font-black text-xs transition-all shadow-xs border border-red-200 hover:border-red-500 cursor-pointer shrink-0"
                 title="Close Form (ESC)"
@@ -1309,6 +1870,191 @@ export default function CRM({
 
             <form onSubmit={handleSubmitLead} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6 sm:p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Lead & Stock Classification */}
+                <div className="col-span-1 md:col-span-2 space-y-3 p-4.5 bg-gradient-to-br from-slate-50 to-slate-100/70 rounded-2xl border border-slate-200 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                        Prospect Classification & Inventory Type *
+                      </label>
+                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        Differentiate between in-house retail solar stock and vendor-supplied consignment stock
+                      </p>
+                    </div>
+                    <span className={cn(
+                      "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border",
+                      newLead.customerType === 'Vendor Related Stock'
+                        ? "bg-purple-100 text-purple-800 border-purple-300"
+                        : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                    )}>
+                      {newLead.customerType === 'Vendor Related Stock' ? 'Vendor Stock' : 'Normal Customer'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setNewLead({ ...newLead, customerType: 'Normal Customer' })}
+                      className={cn(
+                        "p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3",
+                        (newLead.customerType || 'Normal Customer') === 'Normal Customer'
+                          ? "bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs"
+                          : "bg-white border-slate-200 hover:border-slate-300"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-4 h-4 rounded-full mt-0.5 border flex items-center justify-center shrink-0",
+                        (newLead.customerType || 'Normal Customer') === 'Normal Customer'
+                          ? "border-emerald-600 bg-emerald-600"
+                          : "border-slate-300 bg-white"
+                      )}>
+                        {(newLead.customerType || 'Normal Customer') === 'Normal Customer' && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-slate-900">Normal Customer</div>
+                        <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                          Direct solar retail lead fulfilled from company-owned in-house inventory
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNewLead({ ...newLead, customerType: 'Vendor Related Stock' })}
+                      className={cn(
+                        "p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3",
+                        newLead.customerType === 'Vendor Related Stock'
+                          ? "bg-purple-50/90 border-purple-500 ring-2 ring-purple-500/20 shadow-xs"
+                          : "bg-white border-slate-200 hover:border-slate-300"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-4 h-4 rounded-full mt-0.5 border flex items-center justify-center shrink-0",
+                        newLead.customerType === 'Vendor Related Stock'
+                          ? "border-purple-600 bg-purple-600"
+                          : "border-slate-300 bg-white"
+                      )}>
+                        {newLead.customerType === 'Vendor Related Stock' && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-purple-950 flex items-center gap-1.5">
+                          <span>Vendor Related Stock</span>
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-purple-200 text-purple-800">Consignment</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                          Consignment / distributor inventory supplied by an external vendor or partner
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Vendor Specific Inputs if Vendor Related Stock */}
+                  {newLead.customerType === 'Vendor Related Stock' && (
+                    <div className="pt-3 border-t border-purple-200/70 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-purple-50/60 p-3.5 rounded-xl border border-purple-100">
+                      <div>
+                        <label className="block text-[11px] font-bold text-purple-900 uppercase tracking-wider mb-1">
+                          Vendor / Supplier Partner *
+                        </label>
+                        <input
+                          list="lead-vendor-options"
+                          required={newLead.customerType === 'Vendor Related Stock'}
+                          value={newLead.vendorName || ''}
+                          onChange={e => setNewLead({ ...newLead, vendorName: e.target.value })}
+                          placeholder="Select or enter vendor name (e.g. Tata Power Solar)"
+                          className="w-full px-3 py-2 bg-white border border-purple-200 rounded-lg text-xs font-bold text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                        />
+                        <datalist id="lead-vendor-options">
+                          {vendorsList.map((v) => (
+                            <option key={v} value={v} />
+                          ))}
+                        </datalist>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-purple-900 uppercase tracking-wider mb-1">
+                          Stock / Inventory Category
+                        </label>
+                        <select
+                          value={newLead.stockCategory || STOCK_CATEGORIES[0]}
+                          onChange={e => setNewLead({ ...newLead, stockCategory: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-purple-200 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none cursor-pointer"
+                        >
+                          {STOCK_CATEGORIES.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-purple-900 uppercase tracking-wider mb-1">
+                          Vendor PO / Stock Lot Ref
+                        </label>
+                        <input
+                          value={newLead.vendorStockRef || ''}
+                          onChange={e => setNewLead({ ...newLead, vendorStockRef: e.target.value })}
+                          placeholder="e.g. PO-2024-VR01 or LOT-A8"
+                          className="w-full px-3 py-2 bg-white border border-purple-200 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-purple-900 uppercase tracking-wider mb-1">
+                          Consignment / Dispatch Terms
+                        </label>
+                        <input
+                          value={newLead.vendorStockNotes || ''}
+                          onChange={e => setNewLead({ ...newLead, vendorStockNotes: e.target.value })}
+                          placeholder="e.g. Direct site dispatch by supplier"
+                          className="w-full px-3 py-2 bg-white border border-purple-200 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Assign Field Officer & Customer Sync */}
+                <div className="col-span-1 md:col-span-2 space-y-2.5 p-4.5 bg-emerald-50/50 rounded-2xl border border-emerald-200/80 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        Assign Representative / Field Officer
+                      </label>
+                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        Assigned leads automatically appear in the <strong>Customers</strong> directory with full contact & stock details
+                      </p>
+                    </div>
+                    {newLead.assignedOfficer && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <UserCheck className="w-3 h-3" />
+                        Auto-sync Active
+                      </span>
+                    )}
+                  </div>
+                  <select
+                    value={newLead.assignedOfficer || ''}
+                    onChange={e => setNewLead({ ...newLead, assignedOfficer: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-white border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-sm font-semibold text-slate-800 cursor-pointer"
+                  >
+                    <option value="">-- Leave Unassigned (Can be assigned later from list or approval) --</option>
+                    {user?.name && (
+                      <option value={user.name}>
+                        ⭐ Assign to Me ({user.name} - {user.role || 'Current User'})
+                      </option>
+                    )}
+                    {officers.map(off => (
+                      <option key={off.id} value={off.name}>
+                        {off.name} ({off.role} • {off.region} • 📞 {off.contact})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="col-span-1 md:col-span-2">
                   <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 border-b border-slate-100 pb-1.5 flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-emerald-500" /> Customer Information
@@ -1680,6 +2426,7 @@ export default function CRM({
                   onClick={() => {
                     setIsModalOpen(false);
                     setEditingLeadId(null);
+                    setNewLead(initialLeadState);
                   }}
                   className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-slate-700 font-bold hover:bg-slate-50 transition-colors cursor-pointer text-sm"
                 >
@@ -1925,10 +2672,12 @@ export default function CRM({
               <div>
                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Assign Regional Officer & Approve
+                  {assignModalMode === 'assign' ? 'Assign Lead to Field Officer' : 'Assign Regional Officer & Approve'}
                 </h3>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Select project officer based on prospect location
+                  {assignModalMode === 'assign'
+                    ? 'Assigned leads will automatically appear in the Customers directory'
+                    : 'Select project officer based on prospect location & approve project'}
                 </p>
               </div>
               <button
@@ -1944,11 +2693,23 @@ export default function CRM({
 
             <form onSubmit={confirmApprovalAndAssignment} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
               {/* Customer & Location Card */}
-              <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-emerald-900 uppercase tracking-wider">
-                    {selectedLeadForApproval.name}
-                  </span>
+              <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-emerald-900 uppercase tracking-wider">
+                      {selectedLeadForApproval.name}
+                    </span>
+                    <span className={cn(
+                      "text-[10px] font-black uppercase px-2 py-0.5 rounded-full border",
+                      selectedLeadForApproval.customerType === 'Vendor Related Stock'
+                        ? "bg-purple-100 text-purple-800 border-purple-300"
+                        : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                    )}>
+                      {selectedLeadForApproval.customerType === 'Vendor Related Stock' 
+                        ? `Vendor Stock: ${selectedLeadForApproval.vendorName || 'Consignment'}` 
+                        : 'Normal Customer'}
+                    </span>
+                  </div>
                   <span className="text-[10px] font-extrabold bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-md">
                     {selectedLeadForApproval.expectedLoad || '5'} {selectedLeadForApproval.expectedLoadUnit || 'KW'} Solar
                   </span>
@@ -1961,6 +2722,12 @@ export default function CRM({
                     {selectedLeadForApproval.state ? `, ${selectedLeadForApproval.state}` : ''}
                   </span>
                 </div>
+                {selectedLeadForApproval.assignedOfficer && (
+                  <div className="text-[11px] font-bold text-slate-600 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-100 flex items-center gap-1.5">
+                    <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Currently Assigned to: <strong className="text-emerald-800">{selectedLeadForApproval.assignedOfficer}</strong></span>
+                  </div>
+                )}
               </div>
 
               {/* Regional Officer Selector */}
@@ -2048,7 +2815,11 @@ export default function CRM({
                   className="flex-1 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {isSubmittingAssign ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  <span>{isSubmittingAssign ? 'Assigning & Approving...' : 'Confirm Approval & Assign'}</span>
+                  <span>
+                    {isSubmittingAssign
+                      ? (assignModalMode === 'assign' ? 'Assigning & Syncing...' : 'Assigning & Approving...')
+                      : (assignModalMode === 'assign' ? 'Assign Lead & Show in Customers' : 'Confirm Approval & Assign')}
+                  </span>
                 </button>
               </div>
             </form>

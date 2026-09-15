@@ -6,10 +6,11 @@ interface LoginModalProps {
   onClose: () => void;
   onSuccess: () => void;
   onOpenSignUp: () => void;
+  initialRole?: 'admin' | 'vendor' | 'installer' | 'customer' | 'staff';
 }
 
-export default function LoginModal({ onClose, onSuccess, onOpenSignUp }: LoginModalProps) {
-  const [loginType, setLoginType] = useState<'admin' | 'vendor' | 'installer'>('admin');
+export default function LoginModal({ onClose, onSuccess, onOpenSignUp, initialRole = 'admin' }: LoginModalProps) {
+  const [loginType, setLoginType] = useState<'admin' | 'vendor' | 'installer' | 'customer' | 'staff'>(initialRole);
   const [email, setEmail] = useState('admin@solar.com');
   const [password, setPassword] = useState('admin123');
   const [loading, setLoading] = useState(false);
@@ -22,7 +23,14 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp }: LoginMo
   const [resetSuccess, setResetSuccess] = useState(false);
   const [resetError, setResetError] = useState('');
 
-  const handleTabSwitch = (type: 'admin' | 'vendor' | 'installer') => {
+  // Set initial role credentials on mount or prop change
+  React.useEffect(() => {
+    if (initialRole) {
+      handleTabSwitch(initialRole);
+    }
+  }, [initialRole]);
+
+  const handleTabSwitch = (type: 'admin' | 'vendor' | 'installer' | 'customer' | 'staff') => {
     setLoginType(type);
     setError('');
     if (type === 'admin') {
@@ -31,9 +39,15 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp }: LoginMo
     } else if (type === 'vendor') {
       setEmail('vendor@vikramsolar.com');
       setPassword('vendor123');
-    } else {
+    } else if (type === 'installer') {
       setEmail('installer@solar.com');
       setPassword('installer123');
+    } else if (type === 'customer') {
+      setEmail('customer@solar.com');
+      setPassword('customer123');
+    } else if (type === 'staff') {
+      setEmail('survey@solar.com');
+      setPassword('survey123');
     }
   };
 
@@ -43,12 +57,15 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp }: LoginMo
     setError('');
 
     try {
-      if (loginType === 'admin') {
-        await authService.loginDemoUser('admin');
-      } else if (loginType === 'vendor') {
-        await authService.loginDemoUser('vendor');
-      } else if (loginType === 'installer') {
-        await authService.loginDemoUser('installer');
+      const isMatchingDemo = 
+        (loginType === 'admin' && email === 'admin@solar.com') ||
+        (loginType === 'vendor' && email === 'vendor@vikramsolar.com') ||
+        (loginType === 'installer' && email === 'installer@solar.com') ||
+        (loginType === 'customer' && email === 'customer@solar.com') ||
+        (loginType === 'staff' && email === 'survey@solar.com');
+
+      if (isMatchingDemo) {
+        await authService.loginDemoUser(loginType);
       } else {
         await authService.login(email, password);
       }
@@ -206,7 +223,7 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp }: LoginMo
                   <span className="font-bold text-slate-300 flex items-center gap-1 text-[10px] uppercase tracking-wider">
                     <Sparkles className="w-3 h-3 text-emerald-400" /> Instant Demo Access?
                   </span>
-                  <p className="text-[10px] leading-normal text-slate-400">
+                  <p className="text-[10px] leading-relaxed text-slate-400">
                     If testing demo roles, passwords are pre-configured:
                     <br />
                     • Admin: <span className="text-slate-200 font-mono">admin@solar.com</span> (<span className="text-emerald-400 font-mono">admin123</span>)
@@ -214,6 +231,10 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp }: LoginMo
                     • Vendor: <span className="text-slate-200 font-mono">vendor@vikramsolar.com</span> (<span className="text-amber-400 font-mono">vendor123</span>)
                     <br />
                     • Installer: <span className="text-slate-200 font-mono">installer@solar.com</span> (<span className="text-teal-400 font-mono">installer123</span>)
+                    <br />
+                    • Customer: <span className="text-slate-200 font-mono">customer@solar.com</span> (<span className="text-indigo-400 font-mono">customer123</span>)
+                    <br />
+                    • Staff / Eng: <span className="text-slate-200 font-mono">survey@solar.com</span> (<span className="text-cyan-400 font-mono">survey123</span>)
                   </p>
                 </div>
 
@@ -251,42 +272,71 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp }: LoginMo
         ) : (
           /* Standard Sign In View */
           <>
-            {/* Separate Login Type Tabs */}
-            <div className="p-2 bg-slate-950/60 border-b border-slate-800 flex gap-1.5 overflow-x-auto no-scrollbar">
+            {/* 5 Separate Login Type Tabs */}
+            <div className="p-2 bg-slate-950/60 border-b border-slate-800 grid grid-cols-5 gap-1 text-center">
               <button
                 type="button"
                 onClick={() => handleTabSwitch('admin')}
-                className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                className={`py-2 px-1 rounded-xl text-[11px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                   loginType === 'admin' 
-                    ? 'bg-emerald-500 text-slate-950 shadow-md font-black' 
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md scale-102' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                 }`}
               >
-                <span>👑 Global Admin</span>
+                <span>👑</span>
+                <span className="truncate w-full text-[10px]">Admin</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleTabSwitch('vendor')}
-                className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                className={`py-2 px-1 rounded-xl text-[11px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                   loginType === 'vendor' 
-                    ? 'bg-amber-500 text-slate-950 shadow-md font-black' 
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-amber-500 text-slate-950 shadow-md scale-102' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                 }`}
               >
-                <span>🏢 Vendor</span>
+                <span>🏢</span>
+                <span className="truncate w-full text-[10px]">Vendor</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleTabSwitch('installer')}
-                className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                className={`py-2 px-1 rounded-xl text-[11px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                   loginType === 'installer' 
-                    ? 'bg-teal-500 text-slate-950 shadow-md font-black' 
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-teal-500 text-slate-950 shadow-md scale-102' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                 }`}
               >
-                <span>🔧 Installer</span>
+                <span>🔧</span>
+                <span className="truncate w-full text-[10px]">Installer</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('customer')}
+                className={`py-2 px-1 rounded-xl text-[11px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                  loginType === 'customer' 
+                    ? 'bg-indigo-500 text-white shadow-md scale-102' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                }`}
+              >
+                <span>🏠</span>
+                <span className="truncate w-full text-[10px]">Customer</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('staff')}
+                className={`py-2 px-1 rounded-xl text-[11px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                  loginType === 'staff' 
+                    ? 'bg-cyan-500 text-slate-950 shadow-md scale-102' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                }`}
+              >
+                <span>👷</span>
+                <span className="truncate w-full text-[10px]">Staff</span>
               </button>
             </div>
 
@@ -298,14 +348,34 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp }: LoginMo
             )}
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-0.5">
-                <span className="text-[10px] font-black uppercase text-slate-400">Selected Portal Access</span>
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Target Sign In Portal</span>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                    {loginType === 'admin' ? 'Super Admin' : loginType === 'vendor' ? 'Supplier' : loginType === 'installer' ? 'Field Tech' : loginType === 'customer' ? 'Homeowner' : 'Engineering'}
+                  </span>
+                </div>
                 <p className="text-xs font-black text-white">
                   {loginType === 'admin' 
                     ? '👑 Meta Green Global HQ Super Admin' 
                     : loginType === 'vendor' 
-                      ? '🏢 Solar Vendor & Staff Dispatch Portal' 
-                      : '🔧 Lead Solar Field Installer & Contractor Portal'}
+                      ? '🏢 Solar Vendor & Supplier Dispatch Portal' 
+                      : loginType === 'installer' 
+                        ? '🔧 Lead Solar Field Installer & Contractor Portal'
+                        : loginType === 'customer'
+                          ? '🏠 Residential Solar Customer & Prosumer Portal'
+                          : '👷 Solar Field Survey & Design Engineer Portal'}
+                </p>
+                <p className="text-[11px] text-slate-400 leading-tight">
+                  {loginType === 'admin' 
+                    ? 'Complete Enterprise Cockpit, all system counts, revenue telemetry & multi-tenant governance.'
+                    : loginType === 'vendor' 
+                      ? 'Review purchase orders, manage hardware catalog, staff accounts & consignment stock.'
+                      : loginType === 'installer' 
+                        ? 'View assigned projects, site survey verifications, material kit consumption & attendance.'
+                        : loginType === 'customer'
+                          ? 'Track live application flow, system capacity, PM Surya Ghar subsidy claims & documents.'
+                          : 'On-site feasibility surveys, 3D rooftop design modeling & technical verification.'}
                 </p>
               </div>
 
@@ -318,7 +388,12 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp }: LoginMo
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder={loginType === 'admin' ? "admin@solar.com" : loginType === 'vendor' ? "vendor@vikramsolar.com" : "installer@solar.com"}
+                    placeholder={
+                      loginType === 'admin' ? "admin@solar.com" : 
+                      loginType === 'vendor' ? "vendor@vikramsolar.com" : 
+                      loginType === 'installer' ? "installer@solar.com" :
+                      loginType === 'customer' ? "customer@solar.com" : "survey@solar.com"
+                    }
                     className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium text-white placeholder-slate-500 focus:border-emerald-500 outline-none"
                   />
                 </div>
@@ -359,13 +434,30 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp }: LoginMo
                 disabled={loading}
                 className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                {loading ? 'Authenticating Credentials...' : (loginType === 'admin' ? 'Sign In as Global Admin' : loginType === 'vendor' ? 'Sign In to Vendor Portal' : 'Sign In to Installer Portal')}
+                {loading ? 'Authenticating Credentials...' : (
+                  loginType === 'admin' ? 'Sign In as Global Admin' : 
+                  loginType === 'vendor' ? 'Sign In to Vendor Portal' : 
+                  loginType === 'installer' ? 'Sign In to Installer Portal' :
+                  loginType === 'customer' ? 'Sign In to Customer Portal' : 'Sign In as Engineering Staff'
+                )}
                 <ArrowRight className="w-4 h-4" />
               </button>
 
+              {/* Quick Demo Pre-fill helper */}
+              <div className="flex items-center justify-between px-1 text-[10px] text-slate-400">
+                <span>Demo pre-filled: <strong className="text-slate-200">{email}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => handleTabSwitch(loginType)}
+                  className="text-emerald-400 hover:underline font-bold"
+                >
+                  Reset Demo Creds
+                </button>
+              </div>
+
               {/* Separate Sign Up Callouts for Vendor and Installer */}
               <div className="pt-3 border-t border-slate-800 space-y-2 text-center">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Need a New Subscription Account?</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Need a New Partner Subscription?</span>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Package, Store, Building2 } from 'lucide-react';
 import Procurement from './Procurement';
 import Inventory from './Inventory';
@@ -6,8 +6,18 @@ import VendorPortal from './VendorPortal';
 import DirectSuppliers from './DirectSuppliers';
 import { cn } from '@/src/lib/utils';
 
-export default function InventoryAndPO({ initialTab = 'po' }: { initialTab?: 'po' | 'inventory' | 'vendors' | 'direct_suppliers' }) {
+export default function InventoryAndPO({ 
+  initialTab = 'po',
+  initialFilter 
+}: { 
+  initialTab?: 'po' | 'inventory' | 'vendors' | 'direct_suppliers';
+  initialFilter?: string;
+}) {
   const [activeSubTab, setActiveSubTab] = useState<'po' | 'inventory' | 'vendors' | 'direct_suppliers'>(initialTab);
+
+  useEffect(() => {
+    setActiveSubTab(initialTab);
+  }, [initialTab]);
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
@@ -81,9 +91,9 @@ export default function InventoryAndPO({ initialTab = 'po' }: { initialTab?: 'po
       </div>
 
       {/* Render Active View */}
-      {activeSubTab === 'po' && <Procurement />}
-      {activeSubTab === 'inventory' && <Inventory />}
-      {activeSubTab === 'vendors' && <VendorPortal />}
+      {activeSubTab === 'po' && <Procurement initialFilter={initialFilter} />}
+      {activeSubTab === 'inventory' && <Inventory initialFilter={initialFilter} />}
+      {activeSubTab === 'vendors' && <VendorPortal initialFilter={initialFilter} />}
       {activeSubTab === 'direct_suppliers' && (
         <DirectSuppliers
           onCreatePO={(_supplier) => {

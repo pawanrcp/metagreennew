@@ -39,13 +39,25 @@ export interface POItemRow {
   taxRate: number;
 }
 
-export default function Procurement({ initialTab = 'purchase' }: { initialTab?: 'purchase' | 'vendors' | 'direct_suppliers' } = {}) {
+export default function Procurement({ 
+  initialTab = 'purchase',
+  initialFilter 
+}: { 
+  initialTab?: 'purchase' | 'vendors' | 'direct_suppliers';
+  initialFilter?: string;
+} = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'purchase' | 'vendors' | 'direct_suppliers'>(initialTab);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialFilter || '');
   const [vendorFilter, setVendorFilter] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
+
+  useEffect(() => {
+    if (initialFilter) {
+      setSearchQuery(initialFilter);
+    }
+  }, [initialFilter]);
 
   const [vendors, setVendors] = useState<any[]>([]);
   const [registeredVendors, setRegisteredVendors] = useState<any[]>([]);

@@ -26,7 +26,8 @@ import {
   UserCheck,
   Copy,
   Gift,
-  Mail
+  Mail,
+  Globe
 } from 'lucide-react';
 import {
   subscriptionService,
@@ -93,6 +94,7 @@ export default function SubscriptionManagement({ initialTab = 'plans' }: Subscri
     billingCycle: 'monthly' | 'annual';
     userLimit: number;
     storageGBLimit: number;
+    hasWebsiteSubscription: boolean;
     customDiscountPercentage: number;
     customDiscountAmount: number;
     appliedCouponCode: string;
@@ -101,6 +103,7 @@ export default function SubscriptionManagement({ initialTab = 'plans' }: Subscri
     billingCycle: 'annual',
     userLimit: 3,
     storageGBLimit: 10,
+    hasWebsiteSubscription: false,
     customDiscountPercentage: 0,
     customDiscountAmount: 0,
     appliedCouponCode: ''
@@ -360,6 +363,7 @@ export default function SubscriptionManagement({ initialTab = 'plans' }: Subscri
       billingCycle: vendor.billingCycle || 'annual',
       userLimit: vendor.userLimit || 3,
       storageGBLimit: vendor.storageGBLimit || 10,
+      hasWebsiteSubscription: Boolean(vendor.hasWebsiteSubscription),
       customDiscountPercentage: vendor.customDiscountPercentage || 0,
       customDiscountAmount: vendor.customDiscountAmount || 0,
       appliedCouponCode: vendor.appliedCouponCode || ''
@@ -387,6 +391,9 @@ export default function SubscriptionManagement({ initialTab = 'plans' }: Subscri
         billingCycle: assignForm.billingCycle,
         userLimit: assignForm.userLimit,
         storageGBLimit: assignForm.storageGBLimit,
+        hasWebsiteSubscription: assignForm.hasWebsiteSubscription,
+        websiteSubscriptionPrice: assignForm.hasWebsiteSubscription ? 999 : 0,
+        customLandingPageEnabled: assignForm.hasWebsiteSubscription,
         customDiscountPercentage: Number(assignForm.customDiscountPercentage) || 0,
         customDiscountAmount: Number(assignForm.customDiscountAmount) || 0,
         appliedCouponCode: assignForm.appliedCouponCode.trim().toUpperCase() || undefined,
@@ -397,7 +404,7 @@ export default function SubscriptionManagement({ initialTab = 'plans' }: Subscri
 
       setAssignModalOpen(false);
       await loadData();
-      alert(`✅ Vendor subscription updated to ${assignForm.billingCycle.toUpperCase()} plan with custom discounts successfully!`);
+      alert(`✅ Vendor subscription updated to ${assignForm.billingCycle.toUpperCase()} plan (Website: ${assignForm.hasWebsiteSubscription ? 'Active ₹999' : 'Default MetaGreen'}) successfully!`);
     } catch (err) {
       console.error('Error updating vendor plan:', err);
       alert('Failed to update vendor subscription.');
@@ -1041,6 +1048,18 @@ export default function SubscriptionManagement({ initialTab = 'plans' }: Subscri
                                 -₹{v.customDiscountAmount.toLocaleString()}
                               </span>
                             ) : null}
+
+                            {/* Website Subscription Status Badge */}
+                            {v.hasWebsiteSubscription ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[9px] font-black uppercase">
+                                <Globe className="w-2.5 h-2.5 text-emerald-600" />
+                                Website Active (₹999)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 text-slate-500 border border-slate-200 rounded text-[9px] font-bold">
+                                MetaGreen Default Only
+                              </span>
+                            )}
                           </div>
 
                           <button
@@ -2214,6 +2233,33 @@ export default function SubscriptionManagement({ initialTab = 'plans' }: Subscri
                     <p className="text-[11px] text-slate-500 font-medium mt-1">30 Days Validity from today</p>
                   </button>
                 </div>
+              </div>
+
+              {/* Optional Website Subscription Add-On (₹999/-) */}
+              <div className="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-200/80">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={assignForm.hasWebsiteSubscription}
+                    onChange={e => setAssignForm({ ...assignForm, hasWebsiteSubscription: e.target.checked })}
+                    className="mt-0.5 w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-emerald-600" />
+                        Website Subscription (₹999/- Add-On)
+                      </span>
+                      <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        Optional Add-On
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 font-medium mt-1 leading-snug">
+                      <strong>Checked:</strong> Vendor gets full access to their custom branded landing page (custom company name, logo, phone, address).<br />
+                      <strong>Unchecked:</strong> Vendor operates exclusively on the default MetaGreen landing page.
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {/* Particular Person Custom Discounts */}

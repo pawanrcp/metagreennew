@@ -17,12 +17,21 @@ import { cn } from '@/src/lib/utils';
 import jsPDF from 'jspdf';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
+import { useAuth } from '@/src/context/AuthContext';
 
 export default function CustomerPortal() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('');
+  const { user } = useAuth();
+  const [isLoggedIn, setIsLoggedIn] = useState(Boolean(user));
+  const [loginEmail, setLoginEmail] = useState(user?.email || '');
   const [loginPassword, setLoginPassword] = useState('');
   const [activeTab, setActiveTab] = useState<'status' | 'documents' | 'payments' | 'monitoring' | 'support'>('status');
+
+  React.useEffect(() => {
+    if (user) {
+      setIsLoggedIn(true);
+      setLoginEmail(user.email || '');
+    }
+  }, [user]);
 
   const [ticketData, setTicketData] = useState({ category: 'Installation Query', description: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);

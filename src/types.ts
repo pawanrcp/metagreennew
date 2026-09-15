@@ -47,6 +47,11 @@ export interface Lead {
   installerId?: string;
   region?: string;
   customerId?: string;
+  // Customer & Stock Differentiation
+  customerType?: CustomerType;
+  stockCategory?: string;
+  vendorStockRef?: string;
+  vendorStockNotes?: string;
 }
 
 export type ProjectStatus = 
@@ -297,4 +302,38 @@ export interface GeneratedDocument {
   metadata?: Record<string, any>;
   createdAt: any;
   updatedAt?: any;
+}
+
+export type CustomerType = 'Normal Customer' | 'Vendor Related Stock';
+
+export interface CustomerRecord {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address: string;
+  city: string;
+  district?: string;
+  state: string;
+  pincode?: string;
+  sanctionedLoad?: string | number;
+  roofType?: string;
+  systemCapacityKw?: number;
+  totalProjectValue?: number;
+  notes?: string;
+  status?: 'Active' | 'Lead' | 'Installed' | 'Archived';
+  source?: string;
+  assignedTo?: string;
+  installerId?: string;
+  creatorId?: string;
+  createdBy?: string;
+  createdAt?: any;
+  updatedAt?: any;
+  // Customer Differentiation
+  customerType?: CustomerType;
+  vendorId?: string;
+  vendorName?: string;
+  stockCategory?: string;
+  vendorStockRef?: string;
+  vendorStockNotes?: string;
 }

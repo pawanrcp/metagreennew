@@ -56,7 +56,9 @@ import {
   Flame,
   Clock,
   LayoutGrid,
-  CheckCircle
+  CheckCircle,
+  Search,
+  AlertCircle
 } from 'lucide-react';
 import { MetaGreenLogo } from './MetaGreenLogo';
 import { subscriptionService, SubscriptionPlan } from '@/src/services/subscription.service';
@@ -64,18 +66,45 @@ import VendorRegistrationModal from './VendorRegistrationModal';
 import LoginModal from './LoginModal';
 import BookDemoModal from './BookDemoModal';
 import ContactCareerModal, { ContactPurpose } from './ContactCareerModal';
+import ApplicationTrackingModal from './ApplicationTrackingModal';
+
+export interface VendorBrandingInfo {
+  uid: string;
+  companyName: string;
+  companyLogo?: string;
+  phone?: string;
+  email?: string;
+  doorNo?: string;
+  companyAddress?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  hasWebsiteSubscription?: boolean;
+}
 
 interface LandingPageProps {
   onLoginSuccess: () => void;
+  vendorBranding?: VendorBrandingInfo | null;
+  onExitVendorView?: () => void;
 }
 
-export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
+export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVendorView }: LandingPageProps) {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [activeVendorBranding, setActiveVendorBranding] = useState<VendorBrandingInfo | null>(vendorBranding || null);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [loginModalInitialRole, setLoginModalInitialRole] = useState<'admin' | 'vendor' | 'installer' | 'customer' | 'staff'>('admin');
   const [isBookDemoOpen, setIsBookDemoOpen] = useState(false);
+
+  const handleOpenLogin = (role: 'admin' | 'vendor' | 'installer' | 'customer' | 'staff' = 'admin') => {
+    setLoginModalInitialRole(role);
+    setIsLoginModalOpen(true);
+  };
   const [isContactCareerOpen, setIsContactCareerOpen] = useState(false);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [trackingInitialQuery, setTrackingInitialQuery] = useState('');
+  const [heroTrackInput, setHeroTrackInput] = useState('');
   const [contactPurpose, setContactPurpose] = useState<ContactPurpose>('Sales');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -110,6 +139,38 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (vendorBranding) {
+      setActiveVendorBranding(vendorBranding);
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const vUid = params.get('vendor') || params.get('v');
+    if (vUid) {
+      subscriptionService.getVendorAccount(vUid).then(acc => {
+        if (acc) {
+          setActiveVendorBranding({
+            uid: acc.uid,
+            companyName: acc.companyName,
+            companyLogo: acc.companyLogo,
+            phone: acc.phone,
+            email: acc.email,
+            doorNo: acc.doorNo,
+            companyAddress: acc.companyAddress,
+            city: acc.city,
+            state: acc.state,
+            pincode: acc.pincode,
+            hasWebsiteSubscription: acc.hasWebsiteSubscription
+          });
+        }
+      }).catch(err => console.warn('Failed to load vendor branding:', err));
+    }
+  }, [vendorBranding]);
+
+  // ACCESS RULE: If website subscription was checked (+₹999/-), vendor gets full access to their branded landing page.
+  // Otherwise, only the standard MetaGreen landing page is shown.
+  const isCustomLandingActive = Boolean(activeVendorBranding?.hasWebsiteSubscription);
 
   const DEFAULT_FALLBACK_PLAN: SubscriptionPlan = {
     id: 'plan_starter',
@@ -266,6 +327,65 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
       : 'bg-[#F8FAFC] text-slate-900 selection:bg-emerald-500 selection:text-white'
       }`}>
 
+      {/* BRANDED VENDOR LANDING PAGE TOP BANNER (Website Subscription ₹999 Active) */}
+      {isCustomLandingActive && (
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-slate-950 px-4 py-2 text-xs font-black flex items-center justify-between shadow-md relative z-50">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-slate-950" />
+            <span>Official Partner Website • <strong className="underline">{activeVendorBranding?.companyName}</strong></span>
+            <span className="hidden sm:inline px-2 py-0.5 bg-slate-950/20 text-slate-950 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
+              Website Subscription Active (₹999)
+            </span>
+          </div>
+          <div className="flex items-center gap-3 text-[11px]">
+            {activeVendorBranding?.phone && (
+              <a 
+                href={`tel:${activeVendorBranding.phone}`} 
+                className="hidden md:flex items-center gap-1 font-bold bg-slate-950 text-emerald-400 px-2.5 py-0.5 rounded-full hover:bg-slate-900 transition-colors"
+              >
+                <Phone className="w-3 h-3" /> {activeVendorBranding.phone}
+              </a>
+            )}
+            {onExitVendorView && (
+              <button 
+                onClick={onExitVendorView}
+                className="bg-slate-950 text-white hover:bg-slate-900 px-3 py-1 rounded-lg cursor-pointer font-bold transition-colors"
+              >
+                Back to Dashboard
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* INFORMATIONAL NOTICE: VENDOR HAS NO WEBSITE SUBSCRIPTION (Uses Standard MetaGreen Landing Page) */}
+      {activeVendorBranding && !isCustomLandingActive && (
+        <div className="bg-gradient-to-r from-amber-500/20 via-amber-600/15 to-amber-500/20 border-b border-amber-500/40 text-amber-300 px-4 py-2 text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2 relative z-50">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              <strong>{activeVendorBranding.companyName}</strong> is using the <strong>Standard MetaGreen Landing Page</strong>. (Custom Website Add-On not active).
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => handleStartTrial()}
+              className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-black rounded-lg transition-colors cursor-pointer"
+            >
+              Unlock Custom Website (₹999/-)
+            </button>
+            {onExitVendorView && (
+              <button 
+                onClick={onExitVendorView}
+                className="px-2.5 py-1 text-slate-400 hover:text-white text-[11px] underline cursor-pointer"
+              >
+                Exit
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* 1. TOP GLASSMORPHISM NAVBAR (MetaCheck Style)                             */}
       {/* ========================================================================= */}
@@ -279,9 +399,31 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
           <div className="flex items-center gap-4">
             <button
               onClick={(e) => scrollToSection(e, 'hero')}
-              className="cursor-pointer flex items-center gap-2 group"
+              className="cursor-pointer flex items-center gap-2 group text-left"
             >
-              <MetaGreenLogo size="md" variant={isDarkMode ? 'dark' : 'light'} />
+              {isCustomLandingActive ? (
+                <div className="flex items-center gap-3">
+                  {activeVendorBranding?.companyLogo ? (
+                    <img 
+                      src={activeVendorBranding.companyLogo} 
+                      alt={activeVendorBranding.companyName} 
+                      className="h-10 w-auto max-w-[140px] object-contain rounded-lg shadow-xs"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-slate-950 font-black text-base shadow-sm">
+                      {activeVendorBranding?.companyName?.charAt(0) || 'S'}
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    <span className="font-black text-sm tracking-tight text-white line-clamp-1">{activeVendorBranding?.companyName}</span>
+                    <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5" /> Powered by MetaGreen
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <MetaGreenLogo size="md" variant={isDarkMode ? 'dark' : 'light'} />
+              )}
             </button>
           </div>
 
@@ -408,6 +550,23 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
+            {/* Customer Track Application Button */}
+            <button
+              onClick={() => {
+                setTrackingInitialQuery('');
+                setIsTrackingModalOpen(true);
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-black border transition-all cursor-pointer shadow-xs ${isDarkMode
+                ? 'border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 hover:shadow-emerald-500/10'
+                : 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800'
+                }`}
+              title="Track your solar installation by entering Application ID or Mobile Number"
+            >
+              <Search className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Track Application</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            </button>
+
             {/* Book Demo Button */}
             <button
               onClick={() => setIsBookDemoOpen(true)}
@@ -420,17 +579,55 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
               Book Demo
             </button>
 
-            {/* Sign In Button */}
-            <button
-              onClick={() => setIsLoginModalOpen(true)}
-              className={`hidden md:inline-flex items-center gap-1 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${isDarkMode
-                ? 'text-slate-300 hover:text-white'
-                : 'text-slate-600 hover:text-slate-900'
-                }`}
-            >
-              <Lock className="w-3.5 h-3.5" />
-              Sign In
-            </button>
+            {/* Sign In Options */}
+            <div className="relative group hidden md:block">
+              <button
+                onClick={() => handleOpenLogin('admin')}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border ${isDarkMode
+                  ? 'border-slate-800 bg-slate-900/90 text-slate-200 hover:text-white hover:border-emerald-500/50'
+                  : 'border-slate-200 bg-white text-slate-700 hover:text-slate-950 hover:border-emerald-500/50 shadow-xs'
+                  }`}
+              >
+                <Lock className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Sign In</span>
+                <ChevronDown className="w-3 h-3 text-slate-400 group-hover:rotate-180 transition-transform" />
+              </button>
+
+              {/* Hover Persona Menu */}
+              <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 hidden group-hover:block z-50 animate-in fade-in zoom-in-95 duration-150">
+                <span className="text-[10px] font-black uppercase text-slate-400 px-2 py-1 block tracking-wider">Select Sign In Portal</span>
+                <button
+                  onClick={() => handleOpenLogin('admin')}
+                  className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-emerald-500/20 hover:text-emerald-300 flex items-center gap-2 cursor-pointer transition-colors"
+                >
+                  <span>👑</span> <span>Global Super Admin</span>
+                </button>
+                <button
+                  onClick={() => handleOpenLogin('vendor')}
+                  className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 cursor-pointer transition-colors"
+                >
+                  <span>🏢</span> <span>Vendor Partner Portal</span>
+                </button>
+                <button
+                  onClick={() => handleOpenLogin('installer')}
+                  className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-teal-500/20 hover:text-teal-300 flex items-center gap-2 cursor-pointer transition-colors"
+                >
+                  <span>🔧</span> <span>Solar Installer Portal</span>
+                </button>
+                <button
+                  onClick={() => handleOpenLogin('customer')}
+                  className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-indigo-500/20 hover:text-indigo-300 flex items-center gap-2 cursor-pointer transition-colors"
+                >
+                  <span>🏠</span> <span>Customer Prosumer Portal</span>
+                </button>
+                <button
+                  onClick={() => handleOpenLogin('staff')}
+                  className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-cyan-500/20 hover:text-cyan-300 flex items-center gap-2 cursor-pointer transition-colors"
+                >
+                  <span>👷</span> <span>Engineering & Staff</span>
+                </button>
+              </div>
+            </div>
 
             {/* Primary Action Button */}
             <button
@@ -463,18 +660,51 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
               <a href="#pricing" onClick={(e) => scrollToSection(e, 'pricing')} className="block py-1 hover:text-emerald-500">Pricing</a>
             </div>
 
-            <div className="pt-4 border-t border-slate-700/50 flex flex-col gap-2.5">
+            <div className="pt-4 border-t border-slate-700/50 flex flex-col gap-2">
+              <button
+                onClick={() => { 
+                  setMobileMenuOpen(false); 
+                  setTrackingInitialQuery('');
+                  setIsTrackingModalOpen(true); 
+                }}
+                className="w-full py-2.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold rounded-xl text-xs flex items-center justify-center gap-2 border border-emerald-500/30 shadow-xs cursor-pointer"
+              >
+                <Search className="w-4 h-4 text-emerald-500" /> Track Application Flow
+              </button>
+
+              <span className="text-[10px] font-black uppercase text-slate-400 pt-2 tracking-wider">Dedicated Portal Logins</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  onClick={() => { setMobileMenuOpen(false); handleOpenLogin('admin'); }}
+                  className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <span>👑 Admin</span>
+                </button>
+                <button
+                  onClick={() => { setMobileMenuOpen(false); handleOpenLogin('vendor'); }}
+                  className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <span>🏢 Vendor</span>
+                </button>
+                <button
+                  onClick={() => { setMobileMenuOpen(false); handleOpenLogin('installer'); }}
+                  className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-teal-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <span>🔧 Installer</span>
+                </button>
+                <button
+                  onClick={() => { setMobileMenuOpen(false); handleOpenLogin('customer'); }}
+                  className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <span>🏠 Customer</span>
+                </button>
+              </div>
+
               <button
                 onClick={() => { setMobileMenuOpen(false); setIsBookDemoOpen(true); }}
-                className="w-full py-2.5 bg-emerald-500/10 text-emerald-500 font-bold rounded-xl text-xs flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-emerald-500/10 text-emerald-500 font-bold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer mt-1"
               >
                 <PhoneCall className="w-4 h-4" /> Schedule Live Demo
-              </button>
-              <button
-                onClick={() => { setMobileMenuOpen(false); setIsLoginModalOpen(true); }}
-                className="w-full py-2.5 bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2"
-              >
-                <Lock className="w-4 h-4" /> Sign In to Dashboard
               </button>
             </div>
           </div>
@@ -496,16 +726,35 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
 
               {/* High-Impact Headline */}
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1]">
-                Verify, Design & Manage Every Solar Project with{' '}
-                <span className="bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 bg-clip-text text-transparent">
-                  Unmatched Precision.
-                </span>
+                {isCustomLandingActive && activeVendorBranding ? (
+                  <>
+                    Clean Solar Rooftop Energy Powered by{' '}
+                    <span className="bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 bg-clip-text text-transparent">
+                      {activeVendorBranding.companyName}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Verify, Design & Manage Every Solar Project with{' '}
+                    <span className="bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 bg-clip-text text-transparent">
+                      Unmatched Precision.
+                    </span>
+                  </>
+                )}
               </h1>
 
               {/* Sub-headline */}
               <p className={`text-base sm:text-lg max-w-2xl mx-auto lg:mx-0 font-medium leading-relaxed ${isDarkMode ? 'text-slate-300' : 'text-slate-600'
                 }`}>
-                The all-in-one platform for solar EPCs and enterprise operations. Generate 3D solar layouts, automate GST & subsidy invoicing, track multi-warehouse inventory, and empower field engineers — built on an immutable trust foundation.
+                {isCustomLandingActive && activeVendorBranding ? (
+                  <>
+                    Authorized Solar Partner powered by MetaGreen OS. We engineer precision 3D rooftop layouts, streamline PM Surya Ghar DISCOM subsidies, and deliver premium solar installations with end-to-end warranty.
+                  </>
+                ) : (
+                  <>
+                    The all-in-one platform for solar EPCs and enterprise operations. Generate 3D solar layouts, automate GST & subsidy invoicing, track multi-warehouse inventory, and empower field engineers — built on an immutable trust foundation.
+                  </>
+                )}
               </p>
 
               {/* CTAs & Trial Info */}
@@ -649,6 +898,95 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
 
             </div>
 
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 2.5. CUSTOMER APPLICATION FLOW TRACKER HERO BAR                           */}
+      {/* ========================================================================= */}
+      <section id="track-flow" className={`py-10 border-t transition-colors ${isDarkMode ? 'bg-[#080E1E] border-slate-800' : 'bg-gradient-to-b from-white to-emerald-50/50 border-slate-200'}`}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className={`p-6 sm:p-8 rounded-3xl border shadow-xl backdrop-blur-xl transition-all ${isDarkMode ? 'bg-[#0D1836]/90 border-slate-700' : 'bg-white border-emerald-200/90 shadow-emerald-500/5'}`}>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              
+              <div className="space-y-1.5 text-center md:text-left">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  <Zap className="w-3.5 h-3.5 animate-pulse" />
+                  <span>Consumer Solar Portal</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black tracking-tight">
+                  Track Your Solar Application Flow
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-lg font-medium">
+                  Enter your <strong>Application ID</strong> or <strong>10-digit registered mobile number</strong> to see live survey, design, DISCOM approval & subsidy progress.
+                </p>
+              </div>
+
+              <div className="w-full md:w-auto flex-1 max-w-md">
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (heroTrackInput.trim()) {
+                      setTrackingInitialQuery(heroTrackInput.trim());
+                      setIsTrackingModalOpen(true);
+                    } else {
+                      setIsTrackingModalOpen(true);
+                    }
+                  }}
+                  className="flex flex-col sm:flex-row gap-2"
+                >
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Search className="w-4 h-4 text-emerald-500" />
+                    </div>
+                    <input
+                      type="text"
+                      value={heroTrackInput}
+                      onChange={(e) => setHeroTrackInput(e.target.value)}
+                      placeholder="App ID or Mobile No..."
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs sm:text-sm placeholder-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all shadow-xs"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-xs sm:text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5 cursor-pointer shrink-0 hover:scale-105"
+                  >
+                    <span>Track Status</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+
+                <div className="flex items-center justify-center md:justify-start gap-2 pt-2 text-[11px] text-slate-400 font-medium">
+                  <span>Try:</span>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setHeroTrackInput('9876543210');
+                      setTrackingInitialQuery('9876543210');
+                      setIsTrackingModalOpen(true);
+                    }} 
+                    className="underline hover:text-emerald-500 cursor-pointer"
+                  >
+                    9876543210
+                  </button>
+                  <span>•</span>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setHeroTrackInput('APP-101');
+                      setTrackingInitialQuery('APP-101');
+                      setIsTrackingModalOpen(true);
+                    }} 
+                    className="underline hover:text-emerald-500 cursor-pointer"
+                  >
+                    APP-101
+                  </button>
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
       </section>
@@ -1272,6 +1610,46 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
 
           </div>
 
+          {/* OPTIONAL WEBSITE ADD-ON SHOWCASE (₹999/-) */}
+          <div className={`mt-10 p-6 sm:p-8 rounded-3xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-6 ${
+            isDarkMode 
+              ? 'bg-gradient-to-r from-emerald-950/40 via-[#0B132B] to-slate-900 border-emerald-500/30' 
+              : 'bg-gradient-to-r from-emerald-50/80 via-white to-teal-50/60 border-emerald-200 shadow-sm'
+          }`}>
+            <div className="space-y-2 max-w-3xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                  <Globe className="w-3 h-3" /> Optional Add-On
+                </span>
+                <span className="text-xl sm:text-2xl font-black">
+                  Custom Branded Website & Landing Page
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500 text-slate-950">
+                  ₹999/-
+                </span>
+              </div>
+              <p className={`text-xs sm:text-sm font-medium leading-relaxed ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                Supercharge your solar agency! Opt into our custom website subscription to unlock your own dedicated landing page with custom company branding, logo, contact phone/email, address, and live lead pipeline.
+              </p>
+              <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-[11px] font-bold">
+                <span className="flex items-center gap-1 text-emerald-500">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Checked: Full access to your own branded landing page
+                </span>
+                <span className="flex items-center gap-1 text-slate-400">
+                  <AlertCircle className="w-3.5 h-3.5 text-slate-400" /> Unchecked: Standard MetaGreen landing page only
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => handleStartTrial()}
+              className="w-full md:w-auto px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-xs transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer shrink-0"
+            >
+              <span>Subscribe with Website (+₹999)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
         </div>
       </section>
 
@@ -1380,6 +1758,7 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
                 <li><a href="#solutions-tabs" onClick={(e) => handleSolutionClick('procurement', e)} className="hover:text-emerald-400 transition-colors">Procurement & Warehouse Stock</a></li>
                 <li><a href="#solutions-tabs" onClick={(e) => handleSolutionClick('finance', e)} className="hover:text-emerald-400 transition-colors">GST Invoicing & Subsidy Tracker</a></li>
                 <li><a href="#solutions-tabs" onClick={(e) => handleSolutionClick('audit', e)} className="hover:text-emerald-400 transition-colors">Geotagged Field Audit App</a></li>
+                <li><button type="button" onClick={() => { setTrackingInitialQuery(''); setIsTrackingModalOpen(true); }} className="hover:text-emerald-400 transition-colors text-left cursor-pointer text-emerald-400 font-bold flex items-center gap-1">🔍 Track Solar Application</button></li>
               </ul>
             </div>
 
@@ -1425,7 +1804,12 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
               <a href="#security" onClick={(e) => scrollToSection(e, 'security')} className="hover:text-emerald-400 transition-colors">Security</a>
               <a href="#calculator" onClick={(e) => scrollToSection(e, 'calculator')} className="hover:text-emerald-400 transition-colors">Calculator</a>
               <a href="#pricing" onClick={(e) => scrollToSection(e, 'pricing')} className="hover:text-emerald-400 transition-colors">Pricing</a>
-              <button onClick={() => setIsLoginModalOpen(true)} className="hover:text-emerald-400 cursor-pointer">Sign In</button>
+              <button type="button" onClick={() => { setTrackingInitialQuery(''); setIsTrackingModalOpen(true); }} className="hover:text-emerald-400 cursor-pointer text-emerald-400 font-bold">Track Application</button>
+              <button onClick={() => handleOpenLogin('admin')} className="hover:text-emerald-400 cursor-pointer text-slate-300">Admin Sign In</button>
+              <button onClick={() => handleOpenLogin('vendor')} className="hover:text-amber-400 cursor-pointer text-amber-300/80">Vendor Portal</button>
+              <button onClick={() => handleOpenLogin('installer')} className="hover:text-teal-400 cursor-pointer text-teal-300/80">Installer Portal</button>
+              <button onClick={() => handleOpenLogin('customer')} className="hover:text-indigo-400 cursor-pointer text-indigo-300/80">Customer Portal</button>
+              <button onClick={() => handleOpenLogin('staff')} className="hover:text-cyan-400 cursor-pointer text-cyan-300/80">Staff Login</button>
               <button onClick={() => setIsBookDemoOpen(true)} className="hover:text-emerald-400 cursor-pointer">Book Demo</button>
               <button onClick={(e) => scrollToSection(e, 'hero')} className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-slate-950 transition-all font-black flex items-center gap-1 cursor-pointer">
                 Top ↑
@@ -1453,6 +1837,7 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
 
       {isLoginModalOpen && (
         <LoginModal
+          initialRole={loginModalInitialRole}
           onClose={() => setIsLoginModalOpen(false)}
           onSuccess={() => {
             setIsLoginModalOpen(false);
@@ -1479,6 +1864,14 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
         <ContactCareerModal
           initialPurpose={contactPurpose}
           onClose={() => setIsContactCareerOpen(false)}
+        />
+      )}
+
+      {isTrackingModalOpen && (
+        <ApplicationTrackingModal
+          isOpen={isTrackingModalOpen}
+          onClose={() => setIsTrackingModalOpen(false)}
+          initialQuery={trackingInitialQuery}
         />
       )}
 

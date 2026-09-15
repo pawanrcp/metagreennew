@@ -241,8 +241,28 @@ function AppContent() {
 
   // Always open with Public Landing Page on launch unless user enters Dashboard
   if (isLandingPageMode || !user) {
+    const vendorBranding = user && (user.role === 'Vendor' || user.role === 'Installer') ? {
+      uid: user.uid,
+      companyName: user.companyName || user.vendorAccount?.companyName || 'Solar EPC Partner',
+      companyLogo: user.companyLogo || user.vendorAccount?.companyLogo || undefined,
+      phone: user.phone || user.vendorAccount?.phone || undefined,
+      email: user.email || user.vendorAccount?.email || undefined,
+      doorNo: user.doorNo || user.vendorAccount?.doorNo || undefined,
+      companyAddress: user.companyAddress || user.vendorAccount?.companyAddress || undefined,
+      city: user.city || user.vendorAccount?.city || undefined,
+      state: user.state || user.vendorAccount?.state || undefined,
+      pincode: user.pincode || user.vendorAccount?.pincode || undefined,
+      hasWebsiteSubscription: Boolean(user.vendorAccount?.hasWebsiteSubscription || user.hasWebsiteSubscription)
+    } : null;
+
     return (
       <LandingPage 
+        vendorBranding={vendorBranding}
+        onExitVendorView={() => {
+          sessionStorage.removeItem('metagreen_landing');
+          setIsLandingPageMode(false);
+          setView(user?.role === 'Vendor' ? 'vendors' : 'dashboard');
+        }}
         onLoginSuccess={() => {
           sessionStorage.removeItem('metagreen_landing');
           setIsLandingPageMode(false);
@@ -278,9 +298,9 @@ function AppContent() {
       case 'crm':
         return <CRM initialFilter={currentFilter} onNavigate={handleViewChange} />;
       case 'customers':
-        return <Customers onNavigate={handleViewChange} />;
+        return <Customers initialFilter={currentFilter} onNavigate={handleViewChange} />;
       case 'inventory':
-        return <InventoryAndPO initialTab="po" />;
+        return <InventoryAndPO initialTab="inventory" initialFilter={currentFilter} />;
       case 'projects':
         return <Projects initialFilter={currentFilter} />;
       case 'portal':
@@ -302,7 +322,7 @@ function AppContent() {
       case 'subsidy':
         return <SubsidyManagement />;
       case 'procurement':
-        return <InventoryAndPO initialTab="po" />;
+        return <InventoryAndPO initialTab="po" initialFilter={currentFilter} />;
       case 'work-orders':
         return <WorkOrders />;
       case 'finance':
@@ -320,13 +340,13 @@ function AppContent() {
       case 'hr':
         return <HRModule />;
       case 'vendors':
-        return <VendorPortal />;
+        return <VendorPortal initialFilter={currentFilter} />;
       case 'direct-suppliers':
         return <InventoryAndPO initialTab="direct_suppliers" />;
       case 'reports':
         return <Reporting />;
       case 'settings':
-        return <MasterSettings />;
+        return <MasterSettings initialModule={currentFilter as any} />;
       default:
         return <Dashboard onNavigate={handleViewChange} />;
     }
@@ -388,11 +408,22 @@ function AppContent() {
               sessionStorage.setItem('metagreen_landing', 'true');
               setIsLandingPageMode(true);
             }}
-            className="flex items-center gap-1 text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 rounded-full font-bold bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 transition-all shadow-xs cursor-pointer"
-            title="Switch to Public Landing Page"
+            className={cn(
+              "flex items-center gap-1 text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 rounded-full font-bold transition-all shadow-xs cursor-pointer border",
+              (user?.vendorAccount?.hasWebsiteSubscription || user?.hasWebsiteSubscription)
+                ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40"
+                : "bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700"
+            )}
+            title={(user?.vendorAccount?.hasWebsiteSubscription || user?.hasWebsiteSubscription) 
+              ? "View Your Branded Landing Page (Website Subscription Active)" 
+              : "Switch to Standard MetaGreen Landing Page"}
           >
-            <Globe className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Landing Page</span>
+            <Globe className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">
+              {(user?.vendorAccount?.hasWebsiteSubscription || user?.hasWebsiteSubscription) 
+                ? "My Branded Website" 
+                : "Landing Page"}
+            </span>
           </button>
 
           {canPunch && (

@@ -25,7 +25,13 @@ import {
   Archive,
   Eye,
   Calculator,
-  Receipt
+  Receipt,
+  Package,
+  Boxes,
+  Store,
+  Truck,
+  Tag,
+  Layers
 } from 'lucide-react';
 import { collection, query, onSnapshot, orderBy, addDoc, serverTimestamp, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
@@ -33,47 +39,36 @@ import { useAuth } from '@/src/context/AuthContext';
 import { useToast } from '@/src/context/ToastContext';
 import { useLogos } from '@/src/context/LogoContext';
 import { cn, formatCurrency } from '@/src/lib/utils';
-import { ViewType, GeneratedDocument } from '@/src/types';
+import { ViewType, GeneratedDocument, CustomerType, CustomerRecord } from '@/src/types';
 import { downloadDocumentPDF } from '@/src/services/generatedDocuments.service';
 
-export interface CustomerRecord {
-  id: string;
-  name: string;
-  phone: string;
-  email?: string;
-  address: string;
-  city: string;
-  district?: string;
-  state: string;
-  pincode?: string;
-  sanctionedLoad?: string | number;
-  roofType?: string;
-  systemCapacityKw?: number;
-  totalProjectValue?: number;
-  notes?: string;
-  status?: 'Active' | 'Lead' | 'Installed' | 'Archived';
-  source?: string;
-  assignedTo?: string;
-  installerId?: string;
-  creatorId?: string;
-  createdBy?: string;
-  createdAt?: any;
-  updatedAt?: any;
-}
+export type { CustomerType, CustomerRecord };
 
 interface CustomersProps {
   onNavigate?: (view: ViewType, filter?: string) => void;
+  initialFilter?: string;
 }
 
-export default function Customers({ onNavigate }: CustomersProps) {
+export default function Customers({ onNavigate, initialFilter }: CustomersProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const { logos } = useLogos();
 
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialFilter || '');
   const [selectedRoofFilter, setSelectedRoofFilter] = useState('ALL');
   const [selectedStateFilter, setSelectedStateFilter] = useState('ALL');
+  const [customerTypeFilter, setCustomerTypeFilter] = useState<'ALL' | 'Normal Customer' | 'Vendor Related Stock'>('ALL');
+  const [selectedVendorFilter, setSelectedVendorFilter] = useState(initialFilter || 'ALL');
+
+  useEffect(() => {
+    if (initialFilter) {
+      setSearchTerm(initialFilter);
+      setSelectedVendorFilter(initialFilter);
+    }
+  }, [initialFilter]);
+  const [vendorsList, setVendorsList] = useState<{ id: string; name: string; category?: string }[]>([]);
+  const [isCustomVendor, setIsCustomVendor] = useState(false);
   const [customerFilterMode, setCustomerFilterMode] = useState<'all' | 'highest-capacity' | 'highest-value' | 'linked-projects'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
@@ -104,7 +99,13 @@ export default function Customers({ onNavigate }: CustomersProps) {
     systemCapacityKw: 5,
     totalProjectValue: 350000,
     notes: '',
-    status: 'Active' as 'Active' | 'Lead' | 'Installed' | 'Archived'
+    status: 'Active' as 'Active' | 'Lead' | 'Installed' | 'Archived',
+    customerType: 'Normal Customer',
+    vendorId: '',
+    vendorName: '',
+    stockCategory: 'Solar Panels (Mono/Poly PV)',
+    vendorStockRef: '',
+    vendorStockNotes: ''
   });
 
   const isGlobalAdmin = !user || user.role === 'Super Admin' || user.role === 'Solar Company Admin';
@@ -139,11 +140,45 @@ export default function Customers({ onNavigate }: CustomersProps) {
       setDocsList(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as GeneratedDocument)));
     });
 
+    // 5. Listen to Vendors Collection
+    const qVendors = query(collection(db, 'vendors'), orderBy('name', 'asc'));
+    const unsubVendors = onSnapshot(qVendors, (snapshot) => {
+      const vDocs = snapshot.docs.map(d => ({
+        id: d.id,
+        name: (d.data().name || 'Vendor').trim(),
+        category: d.data().category || d.data().categories?.[0] || 'Solar Supplier'
+      }));
+      setVendorsList(prev => {
+        const existingNames = new Set(vDocs.map(v => v.name.toLowerCase()));
+        const preserved = prev.filter(p => !existingNames.has(p.name.toLowerCase()));
+        return [...vDocs, ...preserved];
+      });
+    });
+
+    // 6. Listen to Registered Users with Vendor Roles
+    const unsubUsers = onSnapshot(query(collection(db, 'users')), (snapshot) => {
+      const regVendors = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() } as any))
+        .filter(u => u.role === 'Vendor' || u.role === 'Solar Supplier' || u.role === 'Vendor Employee')
+        .map(u => ({
+          id: u.id,
+          name: (u.companyName || u.name || 'Vendor Partner').trim(),
+          category: 'Registered Vendor'
+        }));
+      setVendorsList(prev => {
+        const existingNames = new Set(prev.map(v => v.name.toLowerCase()));
+        const newOnes = regVendors.filter(rv => !existingNames.has(rv.name.toLowerCase()));
+        return [...prev, ...newOnes];
+      });
+    });
+
     return () => {
       unsubCustomers();
       unsubRoofs();
       unsubProjects();
       unsubDocs();
+      unsubVendors();
+      unsubUsers();
     };
   }, []);
 
@@ -171,6 +206,7 @@ export default function Customers({ onNavigate }: CustomersProps) {
         c.creatorId === uId ||
         c.createdBy === uEmail ||
         (c.assignedTo && c.assignedTo.toLowerCase().includes(uCompany)) ||
+        (c.vendorName && c.vendorName.toLowerCase().includes(uCompany)) ||
         (c.notes && c.notes.toLowerCase().includes(uCompany))
       );
     }
@@ -182,14 +218,61 @@ export default function Customers({ onNavigate }: CustomersProps) {
     );
   });
 
+  const normalCustomersCount = useMemo(() => {
+    return roleScopedCustomers.filter(c => (c.customerType || 'Normal Customer') === 'Normal Customer').length;
+  }, [roleScopedCustomers]);
+
+  const vendorStockCustomersCount = useMemo(() => {
+    return roleScopedCustomers.filter(c => c.customerType === 'Vendor Related Stock').length;
+  }, [roleScopedCustomers]);
+
+  const normalCustomersCapacity = useMemo(() => {
+    return roleScopedCustomers
+      .filter(c => (c.customerType || 'Normal Customer') === 'Normal Customer')
+      .reduce((sum, c) => sum + (Number(c.systemCapacityKw) || 0), 0);
+  }, [roleScopedCustomers]);
+
+  const vendorStockCapacity = useMemo(() => {
+    return roleScopedCustomers
+      .filter(c => c.customerType === 'Vendor Related Stock')
+      .reduce((sum, c) => sum + (Number(c.systemCapacityKw) || 0), 0);
+  }, [roleScopedCustomers]);
+
+  const uniqueVendorsFromCustomers = useMemo(() => {
+    const set = new Set<string>();
+    customers.forEach(c => {
+      if (c.vendorName?.trim()) set.add(c.vendorName.trim());
+    });
+    vendorsList.forEach(v => {
+      if (v.name?.trim()) set.add(v.name.trim());
+    });
+    return Array.from(set).sort();
+  }, [customers, vendorsList]);
+
   const filteredCustomers = useMemo(() => {
     let list = roleScopedCustomers.filter(c => {
+      const cType = c.customerType || 'Normal Customer';
+
+      if (customerTypeFilter !== 'ALL' && cType !== customerTypeFilter) {
+        return false;
+      }
+
+      if (selectedVendorFilter !== 'ALL') {
+        const matchesVendor = (c.vendorName && c.vendorName.toLowerCase() === selectedVendorFilter.toLowerCase()) ||
+          (c.vendorId && c.vendorId === selectedVendorFilter);
+        if (!matchesVendor) return false;
+      }
+
       const matchesSearch = 
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.city || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.address || '').toLowerCase().includes(searchTerm.toLowerCase());
+        (c.address || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.vendorName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.stockCategory || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.vendorStockRef || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        cType.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesRoof = selectedRoofFilter === 'ALL' || c.roofType === selectedRoofFilter;
       const matchesState = selectedStateFilter === 'ALL' || c.state === selectedStateFilter;
@@ -214,7 +297,7 @@ export default function Customers({ onNavigate }: CustomersProps) {
     }
 
     return list;
-  }, [roleScopedCustomers, searchTerm, selectedRoofFilter, selectedStateFilter, customerFilterMode, projectsList]);
+  }, [roleScopedCustomers, searchTerm, customerTypeFilter, selectedVendorFilter, selectedRoofFilter, selectedStateFilter, customerFilterMode, projectsList]);
 
   const handleSubmitCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,22 +306,34 @@ export default function Customers({ onNavigate }: CustomersProps) {
       return;
     }
 
+    if (formData.customerType === 'Vendor Related Stock' && !formData.vendorName?.trim()) {
+      toast.warning("Please specify the Vendor / Supplier for this vendor stock customer.", "Vendor Required");
+      return;
+    }
+
     try {
+      const isVendorStock = formData.customerType === 'Vendor Related Stock';
       const payload = {
         name: formData.name.trim(),
         phone: formData.phone.trim(),
-        email: formData.email.trim(),
-        address: formData.address.trim(),
-        city: formData.city.trim(),
-        district: formData.district.trim(),
-        state: formData.state.trim(),
-        pincode: formData.pincode.trim(),
-        sanctionedLoad: formData.sanctionedLoad,
-        roofType: formData.roofType,
+        email: formData.email?.trim() || '',
+        address: formData.address?.trim() || '',
+        city: formData.city?.trim() || '',
+        district: formData.district?.trim() || '',
+        state: formData.state?.trim() || '',
+        pincode: formData.pincode?.trim() || '',
+        sanctionedLoad: formData.sanctionedLoad || '5',
+        roofType: formData.roofType || 'RCC Flat Roof',
         systemCapacityKw: Number(formData.systemCapacityKw) || 0,
         totalProjectValue: Number(formData.totalProjectValue) || 0,
-        notes: formData.notes.trim(),
-        status: formData.status,
+        notes: formData.notes?.trim() || '',
+        status: formData.status || 'Active',
+        customerType: formData.customerType || 'Normal Customer',
+        vendorId: isVendorStock ? (formData.vendorId || '') : '',
+        vendorName: isVendorStock ? (formData.vendorName?.trim() || '') : '',
+        stockCategory: isVendorStock ? (formData.stockCategory || '') : '',
+        vendorStockRef: isVendorStock ? (formData.vendorStockRef?.trim() || '') : '',
+        vendorStockNotes: isVendorStock ? (formData.vendorStockNotes?.trim() || '') : '',
         creatorId: user?.uid || 'admin',
         createdBy: user?.email || 'admin',
         assignedTo: user?.name || user?.companyName || 'Solar Team',
@@ -259,6 +354,7 @@ export default function Customers({ onNavigate }: CustomersProps) {
 
       setIsModalOpen(false);
       setEditingCustomerId(null);
+      setIsCustomVendor(false);
       setFormData({
         name: '',
         phone: '',
@@ -273,7 +369,13 @@ export default function Customers({ onNavigate }: CustomersProps) {
         systemCapacityKw: 5,
         totalProjectValue: 350000,
         notes: '',
-        status: 'Active'
+        status: 'Active',
+        customerType: 'Normal Customer',
+        vendorId: '',
+        vendorName: '',
+        stockCategory: 'Solar Panels (Mono/Poly PV)',
+        vendorStockRef: '',
+        vendorStockNotes: ''
       });
     } catch (err: any) {
       console.error('Error saving customer:', err);
@@ -283,6 +385,8 @@ export default function Customers({ onNavigate }: CustomersProps) {
 
   const handleEdit = (c: CustomerRecord) => {
     setEditingCustomerId(c.id);
+    const isCustom = Boolean(c.vendorName) && !vendorsList.some(v => v.name.toLowerCase() === (c.vendorName || '').toLowerCase());
+    setIsCustomVendor(isCustom);
     setFormData({
       name: c.name || '',
       phone: c.phone || '',
@@ -297,7 +401,13 @@ export default function Customers({ onNavigate }: CustomersProps) {
       systemCapacityKw: c.systemCapacityKw || 5,
       totalProjectValue: c.totalProjectValue || 350000,
       notes: c.notes || '',
-      status: c.status || 'Active'
+      status: c.status || 'Active',
+      customerType: c.customerType || 'Normal Customer',
+      vendorId: c.vendorId || '',
+      vendorName: c.vendorName || '',
+      stockCategory: c.stockCategory || 'Solar Panels (Mono/Poly PV)',
+      vendorStockRef: c.vendorStockRef || '',
+      vendorStockNotes: c.vendorStockNotes || ''
     });
     setIsModalOpen(true);
   };
@@ -366,146 +476,261 @@ export default function Customers({ onNavigate }: CustomersProps) {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* 1. Total Customers */}
         <button
           type="button"
           onClick={() => {
+            setCustomerTypeFilter('ALL');
+            setSelectedVendorFilter('ALL');
             setCustomerFilterMode('all');
             setSearchTerm('');
             setSelectedRoofFilter('ALL');
             setSelectedStateFilter('ALL');
           }}
           className={cn(
-            "p-5 rounded-2xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group",
-            customerFilterMode === 'all'
+            "p-4 sm:p-5 rounded-2xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group",
+            customerTypeFilter === 'ALL' && customerFilterMode === 'all'
               ? "bg-slate-900 text-white border-slate-900 ring-2 ring-slate-900/30"
               : "bg-white text-slate-900 border-slate-200 hover:border-slate-400"
           )}
-          title="Click to view all customers and reset filters"
+          title="Click to view all customer accounts and reset filters"
         >
-          <span className={cn("text-[11px] font-black uppercase tracking-wider block mb-1", customerFilterMode === 'all' ? "text-slate-300" : "text-slate-400")}>
-            Total Customers
+          <span className={cn("text-[10px] sm:text-[11px] font-black uppercase tracking-wider block mb-1", customerTypeFilter === 'ALL' && customerFilterMode === 'all' ? "text-slate-300" : "text-slate-400")}>
+            Total Accounts
           </span>
-          <h3 className="text-2xl font-black">{roleScopedCustomers.length}</h3>
-          <span className={cn("text-[11px] font-semibold mt-1 block", customerFilterMode === 'all' ? "text-emerald-300" : "text-emerald-600")}>
-            {customerFilterMode === 'all' ? 'Showing All Accounts' : 'Click to show all'}
+          <h3 className="text-xl sm:text-2xl font-black">{roleScopedCustomers.length}</h3>
+          <span className={cn("text-[10px] sm:text-[11px] font-semibold mt-1 block", customerTypeFilter === 'ALL' && customerFilterMode === 'all' ? "text-emerald-300" : "text-emerald-600")}>
+            {customerTypeFilter === 'ALL' && customerFilterMode === 'all' ? 'Showing All' : 'Click to show all'}
           </span>
         </button>
 
-        {/* 2. Installed Capacity */}
+        {/* 2. Normal Customers */}
+        <button
+          type="button"
+          onClick={() => {
+            setCustomerTypeFilter('Normal Customer');
+            setSelectedVendorFilter('ALL');
+            setCustomerFilterMode('all');
+          }}
+          className={cn(
+            "p-4 sm:p-5 rounded-2xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group",
+            customerTypeFilter === 'Normal Customer'
+              ? "bg-emerald-700 text-white border-emerald-700 ring-2 ring-emerald-500/50"
+              : "bg-white text-slate-900 border-slate-200 hover:border-emerald-400"
+          )}
+          title="Click to filter Normal / Direct retail solar customers"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className={cn("text-[10px] sm:text-[11px] font-black uppercase tracking-wider block", customerTypeFilter === 'Normal Customer' ? "text-emerald-100" : "text-emerald-700")}>
+              Normal Customers
+            </span>
+            <UserCheck className={cn("w-3.5 h-3.5", customerTypeFilter === 'Normal Customer' ? "text-emerald-200" : "text-emerald-600")} />
+          </div>
+          <h3 className="text-xl sm:text-2xl font-black">{normalCustomersCount}</h3>
+          <span className={cn("text-[10px] sm:text-[11px] font-semibold mt-1 block", customerTypeFilter === 'Normal Customer' ? "text-emerald-200" : "text-emerald-600")}>
+            {normalCustomersCapacity} kW Direct Stock
+          </span>
+        </button>
+
+        {/* 3. Vendor Related Stock */}
+        <button
+          type="button"
+          onClick={() => {
+            setCustomerTypeFilter('Vendor Related Stock');
+            setCustomerFilterMode('all');
+          }}
+          className={cn(
+            "p-4 sm:p-5 rounded-2xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group",
+            customerTypeFilter === 'Vendor Related Stock'
+              ? "bg-amber-700 text-white border-amber-700 ring-2 ring-amber-500/50"
+              : "bg-white text-slate-900 border-slate-200 hover:border-amber-400"
+          )}
+          title="Click to filter customers fulfilled using vendor-supplied stock"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className={cn("text-[10px] sm:text-[11px] font-black uppercase tracking-wider block", customerTypeFilter === 'Vendor Related Stock' ? "text-amber-100" : "text-amber-700")}>
+              Vendor Stock
+            </span>
+            <Package className={cn("w-3.5 h-3.5", customerTypeFilter === 'Vendor Related Stock' ? "text-amber-200" : "text-amber-600")} />
+          </div>
+          <h3 className="text-xl sm:text-2xl font-black">{vendorStockCustomersCount}</h3>
+          <span className={cn("text-[10px] sm:text-[11px] font-semibold mt-1 block", customerTypeFilter === 'Vendor Related Stock' ? "text-amber-200" : "text-amber-600")}>
+            {vendorStockCapacity} kW Vendor Stock
+          </span>
+        </button>
+
+        {/* 4. Installed Capacity */}
         <button
           type="button"
           onClick={() => {
             setCustomerFilterMode(prev => prev === 'highest-capacity' ? 'all' : 'highest-capacity');
           }}
           className={cn(
-            "p-5 rounded-2xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group",
+            "p-4 sm:p-5 rounded-2xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group",
             customerFilterMode === 'highest-capacity'
               ? "bg-teal-700 text-white border-teal-700 ring-2 ring-teal-500/50"
               : "bg-white text-slate-900 border-slate-200 hover:border-teal-400"
           )}
           title="Click to sort customers by highest solar capacity"
         >
-          <span className={cn("text-[11px] font-black uppercase tracking-wider block mb-1", customerFilterMode === 'highest-capacity' ? "text-teal-100" : "text-slate-400")}>
+          <span className={cn("text-[10px] sm:text-[11px] font-black uppercase tracking-wider block mb-1", customerFilterMode === 'highest-capacity' ? "text-teal-100" : "text-slate-400")}>
             Installed Capacity
           </span>
-          <h3 className="text-2xl font-black">
+          <h3 className="text-xl sm:text-2xl font-black">
             {roleScopedCustomers.reduce((sum, c) => sum + (c.systemCapacityKw || 0), 0)} kW
           </h3>
-          <span className={cn("text-[11px] font-semibold mt-1 block", customerFilterMode === 'highest-capacity' ? "text-teal-200" : "text-teal-600")}>
+          <span className={cn("text-[10px] sm:text-[11px] font-semibold mt-1 block", customerFilterMode === 'highest-capacity' ? "text-teal-200" : "text-teal-600")}>
             {customerFilterMode === 'highest-capacity' ? 'Sorted: Highest First' : 'Click to sort by kW'}
           </span>
         </button>
 
-        {/* 3. Total Project Value */}
+        {/* 5. Total Project Value */}
         <button
           type="button"
           onClick={() => {
             setCustomerFilterMode(prev => prev === 'highest-value' ? 'all' : 'highest-value');
           }}
           className={cn(
-            "p-5 rounded-2xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group",
+            "p-4 sm:p-5 rounded-2xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group col-span-2 sm:col-span-1",
             customerFilterMode === 'highest-value'
               ? "bg-purple-700 text-white border-purple-700 ring-2 ring-purple-500/50"
               : "bg-white text-slate-900 border-slate-200 hover:border-purple-400"
           )}
           title="Click to sort customers by highest project value"
         >
-          <span className={cn("text-[11px] font-black uppercase tracking-wider block mb-1", customerFilterMode === 'highest-value' ? "text-purple-100" : "text-slate-400")}>
-            Total Project Value
+          <span className={cn("text-[10px] sm:text-[11px] font-black uppercase tracking-wider block mb-1", customerFilterMode === 'highest-value' ? "text-purple-100" : "text-slate-400")}>
+            Total Value
           </span>
-          <h3 className="text-2xl font-black">
+          <h3 className="text-xl sm:text-2xl font-black truncate">
             {formatCurrency(roleScopedCustomers.reduce((sum, c) => sum + (c.totalProjectValue || 0), 0))}
           </h3>
-          <span className={cn("text-[11px] font-semibold mt-1 block", customerFilterMode === 'highest-value' ? "text-purple-200" : "text-purple-600")}>
-            {customerFilterMode === 'highest-value' ? 'Sorted: Highest Value First' : 'Click to sort by value'}
-          </span>
-        </button>
-
-        {/* 4. Linked Projects */}
-        <button
-          type="button"
-          onClick={() => {
-            setCustomerFilterMode(prev => prev === 'linked-projects' ? 'all' : 'linked-projects');
-          }}
-          className={cn(
-            "p-5 rounded-2xl border text-left transition-all cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group",
-            customerFilterMode === 'linked-projects'
-              ? "bg-amber-600 text-white border-amber-600 ring-2 ring-amber-400/50"
-              : "bg-white text-slate-900 border-slate-200 hover:border-amber-400"
-          )}
-          title="Click to filter customers with active linked projects"
-        >
-          <span className={cn("text-[11px] font-black uppercase tracking-wider block mb-1", customerFilterMode === 'linked-projects' ? "text-amber-100" : "text-slate-400")}>
-            Linked Projects
-          </span>
-          <h3 className="text-2xl font-black">
-            {projectsList.filter(p => roleScopedCustomers.some(c => c.name.toLowerCase() === (p.customerName || '').toLowerCase())).length}
-          </h3>
-          <span className={cn("text-[11px] font-semibold mt-1 block", customerFilterMode === 'linked-projects' ? "text-amber-200" : "text-amber-600")}>
-            {customerFilterMode === 'linked-projects' ? 'Showing With Projects' : 'Click to filter projects'}
+          <span className={cn("text-[10px] sm:text-[11px] font-semibold mt-1 block", customerFilterMode === 'highest-value' ? "text-purple-200" : "text-purple-600")}>
+            {customerFilterMode === 'highest-value' ? 'Sorted: Highest First' : 'Click to sort by value'}
           </span>
         </button>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            placeholder="Search by customer name, phone, email, city, address..."
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500/20"
-          />
+      {/* Segmented Filter Pills & Search Bar */}
+      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs space-y-3">
+        {/* Top Segmented Controls */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl w-full sm:w-auto overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setCustomerTypeFilter('ALL');
+                setSelectedVendorFilter('ALL');
+              }}
+              className={cn(
+                "px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
+                customerTypeFilter === 'ALL'
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+              )}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>All Accounts ({roleScopedCustomers.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCustomerTypeFilter('Normal Customer');
+                setSelectedVendorFilter('ALL');
+              }}
+              className={cn(
+                "px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
+                customerTypeFilter === 'Normal Customer'
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "text-slate-600 hover:text-emerald-700 hover:bg-emerald-50"
+              )}
+            >
+              <UserCheck className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Normal Customers ({normalCustomersCount})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCustomerTypeFilter('Vendor Related Stock');
+              }}
+              className={cn(
+                "px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
+                customerTypeFilter === 'Vendor Related Stock'
+                  ? "bg-amber-600 text-white shadow-xs"
+                  : "text-slate-600 hover:text-amber-700 hover:bg-amber-50"
+              )}
+            >
+              <Package className="w-3.5 h-3.5 text-amber-300" />
+              <span>Vendor Related Stock ({vendorStockCustomersCount})</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+            <span className="text-[11px] font-bold text-slate-400">
+              Showing <span className="text-slate-800 font-black">{filteredCustomers.length}</span> of {roleScopedCustomers.length} accounts
+            </span>
+            {customerFilterMode === 'linked-projects' && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-200">
+                Filtered: Linked Projects
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
-          <select
-            value={selectedRoofFilter}
-            onChange={e => setSelectedRoofFilter(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white text-slate-700 outline-none"
-          >
-            <option value="ALL">All Roof Types</option>
-            {roofTypes.map(rt => (
-              <option key={rt} value={rt}>{rt}</option>
-            ))}
-          </select>
+        {/* Inputs & Dropdowns Row */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search by customer name, vendor name, stock ref, city, phone..."
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-emerald-500/20"
+            />
+          </div>
 
-          <select
-            value={selectedStateFilter}
-            onChange={e => setSelectedStateFilter(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white text-slate-700 outline-none"
-          >
-            <option value="ALL">All States</option>
-            <option value="Andhra Pradesh">Andhra Pradesh</option>
-            <option value="Telangana">Telangana</option>
-            <option value="Karnataka">Karnataka</option>
-            <option value="Tamil Nadu">Tamil Nadu</option>
-            <option value="Maharashtra">Maharashtra</option>
-          </select>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+            {/* Vendor Filter Dropdown */}
+            {(customerTypeFilter === 'Vendor Related Stock' || uniqueVendorsFromCustomers.length > 0) && (
+              <select
+                value={selectedVendorFilter}
+                onChange={e => setSelectedVendorFilter(e.target.value)}
+                className="px-3 py-2 border border-amber-300/80 rounded-xl text-xs font-bold bg-amber-50/40 text-amber-900 outline-none shrink-0"
+              >
+                <option value="ALL">All Vendors (Stock)</option>
+                {uniqueVendorsFromCustomers.map(v => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            )}
+
+            <select
+              value={selectedRoofFilter}
+              onChange={e => setSelectedRoofFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white text-slate-700 outline-none shrink-0"
+            >
+              <option value="ALL">All Roof Types</option>
+              {roofTypes.map(rt => (
+                <option key={rt} value={rt}>{rt}</option>
+              ))}
+            </select>
+
+            <select
+              value={selectedStateFilter}
+              onChange={e => setSelectedStateFilter(e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white text-slate-700 outline-none shrink-0"
+            >
+              <option value="ALL">All States</option>
+              <option value="Andhra Pradesh">Andhra Pradesh</option>
+              <option value="Telangana">Telangana</option>
+              <option value="Karnataka">Karnataka</option>
+              <option value="Tamil Nadu">Tamil Nadu</option>
+              <option value="Maharashtra">Maharashtra</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -515,12 +740,15 @@ export default function Customers({ onNavigate }: CustomersProps) {
           <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="text-base font-black text-slate-700">No Customers Found</h3>
           <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            No customers match your search criteria or none have been assigned to your account yet.
+            {customerTypeFilter === 'Vendor Related Stock'
+              ? 'No customers found linked to vendor-supplied stock. Click "Add New Customer" and designate as Vendor Related Stock.'
+              : 'No customers match your search criteria or none have been assigned to your account yet.'}
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCustomers.map(customer => {
+            const isVendorStock = customer.customerType === 'Vendor Related Stock';
             const linkedProjs = projectsList.filter(p => 
               (p.customerName && p.customerName.toLowerCase() === customer.name.toLowerCase()) ||
               (p.phone && customer.phone && p.phone.replace(/\D/g, '').endsWith(customer.phone.replace(/\D/g, '').slice(-10)))
@@ -536,14 +764,29 @@ export default function Customers({ onNavigate }: CustomersProps) {
               <div 
                 key={customer.id} 
                 onClick={() => setSelectedCustomerForDocs(customer)}
-                className="bg-white rounded-2xl p-5 border border-slate-200/80 hover:border-emerald-500 hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between cursor-pointer group relative"
+                className={cn(
+                  "bg-white rounded-2xl p-5 border transition-all duration-200 flex flex-col justify-between cursor-pointer group relative shadow-xs hover:shadow-xl hover:-translate-y-1",
+                  isVendorStock 
+                    ? "border-amber-300/80 hover:border-amber-500 bg-gradient-to-b from-amber-50/25 via-white to-white" 
+                    : "border-slate-200/80 hover:border-emerald-500"
+                )}
                 title={`Click anywhere to view document portfolio & details for ${customer.name}`}
               >
                 <div>
+                  {/* Card Header & Differentiation Badge */}
                   <div className="flex items-start justify-between gap-3 mb-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-black text-slate-900 text-base group-hover:text-emerald-700 transition-colors">{customer.name}</h3>
+                    <div className="min-w-0 flex-1">
+                      {/* Classification Badge & Status */}
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                        {isVendorStock ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100/80 text-amber-900 border border-amber-300 flex items-center gap-1">
+                            <Package className="w-3 h-3 text-amber-700" /> Vendor Related Stock
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                            <UserCheck className="w-3 h-3 text-emerald-600" /> Normal Customer
+                          </span>
+                        )}
                         <span className={cn(
                           "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border",
                           customer.status === 'Active' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
@@ -553,13 +796,17 @@ export default function Customers({ onNavigate }: CustomersProps) {
                           {customer.status || 'Active'}
                         </span>
                       </div>
+
+                      <h3 className="font-black text-slate-900 text-base group-hover:text-emerald-700 transition-colors truncate">
+                        {customer.name}
+                      </h3>
                       <p className="text-slate-400 text-xs font-medium flex items-center gap-1 mt-0.5">
                         <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
                         <span className="truncate max-w-[200px]">{customer.city || customer.district || 'City'}, {customer.state}</span>
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button 
                         type="button"
                         onClick={(e) => {
@@ -585,7 +832,44 @@ export default function Customers({ onNavigate }: CustomersProps) {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 my-3">
+                  {/* Vendor Stock Fulfillment Details Box (If Vendor Related Stock) */}
+                  {isVendorStock && (
+                    <div className="mt-2.5 mb-2 p-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/40 border border-amber-200 text-xs">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                          <Building2 className="w-3 h-3 text-amber-700" /> Supplied By Vendor
+                        </span>
+                        {customer.stockCategory && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-200/80 text-amber-950 rounded">
+                            {customer.stockCategory}
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-black text-slate-900 text-xs flex items-center gap-1">
+                        <span className="truncate">{customer.vendorName || 'Vendor Stock Allocated'}</span>
+                      </div>
+                      {customer.vendorStockRef && (
+                        <div className="text-[10px] text-amber-900 font-mono mt-0.5 flex items-center gap-1">
+                          <Tag className="w-2.5 h-2.5 text-amber-600" /> Ref: {customer.vendorStockRef}
+                        </div>
+                      )}
+                      {customer.vendorStockNotes && (
+                        <p className="text-[10px] text-slate-600 mt-1 line-clamp-1 italic">
+                          "{customer.vendorStockNotes}"
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Normal Customer Direct Stock Tag */}
+                  {!isVendorStock && (
+                    <div className="mt-1 mb-2 text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                      <Boxes className="w-3 h-3 text-emerald-600 shrink-0" />
+                      <span>Company Direct Inventory Fulfillment</span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2 my-2.5">
                     <span className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-black flex items-center gap-1">
                       <Sun className="w-3.5 h-3.5 text-emerald-600" />
                       {customer.systemCapacityKw || 3} kW System
@@ -700,6 +984,191 @@ export default function Customers({ onNavigate }: CustomersProps) {
 
             {/* Body */}
             <form id="customer-form" onSubmit={handleSubmitCustomer} className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-4 text-xs bg-slate-50/50">
+              {/* Customer Classification & Stock Differentiation */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                <div>
+                  <label className="block text-xs font-black text-slate-900 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-emerald-600" /> Customer & Stock Classification *
+                  </label>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Choose whether this client receives standard company inventory or vendor-supplied stock/consignment.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Normal Customer Card */}
+                  <div
+                    onClick={() => setFormData(prev => ({ ...prev, customerType: 'Normal Customer' }))}
+                    className={cn(
+                      "p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3",
+                      (formData.customerType || 'Normal Customer') === 'Normal Customer'
+                        ? "border-emerald-500 bg-emerald-50/50 shadow-xs ring-2 ring-emerald-500/20"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                      (formData.customerType || 'Normal Customer') === 'Normal Customer'
+                        ? "bg-emerald-600 text-white"
+                        : "bg-slate-100 text-slate-500"
+                    )}>
+                      <UserCheck className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black text-slate-900">Normal Customer</h4>
+                        {(formData.customerType || 'Normal Customer') === 'Normal Customer' && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        Direct retail solar client. Fulfilled via standard company stock & general inventory.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Vendor Related Stock Card */}
+                  <div
+                    onClick={() => setFormData(prev => ({ ...prev, customerType: 'Vendor Related Stock' }))}
+                    className={cn(
+                      "p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3",
+                      formData.customerType === 'Vendor Related Stock'
+                        ? "border-amber-500 bg-amber-50/50 shadow-xs ring-2 ring-amber-500/20"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                      formData.customerType === 'Vendor Related Stock'
+                        ? "bg-amber-600 text-white"
+                        : "bg-slate-100 text-slate-500"
+                    )}>
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black text-slate-900">Vendor Related Stock</h4>
+                        {formData.customerType === 'Vendor Related Stock' && (
+                          <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        Fulfilled from third-party vendor stock, equipment consignment, or distributor allocation.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dynamic Vendor Related Stock Sub-Form */}
+                {formData.customerType === 'Vendor Related Stock' && (
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-300/80 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-amber-700" /> Vendor Stock Allocation Details
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomVendor(!isCustomVendor)}
+                        className="text-[11px] font-bold text-amber-800 hover:text-amber-900 underline cursor-pointer"
+                      >
+                        {isCustomVendor ? "Choose from Registered Vendors" : "+ Enter Custom Vendor Name"}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-amber-900 uppercase mb-1">
+                          Associated Vendor / Supplier *
+                        </label>
+                        {isCustomVendor ? (
+                          <input
+                            type="text"
+                            required={formData.customerType === 'Vendor Related Stock'}
+                            value={formData.vendorName || ''}
+                            onChange={e => setFormData(prev => ({ ...prev, vendorName: e.target.value, vendorId: '' }))}
+                            placeholder="e.g. Waaree Solar / Tata Power / Goldi"
+                            className="w-full px-3.5 py-2 border border-amber-300 rounded-xl font-bold text-slate-900 bg-white outline-none focus:ring-2 focus:ring-amber-500/20"
+                          />
+                        ) : (
+                          <select
+                            value={formData.vendorName || ''}
+                            onChange={e => {
+                              if (e.target.value === '__custom__') {
+                                setIsCustomVendor(true);
+                                setFormData(prev => ({ ...prev, vendorName: '', vendorId: '' }));
+                                return;
+                              }
+                              const selectedV = vendorsList.find(v => v.name === e.target.value);
+                              setFormData(prev => ({
+                                ...prev,
+                                vendorName: e.target.value,
+                                vendorId: selectedV?.id || ''
+                              }));
+                            }}
+                            required={formData.customerType === 'Vendor Related Stock'}
+                            className="w-full px-3.5 py-2 border border-amber-300 rounded-xl font-bold text-slate-900 bg-white outline-none focus:ring-2 focus:ring-amber-500/20"
+                          >
+                            <option value="">Select Vendor / Supplier</option>
+                            {vendorsList.map(v => (
+                              <option key={v.id} value={v.name}>
+                                {v.name} {v.category ? `(${v.category})` : ''}
+                              </option>
+                            ))}
+                            <option value="__custom__">+ Enter Custom Vendor Name</option>
+                          </select>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-amber-900 uppercase mb-1">
+                          Supplied Stock Component
+                        </label>
+                        <select
+                          value={formData.stockCategory || 'Solar Panels (Mono/Poly PV)'}
+                          onChange={e => setFormData(prev => ({ ...prev, stockCategory: e.target.value }))}
+                          className="w-full px-3.5 py-2 border border-amber-300 rounded-xl font-bold text-slate-900 bg-white outline-none focus:ring-2 focus:ring-amber-500/20"
+                        >
+                          <option value="Solar Panels (Mono/Poly PV)">Solar Panels (Mono/Poly PV)</option>
+                          <option value="Inverters (String/Micro/Hybrid)">Inverters (String/Micro/Hybrid)</option>
+                          <option value="Complete Solar Kit (Panels + Inverter + BOS)">Complete Solar Kit</option>
+                          <option value="Mounting Structures (GI/Aluminium)">Mounting Structures</option>
+                          <option value="Batteries & Energy Storage">Batteries & Energy Storage</option>
+                          <option value="Cables & AC/DC Wiring">Cables & AC/DC Wiring</option>
+                          <option value="Other Components">Other Components</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-amber-900 uppercase mb-1">
+                          Vendor Stock Ref / PO / Batch #
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.vendorStockRef || ''}
+                          onChange={e => setFormData(prev => ({ ...prev, vendorStockRef: e.target.value }))}
+                          placeholder="e.g. PO-2024-045 or Lot #9A"
+                          className="w-full px-3.5 py-2 border border-amber-300 rounded-xl font-mono text-slate-900 bg-white outline-none focus:ring-2 focus:ring-amber-500/20"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-amber-900 uppercase mb-1">
+                          Vendor Stock / Fulfillment Notes
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.vendorStockNotes || ''}
+                          onChange={e => setFormData(prev => ({ ...prev, vendorStockNotes: e.target.value }))}
+                          placeholder="e.g. Reserved from Hyderabad depot"
+                          className="w-full px-3.5 py-2 border border-amber-300 rounded-xl text-slate-900 bg-white outline-none focus:ring-2 focus:ring-amber-500/20"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Customer Full Name *</label>
@@ -872,11 +1341,20 @@ export default function Customers({ onNavigate }: CustomersProps) {
                   <Archive className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Customer Document Portfolio</span>
                     <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[10px] font-bold rounded-full">
                       {selectedCustomerForDocs.phone}
                     </span>
+                    {selectedCustomerForDocs.customerType === 'Vendor Related Stock' ? (
+                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-400/40 text-[10px] font-black uppercase rounded-full flex items-center gap-1">
+                        <Package className="w-3 h-3 text-amber-400" /> Vendor Stock: {selectedCustomerForDocs.vendorName || 'Assigned'}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-black uppercase rounded-full flex items-center gap-1">
+                        <UserCheck className="w-3 h-3 text-emerald-400" /> Normal Customer
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-lg font-black text-white">{selectedCustomerForDocs.name}</h3>
                 </div>
@@ -892,6 +1370,35 @@ export default function Customers({ onNavigate }: CustomersProps) {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 bg-slate-50/50">
+              {/* Vendor Stock Banner in Portfolio */}
+              {selectedCustomerForDocs.customerType === 'Vendor Related Stock' && (
+                <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50/50 rounded-2xl border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 shrink-0">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block">Vendor Stock Fulfillment</span>
+                      <h4 className="text-xs font-black text-slate-900">
+                        {selectedCustomerForDocs.vendorName || 'Vendor Assigned'}
+                        {selectedCustomerForDocs.stockCategory ? ` • ${selectedCustomerForDocs.stockCategory}` : ''}
+                      </h4>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedCustomerForDocs.vendorStockRef && (
+                      <div className="px-2.5 py-1 bg-white rounded-xl border border-amber-200 font-mono text-[11px] font-bold text-amber-900 flex items-center gap-1">
+                        <Tag className="w-3 h-3 text-amber-600" /> Ref: {selectedCustomerForDocs.vendorStockRef}
+                      </div>
+                    )}
+                    {selectedCustomerForDocs.vendorStockNotes && (
+                      <span className="text-[11px] text-slate-600 italic">
+                        "{selectedCustomerForDocs.vendorStockNotes}"
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               {(() => {
                 const custDocs = docsList.filter(d => 
                   (d.customerId && d.customerId === selectedCustomerForDocs.id) ||

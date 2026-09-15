@@ -52,15 +52,17 @@ export const authService = {
       const lowerEmail = email.toLowerCase();
       const isVendor = lowerEmail.includes('vendor') || lowerEmail.includes('vikram');
       const isInstaller = lowerEmail.includes('installer') || lowerEmail.includes('technician');
+      const isStaff = lowerEmail.includes('survey') || lowerEmail.includes('design') || lowerEmail.includes('engineer') || lowerEmail.includes('staff');
       const isSales = lowerEmail.includes('sales');
       const isFinance = lowerEmail.includes('finance');
       const isCustomer = lowerEmail.includes('customer');
-      const isEmp = lowerEmail.includes('emp') || lowerEmail.includes('staff');
+      const isEmp = lowerEmail.includes('emp');
 
       let expectedRole: UserRole | null = null;
       if (isEmp) expectedRole = 'Vendor Employee';
       else if (isVendor) expectedRole = 'Vendor';
       else if (isInstaller) expectedRole = 'Installer';
+      else if (isStaff) expectedRole = 'Survey Engineer';
       else if (isSales) expectedRole = 'Sales Executive';
       else if (isFinance) expectedRole = 'Finance Manager';
       else if (isCustomer) expectedRole = 'Customer';
@@ -71,6 +73,10 @@ export const authService = {
           profile.role = expectedRole;
           if (expectedRole === 'Installer') {
             profile.name = profile.name || 'Rohan Sharma (Lead Field Installer)';
+          } else if (expectedRole === 'Survey Engineer') {
+            profile.name = profile.name || 'Amit Verma (Field Survey Engineer)';
+          } else if (expectedRole === 'Customer') {
+            profile.name = profile.name || 'Satya Kumar (Solar Rooftop Prosumer)';
           }
           await updateDoc(doc(db, 'users', profile.uid), { role: expectedRole, name: profile.name });
         }
@@ -86,19 +92,21 @@ export const authService = {
         assignedName = 'Vikram Solar Admin';
       } else if (isInstaller) {
         assignedName = 'Rohan Sharma (Lead Field Installer)';
+      } else if (isStaff) {
+        assignedName = 'Amit Verma (Field Survey Engineer)';
       } else if (isSales) {
         assignedName = 'Priya Sharma (Sales Lead)';
       } else if (isFinance) {
         assignedName = 'Suresh Menon (Finance Lead)';
       } else if (isCustomer) {
-        assignedName = 'Satya Kumar (Homeowner)';
+        assignedName = 'Satya Kumar (Solar Rooftop Prosumer)';
       }
 
       profile = {
         uid: userCredential.user.uid,
         email: userCredential.user.email || email,
         name: assignedName,
-        companyName: isVendor || isEmp ? 'Vikram Solar' : 'Meta Green Global HQ',
+        companyName: isVendor || isEmp ? 'Vikram Solar' : isCustomer ? 'Residential Solar Customer' : 'Meta Green Global HQ',
         role: assignedRole,
         status: 'Active',
         mustChangePassword: isEmp,
@@ -112,10 +120,11 @@ export const authService = {
         const lowerEmail = email.toLowerCase();
         const isVendor = lowerEmail.includes('vendor') || lowerEmail.includes('vikram');
         const isInstaller = lowerEmail.includes('installer') || lowerEmail.includes('technician');
+        const isStaff = lowerEmail.includes('survey') || lowerEmail.includes('design') || lowerEmail.includes('engineer') || lowerEmail.includes('staff');
         const isSales = lowerEmail.includes('sales');
         const isFinance = lowerEmail.includes('finance');
         const isCustomer = lowerEmail.includes('customer');
-        const isEmp = lowerEmail.includes('emp') || lowerEmail.includes('staff');
+        const isEmp = lowerEmail.includes('emp');
 
         let assignedRole: UserRole = 'Super Admin';
         let assignedName = 'Global Super Admin';
@@ -129,6 +138,9 @@ export const authService = {
         } else if (isInstaller) {
           assignedRole = 'Installer';
           assignedName = 'Rohan Sharma (Lead Field Installer)';
+        } else if (isStaff) {
+          assignedRole = 'Survey Engineer';
+          assignedName = 'Amit Verma (Field Survey Engineer)';
         } else if (isSales) {
           assignedRole = 'Sales Executive';
           assignedName = 'Priya Sharma (Sales Lead)';
@@ -137,7 +149,7 @@ export const authService = {
           assignedName = 'Suresh Menon (Finance Lead)';
         } else if (isCustomer) {
           assignedRole = 'Customer';
-          assignedName = 'Satya Kumar (Homeowner)';
+          assignedName = 'Satya Kumar (Solar Rooftop Prosumer)';
         }
 
         try {
@@ -154,7 +166,7 @@ export const authService = {
   },
 
   // Bulletproof Quick Demo Logins with multi-password fallback
-  async loginDemoUser(targetRole: 'admin' | 'vendor' | 'installer' | 'vendor-employee'): Promise<UserProfile> {
+  async loginDemoUser(targetRole: 'admin' | 'vendor' | 'installer' | 'customer' | 'staff' | 'vendor-employee'): Promise<UserProfile> {
     let demoEmail = 'admin@solar.com';
     let demoPasses = ['admin123', 'demo1234', 'Admin123!', 'Password123!'];
     let expectedRole: UserRole = 'Super Admin';
@@ -174,6 +186,18 @@ export const authService = {
       expectedRole = 'Vendor';
       demoName = 'Vikram Solar Admin';
       demoCompany = 'Vikram Solar';
+    } else if (targetRole === 'customer') {
+      demoEmail = 'customer@solar.com';
+      demoPasses = ['customer123', 'demo1234', 'Customer123!', 'Password123!'];
+      expectedRole = 'Customer';
+      demoName = 'Satya Kumar (Solar Rooftop Prosumer)';
+      demoCompany = 'Residential Solar Customer';
+    } else if (targetRole === 'staff') {
+      demoEmail = 'survey@solar.com';
+      demoPasses = ['survey123', 'staff123', 'demo1234', 'Survey123!', 'Password123!'];
+      expectedRole = 'Survey Engineer';
+      demoName = 'Amit Verma (Field Survey Engineer)';
+      demoCompany = 'Meta Green Engineering';
     } else if (targetRole === 'vendor-employee') {
       demoEmail = 'emp@vikramsolar.com';
       demoPasses = ['VendorEmp123!', 'demo1234', 'Password123!'];
@@ -210,15 +234,21 @@ export const authService = {
     }
 
     // 2. If existing account password was changed, register a fresh dedicated demo email
-    const freshEmail = targetRole === 'vendor-employee'
-      ? `staff_${Date.now().toString().slice(-4)}@vikramsolar.com`
-      : targetRole === 'vendor'
-        ? `vendor_${Date.now().toString().slice(-4)}@vikramsolar.com`
-        : `admin_${Date.now().toString().slice(-4)}@metagreen.com`;
+    const freshEmail = targetRole === 'customer'
+      ? `customer_${Date.now().toString().slice(-4)}@solar.com`
+      : targetRole === 'staff'
+        ? `survey_${Date.now().toString().slice(-4)}@solar.com`
+        : targetRole === 'vendor-employee'
+          ? `staff_${Date.now().toString().slice(-4)}@vikramsolar.com`
+          : targetRole === 'vendor'
+            ? `vendor_${Date.now().toString().slice(-4)}@vikramsolar.com`
+            : targetRole === 'installer'
+              ? `installer_${Date.now().toString().slice(-4)}@solar.com`
+              : `admin_${Date.now().toString().slice(-4)}@metagreen.com`;
 
     return await this.register(
       freshEmail,
-      'VendorEmp123!',
+      'Password123!',
       demoName,
       expectedRole,
       demoCompany,

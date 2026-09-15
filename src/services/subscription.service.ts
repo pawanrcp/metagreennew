@@ -92,6 +92,10 @@ export interface VendorAccount {
   trialEndDate: string;
   subscriptionStartDate?: string;
   subscriptionEndDate?: string;
+  // Website Add-on (₹999/-)
+  hasWebsiteSubscription?: boolean;
+  websiteSubscriptionPrice?: number;
+  customLandingPageEnabled?: boolean;
   createdAt?: any;
 }
 
@@ -323,16 +327,20 @@ export const subscriptionService = {
     billingCycle?: 'monthly' | 'annual';
     accountType?: 'Vendor' | 'Installer';
     couponCode?: string; // Optional coupon code!
+    hasWebsiteSubscription?: boolean; // Optional Website Add-On for ₹999/-
   }): Promise<VendorAccount> {
     const trialStartDate = new Date().toISOString();
     const trialDays = vendorData.plan.trialEnabled ? vendorData.plan.trialDays : 7;
     const trialEndDate = this.calculateTrialEndDate(trialDays);
     const billingCycle = vendorData.billingCycle || 'annual';
     const accountType = vendorData.accountType || 'Vendor';
+    const hasWebsiteSubscription = Boolean(vendorData.hasWebsiteSubscription);
+    const websiteAddonPrice = hasWebsiteSubscription ? 999 : 0;
 
-    const basePrice = billingCycle === 'annual'
+    const planPrice = billingCycle === 'annual'
       ? (vendorData.plan.priceAnnual ?? (vendorData.plan.priceMonthly ? Math.round(vendorData.plan.priceMonthly * 12 * 0.8) : 0))
       : (vendorData.plan.priceMonthly ?? 0);
+    const basePrice = planPrice + websiteAddonPrice;
 
     let couponAudit: {
       couponId?: string;
@@ -366,9 +374,9 @@ export const subscriptionService = {
         couponId: vRes.coupon?.id,
         appliedCouponCode: vRes.coupon?.code,
         discountPercentage: vRes.discountPercentage,
-        originalAmount: vRes.originalAmount,
+        originalAmount: basePrice,
         discountAmount: vRes.discountAmount,
-        finalAmount: vRes.finalPrice
+        finalAmount: vRes.finalPrice + websiteAddonPrice
       };
 
       // Record coupon redemption
@@ -396,6 +404,10 @@ export const subscriptionService = {
       planId: vendorData.plan.id || `plan-${Date.now()}`,
       planName: vendorData.plan.name,
       billingCycle,
+      // Website Add-on (₹999/-)
+      hasWebsiteSubscription,
+      websiteSubscriptionPrice: websiteAddonPrice,
+      customLandingPageEnabled: hasWebsiteSubscription,
       // Coupon & Pricing Audit Records
       couponId: couponAudit.couponId,
       appliedCouponCode: couponAudit.appliedCouponCode,
@@ -482,10 +494,22 @@ export const subscriptionService = {
     if (updates.finalAmount !== undefined) userUpdates['vendorAccount.finalAmount'] = updates.finalAmount;
     if (updates.customDiscountPercentage !== undefined) userUpdates['vendorAccount.customDiscountPercentage'] = updates.customDiscountPercentage;
     if (updates.customDiscountAmount !== undefined) userUpdates['vendorAccount.customDiscountAmount'] = updates.customDiscountAmount;
+    if (updates.hasWebsiteSubscription !== undefined) userUpdates['vendorAccount.hasWebsiteSubscription'] = updates.hasWebsiteSubscription;
+    if (updates.websiteSubscriptionPrice !== undefined) userUpdates['vendorAccount.websiteSubscriptionPrice'] = updates.websiteSubscriptionPrice;
+    if (updates.customLandingPageEnabled !== undefined) userUpdates['vendorAccount.customLandingPageEnabled'] = updates.customLandingPageEnabled;
     
     if (Object.keys(userUpdates).length > 0) {
       await updateDoc(doc(db, 'users', uid), userUpdates);
     }
+  },
+
+  // Toggle Website Subscription Add-On (₹999/-)
+  async toggleWebsiteSubscription(uid: string, enabled: boolean): Promise<void> {
+    await this.updateVendorSubscription(uid, {
+      hasWebsiteSubscription: enabled,
+      websiteSubscriptionPrice: enabled ? 999 : 0,
+      customLandingPageEnabled: enabled
+    });
   },
 
   // 9. Global Admin: Activate or Renew Subscription (Annual: 365 Days, Monthly: 30 Days)

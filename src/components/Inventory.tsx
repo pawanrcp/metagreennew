@@ -50,13 +50,25 @@ import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
 import { useToast } from '@/src/context/ToastContext';
 
-export default function Inventory({ onNavigateToPO }: { onNavigateToPO?: (vendorName?: string, item?: any) => void }) {
+export default function Inventory({ 
+  onNavigateToPO,
+  initialFilter 
+}: { 
+  onNavigateToPO?: (vendorName?: string, item?: any) => void;
+  initialFilter?: string;
+}) {
   const { user } = useAuth();
   const { toast } = useToast();
 
   const [items, setItems] = useState<InventoryItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialFilter || '');
   const [activeTab, setActiveTab] = useState<'warehouse' | 'marketplace' | 'installer_bom'>('warehouse');
+
+  useEffect(() => {
+    if (initialFilter) {
+      setSearchTerm(initialFilter);
+    }
+  }, [initialFilter]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
