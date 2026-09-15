@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
-import { 
-  Mail, 
-  Lock, 
-  ArrowRight, 
-  ShieldCheck, 
-  Users, 
-  Calculator, 
-  MapPin, 
-  Sun, 
-  Package, 
-  TrendingUp, 
+import React, { useState, useEffect } from 'react';
+import {
+  Mail,
+  Lock,
+  ArrowRight,
+  ShieldCheck,
+  Users,
+  Calculator,
+  MapPin,
+  Sun,
+  Package,
+  TrendingUp,
   FileText,
   Headphones,
   Building,
@@ -30,16 +30,29 @@ import { cn } from '../lib/utils';
 export default function Login() {
   // Persona Tab Selector
   const [selectedPersona, setSelectedPersona] = useState<'admin' | 'vendor' | 'installer' | 'sales' | 'finance' | 'customer'>('admin');
-  
+
   const [email, setEmail] = useState('admin@solar.com');
   const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [availablePlans, setAvailablePlans] = useState<SubscriptionPlan[]>([]);
+
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const fetched = await subscriptionService.getSubscriptionPlans();
+        setAvailablePlans(fetched);
+      } catch (err) {
+        console.error('Error loading plans in login:', err);
+      }
+    }
+    loadPlans();
+  }, []);
 
   // Dedicated Persona Specifications
   const PERSONAS = [
@@ -136,13 +149,13 @@ export default function Login() {
 
   return (
     <div className="h-screen w-screen max-h-screen max-w-vw bg-slate-950 flex flex-col justify-between font-sans text-slate-100 antialiased selection:bg-emerald-500 selection:text-white overflow-hidden p-3 sm:p-4 fixed inset-0">
-      
+
       {/* Main Container */}
       <main className="flex-1 flex flex-col lg:flex-row items-stretch max-w-[1600px] w-full mx-auto gap-4 lg:gap-6 min-h-0 overflow-hidden">
-        
+
         {/* LEFT HERO SECTION */}
         <div className="flex-1 bg-slate-900/90 rounded-3xl border border-slate-800 p-5 lg:p-6 flex flex-col justify-between shadow-2xl relative overflow-hidden min-h-0 backdrop-blur-md">
-          
+
           {/* Subtle background grid pattern */}
           <div className="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none" />
 
@@ -267,7 +280,7 @@ export default function Login() {
         {/* RIGHT MULTI-PERSONA SIGN-IN CARD */}
         <div className="w-full lg:w-[440px] xl:w-[480px] bg-slate-900 rounded-3xl border border-slate-800 p-5 shadow-2xl flex flex-col justify-between shrink-0 overflow-y-auto max-h-full">
           <div className="space-y-4">
-            
+
             {/* Header */}
             <div>
               <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block mb-0.5">MetaGreen Authentication Portal</span>
@@ -286,8 +299,8 @@ export default function Login() {
                   onClick={() => handleSelectPersona(p.id as any)}
                   className={cn(
                     "px-2.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer text-left flex flex-col justify-between gap-1 border",
-                    selectedPersona === p.id 
-                      ? "bg-slate-800 text-white border-emerald-500 shadow-md ring-1 ring-emerald-500/30" 
+                    selectedPersona === p.id
+                      ? "bg-slate-800 text-white border-emerald-500 shadow-md ring-1 ring-emerald-500/30"
                       : "bg-slate-900/50 text-slate-400 border-transparent hover:text-white hover:bg-slate-800/50"
                   )}
                 >
@@ -441,9 +454,9 @@ export default function Login() {
       {/* Subscription Registration Modal */}
       {isRegisterModalOpen && (
         <VendorRegistrationModal
-          selectedPlan={{
-            id: 'plan-3-user',
-            name: 'Starter Solar Enterprise (3 Users)',
+          selectedPlan={availablePlans[0] || {
+            id: 'plan-custom',
+            name: 'Solar Enterprise Plan',
             userLimit: 3,
             storageGBLimit: 10,
             priceMonthly: 4999,
@@ -451,15 +464,14 @@ export default function Login() {
             trialDays: 7,
             status: 'active',
             features: [
-              'Up to 3 Team Users',
-              '10 GB Encrypted Storage Vault',
-              '7-Day Free Trial Included',
-              'PO & Auto-Inventory Sync',
-              'Quotes & Tax Invoice Generator',
-              'Installer & Vendor Workflows'
+              'Vendor & Installer Portal Access',
+              'Cloud Storage Vault',
+              'Free Trial Period Included',
+              'PO & Auto-Inventory Processing',
+              'Quotes & Tax Invoice Generator'
             ]
           }}
-          allPlans={[]}
+          allPlans={availablePlans}
           onClose={() => setIsRegisterModalOpen(false)}
           onSuccess={() => {
             setIsRegisterModalOpen(false);
@@ -478,5 +490,3 @@ export default function Login() {
     </div>
   );
 }
-
-

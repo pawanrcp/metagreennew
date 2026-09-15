@@ -37,7 +37,17 @@ import {
   Shield,
   CreditCard,
   Building,
-  UserCheck
+  UserCheck,
+  LayoutGrid,
+  ChevronUp,
+  ChevronDown,
+  ArrowRight,
+  ArrowLeft,
+  ChevronRight,
+  Gift,
+  Receipt,
+  Landmark,
+  Zap
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { exportToPDF, exportToExcel } from '@/src/lib/exportUtils';
@@ -61,7 +71,7 @@ import {
   seedCategoryDefaults
 } from '@/src/services/dropdownMaster.service';
 
-type TabType = 'logos' | 'subscriptions' | 'users' | 'roles' | 'dropdowns' | 'roof-types' | 'states' | 'products' | 'approvals' | 'audit' | 'purge';
+type TabType = 'logos' | 'subscriptions' | 'coupons' | 'users' | 'roles' | 'dropdowns' | 'roof-types' | 'states' | 'products' | 'approvals' | 'audit' | 'purge';
 
 const USER_ROLES = [
   'Super Admin',
@@ -83,7 +93,126 @@ const USER_ROLES = [
   'Auditor'
 ];
 
-export default function MasterSettings() {
+const getDropdownCategoryIcon = (iconName: string) => {
+  switch (iconName) {
+    case 'Receipt': return Receipt;
+    case 'Users': return Users;
+    case 'Filter': return Filter;
+    case 'Sun': return Sun;
+    case 'IndianRupee': return IndianRupee;
+    case 'CreditCard': return CreditCard;
+    case 'Package': return Package;
+    case 'Building2': return Building2;
+    case 'Building': return Building;
+    case 'Landmark': return Landmark;
+    case 'Zap': return Zap;
+    default: return Sliders;
+  }
+};
+
+const CATEGORY_THEMES: Record<DropdownCategoryKey, {
+  bg: string;
+  iconBg: string;
+  iconColor: string;
+  badgeBg: string;
+  badgeText: string;
+  borderHover: string;
+}> = {
+  expense_types: {
+    bg: 'hover:bg-emerald-50/50',
+    iconBg: 'bg-emerald-100/90',
+    iconColor: 'text-emerald-700',
+    badgeBg: 'bg-emerald-50',
+    badgeText: 'text-emerald-700 border-emerald-200',
+    borderHover: 'hover:border-emerald-400'
+  },
+  lead_sources: {
+    bg: 'hover:bg-blue-50/50',
+    iconBg: 'bg-blue-100/90',
+    iconColor: 'text-blue-700',
+    badgeBg: 'bg-blue-50',
+    badgeText: 'text-blue-700 border-blue-200',
+    borderHover: 'hover:border-blue-400'
+  },
+  lead_stages: {
+    bg: 'hover:bg-indigo-50/50',
+    iconBg: 'bg-indigo-100/90',
+    iconColor: 'text-indigo-700',
+    badgeBg: 'bg-indigo-50',
+    badgeText: 'text-indigo-700 border-indigo-200',
+    borderHover: 'hover:border-indigo-400'
+  },
+  project_stages: {
+    bg: 'hover:bg-amber-50/50',
+    iconBg: 'bg-amber-100/90',
+    iconColor: 'text-amber-700',
+    badgeBg: 'bg-amber-50',
+    badgeText: 'text-amber-700 border-amber-200',
+    borderHover: 'hover:border-amber-400'
+  },
+  payment_stages: {
+    bg: 'hover:bg-teal-50/50',
+    iconBg: 'bg-teal-100/90',
+    iconColor: 'text-teal-700',
+    badgeBg: 'bg-teal-50',
+    badgeText: 'text-teal-700 border-teal-200',
+    borderHover: 'hover:border-teal-400'
+  },
+  payment_modes: {
+    bg: 'hover:bg-rose-50/50',
+    iconBg: 'bg-rose-100/90',
+    iconColor: 'text-rose-700',
+    badgeBg: 'bg-rose-50',
+    badgeText: 'text-rose-700 border-rose-200',
+    borderHover: 'hover:border-rose-400'
+  },
+  inventory_categories: {
+    bg: 'hover:bg-cyan-50/50',
+    iconBg: 'bg-cyan-100/90',
+    iconColor: 'text-cyan-700',
+    badgeBg: 'bg-cyan-50',
+    badgeText: 'text-cyan-700 border-cyan-200',
+    borderHover: 'hover:border-cyan-400'
+  },
+  supplier_categories: {
+    bg: 'hover:bg-purple-50/50',
+    iconBg: 'bg-purple-100/90',
+    iconColor: 'text-purple-700',
+    badgeBg: 'bg-purple-50',
+    badgeText: 'text-purple-700 border-purple-200',
+    borderHover: 'hover:border-purple-400'
+  },
+  structure_types: {
+    bg: 'hover:bg-slate-100/70',
+    iconBg: 'bg-slate-200/90',
+    iconColor: 'text-slate-800',
+    badgeBg: 'bg-slate-100',
+    badgeText: 'text-slate-700 border-slate-300',
+    borderHover: 'hover:border-slate-400'
+  },
+  banks: {
+    bg: 'hover:bg-emerald-50/50',
+    iconBg: 'bg-emerald-100/90',
+    iconColor: 'text-emerald-700',
+    badgeBg: 'bg-emerald-50',
+    badgeText: 'text-emerald-700 border-emerald-200',
+    borderHover: 'hover:border-emerald-400'
+  },
+  discoms: {
+    bg: 'hover:bg-yellow-50/50',
+    iconBg: 'bg-yellow-100/90',
+    iconColor: 'text-yellow-700',
+    badgeBg: 'bg-yellow-50',
+    badgeText: 'text-yellow-700 border-yellow-200',
+    borderHover: 'hover:border-yellow-400'
+  }
+};
+
+interface MasterSettingsProps {
+  initialModule?: TabType;
+}
+
+export default function MasterSettings({ initialModule }: MasterSettingsProps = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -92,7 +221,42 @@ export default function MasterSettings() {
   const currentUid = user?.uid || '';
   const currentEmail = (user?.email || '').trim().toLowerCase();
 
-  const [activeTab, setActiveTab] = useState<TabType>(isGlobalAdmin ? 'logos' : 'users');
+  const [selectedModule, setSelectedModule] = useState<TabType | null>(initialModule || null);
+  const [activeTab, setActiveTab] = useState<TabType>(initialModule || (isGlobalAdmin ? 'logos' : 'users'));
+  const [lastVisitedModule, setLastVisitedModule] = useState<TabType | null>(null);
+  const [cardSearchQuery, setCardSearchQuery] = useState('');
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePop = (e: PopStateEvent) => {
+      if (e.state && e.state.masterModule) {
+        setSelectedModule(e.state.masterModule);
+        setActiveTab(e.state.masterModule);
+        if (e.state.masterModule === 'dropdowns') {
+          setActiveDropdownCategory(null);
+        }
+      } else {
+        setSelectedModule(null);
+        setActiveDropdownCategory(null);
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
+
+  // When returning to cards directory, smoothly scroll to last visited card
+  useEffect(() => {
+    if (!selectedModule && lastVisitedModule) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`card-${lastVisitedModule}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedModule, lastVisitedModule]);
+
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -109,7 +273,11 @@ export default function MasterSettings() {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Dropdown Masters State
+  const [activeDropdownCategory, setActiveDropdownCategory] = useState<DropdownCategoryKey | null>(null);
   const [selectedDropdownCategory, setSelectedDropdownCategory] = useState<DropdownCategoryKey>('expense_types');
+  const [dropdownCategorySearch, setDropdownCategorySearch] = useState('');
+  const [dropdownCategoryScopeFilter, setDropdownCategoryScopeFilter] = useState<'All' | 'Finance' | 'CRM' | 'Projects' | 'Inventory' | 'Procurement' | 'General'>('All');
+  const [dropdownOptionsViewMode, setDropdownOptionsViewMode] = useState<'cards' | 'table'>('cards');
   const [dropdownOptionsList, setDropdownOptionsList] = useState<DropdownOption[]>([]);
   const [dropdownOptionSearch, setDropdownOptionSearch] = useState('');
   const [dropdownStatusFilter, setDropdownStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
@@ -237,6 +405,131 @@ export default function MasterSettings() {
     });
     return () => unsubAll();
   }, []);
+
+  // Dropdown Masters Actions
+  const handleOpenAddOption = () => {
+    setEditingOption(null);
+    setOptionForm({
+      name: '',
+      code: '',
+      description: '',
+      status: 'Active'
+    });
+    setIsAddOptionModalOpen(true);
+  };
+
+  const handleOpenEditOption = (option: DropdownOption) => {
+    setEditingOption(option);
+    setOptionForm({
+      name: option.name,
+      code: option.code || '',
+      description: option.description || '',
+      status: option.status || 'Active'
+    });
+    setIsAddOptionModalOpen(true);
+  };
+
+  const handleSaveOption = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!optionForm.name.trim()) {
+      toast.error('Option name is required', 'Validation Error');
+      return;
+    }
+
+    setIsSavingOption(true);
+    try {
+      if (editingOption) {
+        if (editingOption.isDefault || editingOption.id.startsWith('default-')) {
+          await addDropdownOption(selectedDropdownCategory, {
+            name: optionForm.name.trim(),
+            code: optionForm.code.trim().toUpperCase(),
+            description: optionForm.description.trim(),
+            status: optionForm.status
+          });
+        } else {
+          await updateDropdownOption(editingOption.id, {
+            name: optionForm.name.trim(),
+            code: optionForm.code.trim().toUpperCase(),
+            description: optionForm.description.trim(),
+            status: optionForm.status
+          });
+        }
+        toast.success(`Updated "${optionForm.name.trim()}" successfully!`, 'Option Updated');
+      } else {
+        await addDropdownOption(selectedDropdownCategory, {
+          name: optionForm.name.trim(),
+          code: optionForm.code.trim().toUpperCase(),
+          description: optionForm.description.trim(),
+          status: optionForm.status
+        });
+        toast.success(`Added "${optionForm.name.trim()}" successfully!`, 'Option Created');
+      }
+      setIsAddOptionModalOpen(false);
+      setEditingOption(null);
+    } catch (err: any) {
+      console.error('Error saving dropdown option:', err);
+      toast.error(err.message || 'Failed to save option. Please try again.', 'Save Error');
+    } finally {
+      setIsSavingOption(false);
+    }
+  };
+
+  const handleToggleOptionStatus = async (option: DropdownOption) => {
+    const newStatus = option.status === 'Active' ? 'Inactive' : 'Active';
+    try {
+      if (option.isDefault || option.id.startsWith('default-')) {
+        await addDropdownOption(selectedDropdownCategory, {
+          name: option.name,
+          code: option.code || '',
+          description: option.description || '',
+          status: newStatus
+        });
+      } else {
+        await updateDropdownOption(option.id, { status: newStatus });
+      }
+      toast.success(`Option marked as ${newStatus}`, 'Status Updated');
+    } catch (err: any) {
+      console.error('Error toggling status:', err);
+      toast.error('Failed to update status', 'Error');
+    }
+  };
+
+  const handleDeleteOption = async (option: DropdownOption) => {
+    if (!window.confirm(`Are you sure you want to delete "${option.name}"?`)) {
+      return;
+    }
+
+    try {
+      if (option.isDefault || option.id.startsWith('default-')) {
+        toast.info('Default options cannot be permanently deleted. You can mark them Inactive instead.', 'Notice');
+        await handleToggleOptionStatus(option);
+      } else {
+        await deleteDropdownOption(option.id);
+        toast.success(`Deleted "${option.name}" successfully`, 'Option Deleted');
+      }
+    } catch (err: any) {
+      console.error('Error deleting option:', err);
+      toast.error('Failed to delete option', 'Error');
+    }
+  };
+
+  const handleSeedDefaults = async () => {
+    const catMeta = DROPDOWN_CATEGORIES.find(c => c.key === selectedDropdownCategory);
+    if (!window.confirm(`Restore standard default options for "${catMeta?.title || selectedDropdownCategory}"?`)) {
+      return;
+    }
+
+    setIsRestoringDefaults(true);
+    try {
+      await seedCategoryDefaults(selectedDropdownCategory);
+      toast.success(`Default options restored for ${catMeta?.title}!`, 'Defaults Seeded');
+    } catch (err: any) {
+      console.error('Error restoring defaults:', err);
+      toast.error('Failed to restore defaults', 'Error');
+    } finally {
+      setIsRestoringDefaults(false);
+    }
+  };
 
   const [isClearingData, setIsClearingData] = useState(false);
   const [clearProgress, setClearProgress] = useState('');
@@ -432,29 +725,168 @@ export default function MasterSettings() {
   const availableTabs = useMemo(() => {
     if (isGlobalAdmin) {
       return [
-        { id: 'logos', label: 'Import Logos & Branding', icon: ImageIcon },
-        ...(user?.role === 'Super Admin' ? [{ id: 'subscriptions', label: 'Subscription Plans & Trials', icon: CreditCard }] : []),
-        { id: 'users', label: 'System Users', icon: Users },
-        { id: 'roles', label: 'Roles & Permissions', icon: ShieldCheck },
-        { id: 'dropdowns', label: 'Dropdown Masters', icon: Sliders },
-        { id: 'roof-types', label: 'Roof Types Master', icon: Building2 },
-        { id: 'states', label: 'States & Taxes', icon: Percent },
-        { id: 'products', label: 'Products & Pricing', icon: Package },
-        { id: 'approvals', label: 'Approval Rules', icon: CheckSquare },
-        { id: 'audit', label: 'Audit Logs', icon: List },
-        { id: 'purge', label: 'System Reset & Data Purge', icon: Trash2 },
+        { 
+          id: 'logos', 
+          label: 'Import Logos & Branding', 
+          icon: ImageIcon,
+          description: 'Upload primary company logos, invoice headers, and light/dark theme assets.',
+          badge: 'Branding & UI',
+          iconBg: 'bg-amber-100 text-amber-600'
+        },
+        ...(user?.role === 'Super Admin' ? [
+          { 
+            id: 'subscriptions', 
+            label: 'Subscription Plans & Trials', 
+            icon: CreditCard,
+            description: 'Annual & Monthly SaaS packages, user limits, 20% annual discount & trials.',
+            badge: 'Annual & Monthly Plans',
+            iconBg: 'bg-emerald-100 text-emerald-600'
+          },
+          { 
+            id: 'coupons', 
+            label: 'Coupons & Person Discounts', 
+            icon: Gift,
+            description: 'Promo codes, % or fixed ₹ off, usage limits, and particular person email restrictions.',
+            badge: 'Coupons & Promos',
+            iconBg: 'bg-teal-100 text-teal-600'
+          }
+        ] : []),
+        { 
+          id: 'users', 
+          label: 'System Users', 
+          icon: Users,
+          description: 'Manage administrative staff, vendor accounts, regional managers, and user credentials.',
+          badge: 'Team & Accounts',
+          iconBg: 'bg-blue-100 text-blue-600'
+        },
+        { 
+          id: 'roles', 
+          label: 'Roles & Permissions', 
+          icon: ShieldCheck,
+          description: 'Granular RBAC permission matrix, module restrictions, and role authorization levels.',
+          badge: 'Security & Access',
+          iconBg: 'bg-purple-100 text-purple-600'
+        },
+        { 
+          id: 'dropdowns', 
+          label: 'Dropdown Masters', 
+          icon: Sliders,
+          description: 'Configurable options for Lead Sources, Customer Types, Inverters, Panels & BOS items.',
+          badge: 'Lookup Data',
+          iconBg: 'bg-cyan-100 text-cyan-600'
+        },
+        { 
+          id: 'roof-types', 
+          label: 'Roof Types Master', 
+          icon: Building2,
+          description: 'Rooftop engineering structures: RCC Flat, Tin Shade, Tiled, and Mini-Rail brackets.',
+          badge: 'Solar Tech',
+          iconBg: 'bg-sky-100 text-sky-600'
+        },
+        { 
+          id: 'states', 
+          label: 'States & Taxes', 
+          icon: Percent,
+          description: 'State tax rates, CGST/SGST/IGST breakdown, and regional DISCOM electricity boards.',
+          badge: 'Tax & Compliance',
+          iconBg: 'bg-violet-100 text-violet-600'
+        },
+        { 
+          id: 'products', 
+          label: 'Products & Pricing', 
+          icon: Package,
+          description: 'Solar panels, inverters, battery packs, BOS equipment, and retail catalog pricing.',
+          badge: 'Hardware Catalog',
+          iconBg: 'bg-emerald-100 text-emerald-600'
+        },
+        { 
+          id: 'approvals', 
+          label: 'Approval Rules', 
+          icon: CheckSquare,
+          description: 'Multi-stage approval hierarchies for quotes, discounts, and purchase orders.',
+          badge: 'Workflows',
+          iconBg: 'bg-amber-100 text-amber-600'
+        },
+        { 
+          id: 'audit', 
+          label: 'Audit Logs', 
+          icon: List,
+          description: 'System-wide event logs, security actions, timestamp records, and access histories.',
+          badge: 'Activity Audit',
+          iconBg: 'bg-slate-100 text-slate-700'
+        },
+        { 
+          id: 'purge', 
+          label: 'System Reset & Data Purge', 
+          icon: Trash2,
+          description: 'Danger Zone: Wipe operational records, remove test leads, and factory reset tables.',
+          badge: 'Danger Zone',
+          iconBg: 'bg-red-100 text-red-600'
+        },
       ];
     }
     // Specified logins (Vendor, Installer, Regional Manager, etc.)
     return [
-      { id: 'users', label: 'Team & Users', icon: Users },
-      { id: 'roles', label: 'Roles & Permissions', icon: ShieldCheck },
-      { id: 'dropdowns', label: 'Dropdown Masters', icon: Sliders },
-      { id: 'roof-types', label: 'Roof Types Master', icon: Building2 },
-      { id: 'products', label: 'Products & Pricing', icon: Package },
-      { id: 'logos', label: 'Company Branding', icon: ImageIcon },
+      { 
+        id: 'users', 
+        label: 'Team & Users', 
+        icon: Users,
+        description: 'Manage staff and user accounts for your organization.',
+        badge: 'Team & Access',
+        iconBg: 'bg-blue-100 text-blue-600'
+      },
+      { 
+        id: 'roles', 
+        label: 'Roles & Permissions', 
+        icon: ShieldCheck,
+        description: 'Review role privileges and employee access permissions.',
+        badge: 'Permissions',
+        iconBg: 'bg-purple-100 text-purple-600'
+      },
+      { 
+        id: 'dropdowns', 
+        label: 'Dropdown Masters', 
+        icon: Sliders,
+        description: 'Custom lookup values for leads, quotes, and categories.',
+        badge: 'Lookups',
+        iconBg: 'bg-cyan-100 text-cyan-600'
+      },
+      { 
+        id: 'roof-types', 
+        label: 'Roof Types Master', 
+        icon: Building2,
+        description: 'Roof structures and installation mounting guidelines.',
+        badge: 'Solar Tech',
+        iconBg: 'bg-sky-100 text-sky-600'
+      },
+      { 
+        id: 'products', 
+        label: 'Products & Pricing', 
+        icon: Package,
+        description: 'Manage your custom products, panels, inverters, and items.',
+        badge: 'Catalog',
+        iconBg: 'bg-emerald-100 text-emerald-600'
+      },
+      { 
+        id: 'logos', 
+        label: 'Company Branding', 
+        icon: ImageIcon,
+        description: 'Upload company logo for invoices and project proposals.',
+        badge: 'Branding',
+        iconBg: 'bg-amber-100 text-amber-600'
+      },
     ];
   }, [isGlobalAdmin, user?.role]);
+
+  const filteredTabs = useMemo(() => {
+    if (!cardSearchQuery.trim()) return availableTabs;
+    const q = cardSearchQuery.toLowerCase();
+    return availableTabs.filter(t =>
+      t.label.toLowerCase().includes(q) ||
+      t.description.toLowerCase().includes(q) ||
+      t.badge.toLowerCase().includes(q)
+    );
+  }, [availableTabs, cardSearchQuery]);
 
   const getRoleBadgeColor = (role?: string) => {
     switch (role) {
@@ -752,7 +1184,9 @@ export default function MasterSettings() {
   const renderContent = () => {
     switch (activeTab) {
       case 'subscriptions':
-        return <SubscriptionManagement />;
+        return <SubscriptionManagement initialTab="plans" />;
+      case 'coupons':
+        return <SubscriptionManagement initialTab="coupons" />;
       case 'logos':
         return (
           <div className="space-y-6">
@@ -1459,6 +1893,597 @@ export default function MasterSettings() {
           </div>
         );
 
+      case 'dropdowns': {
+        if (activeDropdownCategory === null) {
+          const scopes = ['All', 'Finance', 'CRM', 'Projects', 'Inventory', 'Procurement', 'General'] as const;
+          
+          const filteredCategories = DROPDOWN_CATEGORIES.filter(cat => {
+            const query = dropdownCategorySearch.toLowerCase();
+            const matchesSearch = 
+              cat.title.toLowerCase().includes(query) ||
+              cat.description.toLowerCase().includes(query) ||
+              cat.scope.toLowerCase().includes(query) ||
+              cat.defaults.some(d => 
+                d.name.toLowerCase().includes(query) || 
+                (d.code && d.code.toLowerCase().includes(query))
+              );
+
+            const matchesScope = dropdownCategoryScopeFilter === 'All' || cat.scope === dropdownCategoryScopeFilter;
+
+            return matchesSearch && matchesScope;
+          });
+
+          return (
+            <div className="space-y-6">
+              {/* Header Banner */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-50 text-cyan-700 border border-cyan-200 flex items-center gap-1">
+                        <Sliders className="w-3 h-3 text-cyan-600" />
+                        System Lookups & Dropdowns
+                      </span>
+                      <span className="text-xs text-slate-400 font-bold">
+                        {DROPDOWN_CATEGORIES.length} Master Categories
+                      </span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+                      <Sliders className="w-6 h-6 text-emerald-600" />
+                      Dropdown Masters & System Lookups
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-3xl">
+                      Configure standard select menus, expense classifications, sales milestones, payment modes, and DISCOMs across the ERP. Select any category card below to manage its options.
+                    </p>
+                  </div>
+
+                  {/* Search categories */}
+                  <div className="relative w-full lg:w-80">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search dropdown categories..."
+                      value={dropdownCategorySearch}
+                      onChange={(e) => setDropdownCategorySearch(e.target.value)}
+                      className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+                    />
+                    {dropdownCategorySearch && (
+                      <button
+                        type="button"
+                        onClick={() => setDropdownCategorySearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scope Filters */}
+                <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider mr-1">Filter Scope:</span>
+                  {scopes.map(scope => {
+                    const count = scope === 'All' 
+                      ? DROPDOWN_CATEGORIES.length 
+                      : DROPDOWN_CATEGORIES.filter(c => c.scope === scope).length;
+                    const isSelected = dropdownCategoryScopeFilter === scope;
+                    return (
+                      <button
+                        key={scope}
+                        type="button"
+                        onClick={() => setDropdownCategoryScopeFilter(scope)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border",
+                          isSelected
+                            ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                            : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
+                        )}
+                      >
+                        <span>{scope}</span>
+                        <span className={cn(
+                          "px-1.5 py-0.2 rounded-full text-[10px] font-black",
+                          isSelected ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                        )}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 11 CATEGORY CARDS GRID */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredCategories.map(cat => {
+                  const IconComp = getDropdownCategoryIcon(cat.iconName);
+                  const theme = CATEGORY_THEMES[cat.key] || CATEGORY_THEMES.expense_types;
+                  const count = dropdownCategoryCounts[cat.key] ?? cat.defaults.length;
+                  const sampleDefaults = cat.defaults.slice(0, 3);
+                  const remainingCount = Math.max(0, count - 3);
+
+                  return (
+                    <div
+                      key={cat.key}
+                      onClick={() => {
+                        setSelectedDropdownCategory(cat.key);
+                        setActiveDropdownCategory(cat.key);
+                        setDropdownOptionSearch('');
+                        setDropdownStatusFilter('All');
+                      }}
+                      className={cn(
+                        "bg-white rounded-2xl p-5 border border-slate-200 hover:shadow-xl transition-all duration-200 cursor-pointer flex flex-col justify-between group text-left relative",
+                        theme.bg,
+                        theme.borderHover,
+                        "hover:-translate-y-1"
+                      )}
+                    >
+                      <div>
+                        {/* Top: Icon + Badges */}
+                        <div className="flex items-center justify-between gap-2 mb-3.5">
+                          <div className={cn("p-3 rounded-xl border border-slate-100 shadow-xs transition-colors", theme.iconBg, theme.iconColor)}>
+                            <IconComp className="w-5 h-5" />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn("px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border", theme.badgeBg, theme.badgeText)}>
+                              {cat.scope}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                              {count} {count === 1 ? 'Option' : 'Options'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Title & Description */}
+                        <h3 className="font-black text-base text-slate-900 tracking-tight group-hover:text-emerald-700 transition-colors mb-1.5">
+                          {cat.title}
+                        </h3>
+                        <p className="text-xs text-slate-500 font-medium leading-relaxed mb-4 line-clamp-2">
+                          {cat.description}
+                        </p>
+
+                        {/* Sample Options Tags Preview */}
+                        <div className="space-y-1.5 mb-2">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Sample Items:</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {sampleDefaults.map((d, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 bg-slate-50 group-hover:bg-white text-slate-600 rounded-lg text-[10px] font-semibold border border-slate-200/80 truncate max-w-[150px]"
+                                title={d.name}
+                              >
+                                {d.name}
+                              </span>
+                            ))}
+                            {remainingCount > 0 && (
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold border border-slate-200">
+                                +{remainingCount} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bottom Action Footer */}
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-black text-emerald-600 group-hover:text-emerald-700">
+                        <span>Configure {count} Options</span>
+                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {filteredCategories.length === 0 && (
+                <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mx-auto mb-3">
+                    <Search className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-base font-black text-slate-800">No Dropdown Categories Found</h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    No categories matched "{dropdownCategorySearch}".
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDropdownCategorySearch('');
+                      setDropdownCategoryScopeFilter('All');
+                    }}
+                    className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 cursor-pointer"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        // =========================================================================
+        // CATEGORY DETAIL VIEW (When activeDropdownCategory !== null)
+        // =========================================================================
+        const activeCategoryMeta = DROPDOWN_CATEGORIES.find(c => c.key === activeDropdownCategory) || DROPDOWN_CATEGORIES[0];
+        const CategoryIcon = getDropdownCategoryIcon(activeCategoryMeta.iconName);
+        const theme = CATEGORY_THEMES[activeCategoryMeta.key] || CATEGORY_THEMES.expense_types;
+
+        const filteredDropdownOptions = dropdownOptionsList.filter(opt => {
+          const matchesSearch = 
+            opt.name.toLowerCase().includes(dropdownOptionSearch.toLowerCase()) ||
+            (opt.code && opt.code.toLowerCase().includes(dropdownOptionSearch.toLowerCase())) ||
+            (opt.description && opt.description.toLowerCase().includes(dropdownOptionSearch.toLowerCase()));
+          
+          const matchesStatus = 
+            dropdownStatusFilter === 'All' ? true :
+            dropdownStatusFilter === 'Active' ? opt.status === 'Active' :
+            opt.status === 'Inactive';
+
+          return matchesSearch && matchesStatus;
+        });
+
+        const activeCount = dropdownOptionsList.filter(o => o.status === 'Active').length;
+        const inactiveCount = dropdownOptionsList.filter(o => o.status === 'Inactive').length;
+
+        return (
+          <div className="space-y-6">
+            {/* Category Header Card */}
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveDropdownCategory(null)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer border border-slate-200 hover:-translate-x-0.5"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5 text-emerald-600" />
+                      Back to All Categories Cards
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <span className={cn("px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border", theme.badgeBg, theme.badgeText)}>
+                      {activeCategoryMeta.scope}
+                    </span>
+                    <span className="text-xs text-slate-400 font-bold">
+                      {dropdownOptionsList.length} Options Total
+                    </span>
+                  </div>
+
+                  <div className="flex items-start sm:items-center gap-3">
+                    <div className={cn("p-2.5 rounded-xl border border-slate-100 shrink-0", theme.iconBg, theme.iconColor)}>
+                      <CategoryIcon className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                        {activeCategoryMeta.title}
+                      </h2>
+                      <p className="text-xs text-slate-500 font-medium max-w-2xl mt-0.5">
+                        {activeCategoryMeta.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top Actions & Quick Switcher */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Category Switcher */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-400 hidden sm:inline">Switch:</span>
+                    <select
+                      value={activeCategoryMeta.key}
+                      onChange={(e) => {
+                        const newCat = e.target.value as DropdownCategoryKey;
+                        setActiveDropdownCategory(newCat);
+                        setSelectedDropdownCategory(newCat);
+                        setDropdownOptionSearch('');
+                        setDropdownStatusFilter('All');
+                      }}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                    >
+                      {DROPDOWN_CATEGORIES.map(c => (
+                        <option key={c.key} value={c.key}>{c.title}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSeedDefaults}
+                    disabled={isRestoringDefaults}
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    title="Restore default options for current category"
+                  >
+                    <RefreshCw className={cn("w-3.5 h-3.5 text-slate-500", isRestoringDefaults && "animate-spin")} />
+                    <span>{isRestoringDefaults ? 'Restoring...' : 'Restore Defaults'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenAddOption}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-emerald-200 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Option</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter Bar & View Mode Toggle */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              {/* Search in options */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={dropdownOptionSearch}
+                  onChange={(e) => setDropdownOptionSearch(e.target.value)}
+                  placeholder={`Search in ${activeCategoryMeta.title}...`}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+                {dropdownOptionSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOptionSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter & View Mode */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={dropdownStatusFilter}
+                  onChange={(e) => setDropdownStatusFilter(e.target.value as any)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="All">All Status ({dropdownOptionsList.length})</option>
+                  <option value="Active">Active ({activeCount})</option>
+                  <option value="Inactive">Inactive ({inactiveCount})</option>
+                </select>
+
+                {/* View Mode Toggle: Cards vs Table */}
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOptionsViewMode('cards')}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer",
+                      dropdownOptionsViewMode === 'cards'
+                        ? "bg-white text-slate-900 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    )}
+                    title="View as Cards"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Cards</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOptionsViewMode('table')}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer",
+                      dropdownOptionsViewMode === 'table'
+                        ? "bg-white text-slate-900 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    )}
+                    title="View as Table"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>Table</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* OPTIONS CONTENT: CARDS OR TABLE */}
+            {dropdownOptionsViewMode === 'cards' ? (
+              /* ================= OPTIONS AS CARDS ================= */
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredDropdownOptions.map(opt => (
+                  <div
+                    key={opt.id}
+                    className="bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all p-4 flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Top row: Status button + Code badge + System badge */}
+                      <div className="flex items-center justify-between gap-2 mb-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleOptionStatus(opt)}
+                          className={cn(
+                            "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border inline-flex items-center gap-1.5 cursor-pointer transition-all",
+                            opt.status === 'Active'
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                              : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                          )}
+                          title="Click to toggle Active/Inactive"
+                        >
+                          <span className={cn(
+                            "w-1.5 h-1.5 rounded-full",
+                            opt.status === 'Active' ? "bg-emerald-500" : "bg-slate-400"
+                          )} />
+                          <span>{opt.status}</span>
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          {opt.isDefault && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200" title="System default lookup option">
+                              System
+                            </span>
+                          )}
+                          {opt.code && (
+                            <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                              {opt.code}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Name */}
+                      <h4 className="font-black text-slate-900 text-sm mb-1 leading-snug">
+                        {opt.name}
+                      </h4>
+
+                      {/* Description */}
+                      <p className="text-xs text-slate-500 line-clamp-2">
+                        {opt.description || <span className="italic text-slate-400">No description specified</span>}
+                      </p>
+                    </div>
+
+                    {/* Bottom row: Edit / Delete */}
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 font-mono">
+                        {opt.code ? `#${opt.code}` : ''}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditOption(opt)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOption(opt)}
+                          className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-colors cursor-pointer"
+                          title="Delete option"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* ================= OPTIONS AS TABLE ================= */
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100/70 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="px-5 py-3">Option Name</th>
+                        <th className="px-4 py-3">Code / ID</th>
+                        <th className="px-5 py-3">Description</th>
+                        <th className="px-4 py-3 text-center">Status</th>
+                        <th className="px-5 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredDropdownOptions.map((opt) => (
+                        <tr key={opt.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-5 py-3.5 font-bold text-slate-900">
+                            <div className="flex items-center gap-2">
+                              <span>{opt.name}</span>
+                              {opt.isDefault && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200" title="System default lookup option">
+                                  System
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {opt.code ? (
+                              <span className="font-mono text-[11px] font-black px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                {opt.code}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 font-mono text-[11px]">—</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3.5 text-slate-600 max-w-sm truncate">
+                            {opt.description || <span className="text-slate-400 italic">No description</span>}
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleOptionStatus(opt)}
+                              className={cn(
+                                "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border inline-flex items-center gap-1.5 cursor-pointer transition-all",
+                                opt.status === 'Active'
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                  : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                              )}
+                              title="Click to toggle Active/Inactive"
+                            >
+                              <span className={cn(
+                                "w-1.5 h-1.5 rounded-full",
+                                opt.status === 'Active' ? "bg-emerald-500" : "bg-slate-400"
+                              )} />
+                              <span>{opt.status}</span>
+                            </button>
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditOption(opt)}
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+                                title="Edit Option"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteOption(opt)}
+                                className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-colors cursor-pointer"
+                                title="Delete Option"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Empty state if filteredDropdownOptions is empty */}
+            {filteredDropdownOptions.length === 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200 py-14 px-4 text-center">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                  <Sliders className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-900">No Options Found</h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                  {dropdownOptionSearch || dropdownStatusFilter !== 'All'
+                    ? "No options match your search and filter criteria."
+                    : "No options recorded for this category yet. Click 'Restore Defaults' or 'Add Option' above."}
+                </p>
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  {(dropdownOptionSearch || dropdownStatusFilter !== 'All') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDropdownOptionSearch('');
+                        setDropdownStatusFilter('All');
+                      }}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      Clear Filter
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleOpenAddOption}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add First Option</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
       case 'roof-types':
         return (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -1680,35 +2705,256 @@ export default function MasterSettings() {
   };
 
   return (
-    <div className="animate-in fade-in duration-500 space-y-6">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <Sliders className="w-8 h-8 text-emerald-600" /> Master Settings
-          </h1>
-          <p className="text-slate-500 font-medium mt-1">Manage company logos, user permissions, states & system rules.</p>
+    <div className="animate-in fade-in duration-300 space-y-6">
+      {selectedModule === null ? (
+        /* ========================================================================= */
+        /* 1. MASTER SETTINGS CARDS DIRECTORY / HUB                                  */
+        /* ========================================================================= */
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="px-3 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-emerald-600" /> Enterprise Control Center
+                </span>
+                <span className="text-xs text-slate-400 font-bold">
+                  {availableTabs.length} Modules Available
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                <Sliders className="w-7 h-7 text-emerald-600" /> Master Settings
+              </h1>
+              <p className="text-slate-500 text-xs sm:text-sm font-medium mt-1">
+                Select any master control card below to configure that module in its dedicated management page.
+              </p>
+            </div>
+
+            {/* Quick Filter Search */}
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search master modules..."
+                value={cardSearchQuery}
+                onChange={(e) => setCardSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+              />
+              {cardSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setCardSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </header>
+
+          {/* Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredTabs.map((tab) => {
+              const isJustVisited = lastVisitedModule === tab.id;
+              const isPurge = tab.id === 'purge';
+              const IconComp = tab.icon;
+
+              return (
+                <div
+                  key={tab.id}
+                  id={`card-${tab.id}`}
+                  onClick={() => {
+                    setActiveTab(tab.id as TabType);
+                    setSelectedModule(tab.id as TabType);
+                    setLastVisitedModule(tab.id as TabType);
+                    if (tab.id === 'dropdowns') {
+                      setActiveDropdownCategory(null);
+                    }
+                    try {
+                      window.history.pushState({ masterModule: tab.id }, '', window.location.href);
+                    } catch (_) {}
+                  }}
+                  className={cn(
+                    "rounded-2xl p-5 transition-all duration-200 cursor-pointer flex flex-col justify-between group relative border text-left",
+                    isJustVisited
+                      ? "bg-white border-emerald-500 ring-2 ring-emerald-500/50 shadow-lg -translate-y-0.5"
+                      : isPurge
+                        ? "bg-red-50/50 hover:bg-red-50 text-red-900 border-red-200/80 hover:shadow-md hover:border-red-300"
+                        : "bg-white hover:bg-slate-50/90 text-slate-800 border-slate-200 hover:shadow-lg hover:border-slate-300 hover:-translate-y-1"
+                  )}
+                >
+                  <div>
+                    {/* Top Row: Icon + Badge */}
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className={cn(
+                        "p-3 rounded-xl border transition-colors",
+                        isJustVisited
+                          ? "bg-emerald-500 text-white border-emerald-400 shadow-sm"
+                          : (isPurge ? "bg-red-100 text-red-600 border-red-200" : (tab.iconBg + " border-slate-100"))
+                      )}>
+                        <IconComp className="w-5 h-5" />
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {isJustVisited ? (
+                          <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border tracking-wider bg-emerald-500 text-white border-emerald-400 shadow-sm">
+                            Recently Configured
+                          </span>
+                        ) : (
+                          <span className={cn(
+                            "text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border tracking-wider",
+                            isPurge ? "bg-red-100 text-red-700 border-red-200" : "bg-slate-100 text-slate-600 border-slate-200"
+                          )}>
+                            {tab.badge}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Title & Description */}
+                    <h3 className={cn(
+                      "font-black text-sm tracking-tight mb-1.5",
+                      isJustVisited ? "text-emerald-950" : "text-slate-900 group-hover:text-emerald-700"
+                    )}>
+                      {tab.label}
+                    </h3>
+                    <p className="text-xs leading-relaxed text-slate-500 font-medium line-clamp-2">
+                      {tab.description}
+                    </p>
+                  </div>
+
+                  {/* Card Bottom / Action CTA */}
+                  <div className={cn(
+                    "mt-4 pt-3 border-t flex items-center justify-between text-xs font-black",
+                    isJustVisited
+                      ? "border-emerald-100 text-emerald-600"
+                      : (isPurge ? "border-red-200/60 text-red-600" : "border-slate-100 text-blue-600 group-hover:text-blue-700")
+                  )}>
+                    <span>
+                      {isPurge ? 'Open Danger Zone →' : 'Launch Module →'}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {filteredTabs.length === 0 && (
+            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 space-y-3">
+              <Sliders className="w-10 h-10 text-slate-300 mx-auto" />
+              <p className="text-sm font-bold text-slate-600">No master settings cards matched "{cardSearchQuery}".</p>
+              <button
+                type="button"
+                onClick={() => setCardSearchQuery('')}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Clear Search Filter
+              </button>
+            </div>
+          )}
         </div>
-      </header>
+      ) : (
+        /* ========================================================================= */
+        /* 2. DEDICATED MODULE PAGE (OPENED AS DIFFERENT PAGE WITH BACK NAVIGATION)  */
+        /* ========================================================================= */
+        <div className="space-y-6">
+          {/* Top Sticky Navigation Bar */}
+          <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedModule === 'dropdowns' && activeDropdownCategory !== null) {
+                    setActiveDropdownCategory(null);
+                  } else {
+                    setSelectedModule(null);
+                    setActiveDropdownCategory(null);
+                    try {
+                      window.history.pushState(null, '', window.location.href);
+                    } catch (_) {}
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-2xl transition-all shadow-md hover:shadow-lg hover:-translate-x-0.5 cursor-pointer shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4 text-emerald-400" />
+                {selectedModule === 'dropdowns' && activeDropdownCategory !== null
+                  ? 'Back to Dropdown Categories Cards'
+                  : 'Back to Master Settings Cards'}
+              </button>
 
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {availableTabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as TabType)}
-            className={cn(
-              "px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 whitespace-nowrap transition-colors border",
-              activeTab === tab.id 
-                ? (tab.id === 'purge' ? "bg-red-600 text-white shadow-sm border-red-600" : "bg-slate-900 text-white shadow-sm border-slate-900")
-                : (tab.id === 'purge' ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50")
-            )}
-          >
-            <tab.icon className={cn("w-4 h-4", activeTab === tab.id ? "text-white" : (tab.id === 'purge' ? "text-red-500" : "text-slate-400"))} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+              <div className="h-6 w-px bg-slate-200 hidden sm:block" />
 
-      {renderContent()}
+              {/* Breadcrumb Navigation */}
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 overflow-hidden text-ellipsis whitespace-nowrap">
+                <span 
+                  onClick={() => {
+                    setSelectedModule(null);
+                    setActiveDropdownCategory(null);
+                  }}
+                  className="hover:text-slate-900 cursor-pointer underline-offset-2 hover:underline"
+                >
+                  Master Settings
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span 
+                  onClick={() => {
+                    if (selectedModule === 'dropdowns' && activeDropdownCategory) {
+                      setActiveDropdownCategory(null);
+                    }
+                  }}
+                  className={cn(
+                    "truncate",
+                    selectedModule === 'dropdowns' && activeDropdownCategory
+                      ? "hover:text-slate-900 cursor-pointer underline-offset-2 hover:underline text-slate-600"
+                      : "text-slate-900 font-black"
+                  )}
+                >
+                  {availableTabs.find(t => t.id === selectedModule)?.label}
+                </span>
+                {selectedModule === 'dropdowns' && activeDropdownCategory && (
+                  <>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="text-emerald-700 font-black truncate">
+                      {DROPDOWN_CATEGORIES.find(c => c.key === activeDropdownCategory)?.title}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Switch Module Dropdown */}
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+              <span className="text-xs text-slate-400 font-bold hidden md:inline">Jump to Module:</span>
+              <select
+                value={selectedModule}
+                onChange={(e) => {
+                  const newMod = e.target.value as TabType;
+                  setSelectedModule(newMod);
+                  setActiveTab(newMod);
+                  setLastVisitedModule(newMod);
+                  if (newMod === 'dropdowns') {
+                    setActiveDropdownCategory(null);
+                  }
+                  try {
+                    window.history.pushState({ masterModule: newMod }, '', window.location.href);
+                  } catch (_) {}
+                }}
+                className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer w-full sm:w-auto"
+              >
+                {availableTabs.map(t => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Module Content */}
+          <div className="pt-1">
+            {renderContent()}
+          </div>
+        </div>
+      )}
 
       {/* Add User Modal */}
       {isAddUserModalOpen && (
@@ -2199,6 +3445,122 @@ export default function MasterSettings() {
                   className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Check className="w-4 h-4" /> Save Roof Type
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD / EDIT DROPDOWN OPTION MODAL */}
+      {isAddOptionModalOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => setIsAddOptionModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 animate-in zoom-in-95 my-8"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black">
+                    {editingOption ? 'Edit Dropdown Option' : 'Add Dropdown Option'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Category: {DROPDOWN_CATEGORIES.find(c => c.key === selectedDropdownCategory)?.title || selectedDropdownCategory}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsAddOptionModalOpen(false)} 
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveOption} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Option Name *
+                </label>
+                <input 
+                  required 
+                  type="text" 
+                  value={optionForm.name} 
+                  onChange={e => setOptionForm({...optionForm, name: e.target.value})} 
+                  placeholder="e.g. Inbound Website Lead"
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Short Code / Identifier
+                </label>
+                <input 
+                  type="text" 
+                  value={optionForm.code} 
+                  onChange={e => setOptionForm({...optionForm, code: e.target.value.toUpperCase()})} 
+                  placeholder="e.g. SRC-WEB"
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-mono uppercase font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs" 
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">Short abbreviation or ERP lookup code (optional)</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Description / Helpful Hint
+                </label>
+                <textarea 
+                  rows={3}
+                  value={optionForm.description} 
+                  onChange={e => setOptionForm({...optionForm, description: e.target.value})} 
+                  placeholder="Describe when to choose this option or what it represents..."
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs resize-none" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Status
+                </label>
+                <select 
+                  value={optionForm.status} 
+                  onChange={e => setOptionForm({...optionForm, status: e.target.value as any})} 
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white text-xs cursor-pointer"
+                >
+                  <option value="Active">Active (Visible across ERP dropdowns)</option>
+                  <option value="Inactive">Inactive (Hidden from dropdowns)</option>
+                </select>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsAddOptionModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingOption}
+                  className="px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-1.5 shadow-md shadow-emerald-200 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingOption ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>{editingOption ? 'Update Option' : 'Add Option'}</span>
+                  )}
                 </button>
               </div>
             </form>

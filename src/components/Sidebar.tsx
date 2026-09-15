@@ -53,6 +53,7 @@ interface NavCategory {
   badge?: string;
   icon: React.ElementType;
   directView?: ViewType;
+  iconOnly?: boolean;
   items: NavSubItem[];
 }
 
@@ -92,6 +93,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
       title: 'Dashboard',
       icon: LayoutDashboard,
       directView: 'dashboard',
+      iconOnly: true,
       items: [
         {
           id: 'dashboard',
@@ -117,20 +119,29 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           roles: ['Super Admin', 'Solar Company Admin', 'Regional Manager', 'Sales Executive', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer', 'Survey Engineer', 'Project Manager']
         },
         {
-          id: 'customers',
-          label: 'Customers',
-          subHeader: 'Accounts & Client Directory',
-          description: 'Client profiles, system capacities, sanctioned loads & project histories',
-          icon: UserCheck,
-          roles: ['Super Admin', 'Solar Company Admin', 'Regional Manager', 'Sales Executive', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer', 'Project Manager']
-        },
-        {
           id: 'solar-design',
           label: 'Design',
           subHeader: 'PV System Design & 3D Rooftop',
           description: 'CAD 3D layout, shading analysis, solar module placement & string sizing',
           icon: PenTool,
           roles: ['Super Admin', 'Solar Company Admin', 'Design Engineer', 'Project Manager', 'Solar Installer', 'Installer', 'Vendor', 'Vendor Employee', 'Sales Executive']
+        }
+      ]
+    },
+    {
+      id: 'customers-group',
+      title: 'Customers',
+      badge: 'Accounts',
+      icon: UserCheck,
+      directView: 'customers',
+      items: [
+        {
+          id: 'customers',
+          label: 'Customers',
+          subHeader: 'Accounts & Client Directory',
+          description: 'Client profiles, system capacities, sanctioned loads & project histories',
+          icon: UserCheck,
+          roles: ['Super Admin', 'Solar Company Admin', 'Regional Manager', 'Sales Executive', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer', 'Project Manager']
         }
       ]
     },
@@ -428,7 +439,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
             const isActive = isCategoryActive(category);
             const hasSubmenu = !category.directView && validItems.length > 1;
             const isOpen = openDropdown === category.id;
-            const isRightAligned = idx >= 6; // Align right for Subsidy, Support & Docs, Admin & HR
+            const isRightAligned = idx >= navigationCategories.length - 2; // Align right for Support & Docs, Admin & HR
 
             return (
               <div key={category.id} className="relative shrink-0 overflow-visible">
@@ -437,7 +448,10 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
                   type="button"
                   onClick={() => handleCategoryClick(category)}
                   className={cn(
-                    "flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-xl text-[11.5px] xl:text-xs font-black transition-all duration-200 border cursor-pointer select-none",
+                    "flex items-center gap-1.5 rounded-xl text-[11.5px] xl:text-xs font-black transition-all duration-200 border cursor-pointer select-none",
+                    category.iconOnly
+                      ? "px-2.5 py-1.5 justify-center"
+                      : "px-2.5 xl:px-3 py-1.5",
                     isActive
                       ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm"
                       : isOpen
@@ -445,14 +459,18 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
                       : "border-transparent text-slate-300 hover:bg-slate-800/80 hover:text-white"
                   )}
                   title={category.title}
+                  aria-label={category.title}
                 >
                   <category.icon className={cn(
                     "w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0 transition-colors",
                     isActive ? "text-emerald-400" : "text-slate-400"
                   )} />
-                  <span className="whitespace-nowrap">{category.title}</span>
 
-                  {isActive && (
+                  {!category.iconOnly && (
+                    <span className="whitespace-nowrap">{category.title}</span>
+                  )}
+
+                  {isActive && !category.iconOnly && (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                   )}
 
@@ -557,7 +575,11 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
         >
           <activeInfo.icon className="w-4 h-4 text-emerald-400" />
           <span className="truncate max-w-[160px] sm:max-w-[240px]">
-            {activeInfo.category}: <span className="text-white">{activeInfo.label}</span>
+            {activeInfo.category === activeInfo.label ? (
+              <span className="text-white">{activeInfo.label}</span>
+            ) : (
+              <>{activeInfo.category}: <span className="text-white">{activeInfo.label}</span></>
+            )}
           </span>
           <ChevronDown className="w-3.5 h-3.5 text-emerald-400 ml-0.5" />
         </button>

@@ -76,7 +76,7 @@ const defaultItems: QuotationItem[] = [
   { id: '4', category: 'Wiring', name: 'DC/AC Cables & Conduits (Lot)', quantity: 1, unitPrice: 15000 },
 ];
 
-export default function QuotationBuilder() {
+export default function QuotationBuilder({ initialFilter }: { initialFilter?: string } = {}) {
   const { logos } = useLogos();
   const { user } = useAuth();
 
@@ -197,6 +197,33 @@ export default function QuotationBuilder() {
       });
     }
   }, [activeVersionId, activeVersion?.estimateMatter, activeVersion?.invoiceMatter]);
+
+  // Pre-fill customer details if initialFilter is provided from CRM
+  useEffect(() => {
+    if (initialFilter && leads.length > 0) {
+      const selectedLead = leads.find(l => 
+        l.name.toLowerCase() === initialFilter.toLowerCase() ||
+        l.id === initialFilter
+      );
+      if (selectedLead) {
+        setCustomerDetails({
+          name: selectedLead.name,
+          mobile: selectedLead.phone || '',
+          addressLine1: selectedLead.address || '',
+          city: selectedLead.city || '',
+          district: selectedLead.district || '',
+          state: selectedLead.state || 'Andhra Pradesh',
+          pincode: selectedLead.pincode || '',
+          systemSize: selectedLead.expectedLoad 
+            ? `${selectedLead.expectedLoad} ${selectedLead.expectedLoadUnit || 'kWp'}` 
+            : (selectedLead.systemSizeKw ? `${selectedLead.systemSizeKw} kWp` : '5 kWp')
+        });
+        if (selectedLead.email) {
+          setCustomerEmail(selectedLead.email);
+        }
+      }
+    }
+  }, [initialFilter, leads]);
 
   const subtotal = activeVersion.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
   const totalBeforeTax = subtotal + activeVersion.labourCost + activeVersion.transportCost - activeVersion.discount;

@@ -276,7 +276,7 @@ function AppContent() {
       case 'dashboard':
         return <Dashboard onNavigate={handleViewChange} />;
       case 'crm':
-        return <CRM initialFilter={currentFilter} />;
+        return <CRM initialFilter={currentFilter} onNavigate={handleViewChange} />;
       case 'customers':
         return <Customers onNavigate={handleViewChange} />;
       case 'inventory':
@@ -292,7 +292,7 @@ function AppContent() {
       case 'proposal':
         return <ProposalGenerator />;
       case 'quotation':
-        return <QuotationBuilder />;
+        return <QuotationBuilder initialFilter={currentFilter} />;
       case 'invoice':
         return <InvoiceBuilder />;
       case 'tax-invoice':

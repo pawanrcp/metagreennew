@@ -30,6 +30,10 @@ export interface Lead {
   quotationId?: string;
   quotationAmount?: number;
   quotationDate?: string;
+  quotationSystemSize?: string | number;
+  quotationTotalCost?: string | number;
+  estimatedSystemCost?: string | number;
+  systemSizeKw?: string | number;
   propertyImagesUrls?: string[];
   roofImagesUrls?: string[];
   createdAt: any;

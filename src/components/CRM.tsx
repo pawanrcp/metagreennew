@@ -14,15 +14,26 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
 import { Lead, LeadStatus } from '@/src/types';
-import { Plus, Search, Filter, MoreVertical, Mail, Phone, MapPin, Users, FileText, Edit2, Trash2, ShieldCheck, Sparkles, Building2, Loader2, Compass, LocateFixed, Box, Sun, Zap, Wrench, CheckCircle2, Clock, ArrowRight } from 'lucide-react';
+import { Plus, Search, Filter, MoreVertical, Mail, Phone, MapPin, Users, FileText, Edit2, Trash2, ShieldCheck, Sparkles, Building2, Loader2, Compass, LocateFixed, Box, Sun, Zap, Wrench, CheckCircle2, Clock, ArrowRight, FileCheck, X, Download } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/context/AuthContext';
+import { useLogos } from '@/src/context/LogoContext';
 import Solar3DViewer from './Solar3DViewer';
-import { saveGeneratedDocument } from '@/src/services/generatedDocuments.service';
+import { saveGeneratedDocument, subscribeGeneratedDocuments, downloadDocumentPDF } from '@/src/services/generatedDocuments.service';
+import { GeneratedDocument } from '@/src/types';
 
-export default function CRM({ initialFilter }: { initialFilter?: string }) {
+export default function CRM({ 
+  initialFilter, 
+  onNavigate 
+}: { 
+  initialFilter?: string;
+  onNavigate?: (view: any, filter?: string) => void;
+}) {
   const { user } = useAuth();
+  const { logos } = useLogos();
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [generatedDocumentsList, setGeneratedDocumentsList] = useState<GeneratedDocument[]>([]);
+  const [viewingQuotationDoc, setViewingQuotationDoc] = useState<GeneratedDocument | null>(null);
   const [searchTerm, setSearchTerm] = useState(initialFilter || '');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
@@ -354,11 +365,110 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
       }
     });
 
+    // 3. Dynamic Generated Documents Subscription
+    const unsubDocs = subscribeGeneratedDocuments((docs) => {
+      setGeneratedDocumentsList(docs);
+    });
+
     return () => {
       unsubLeads();
       unsubEmployees();
+      unsubDocs();
     };
   }, []);
+
+  // Match lead with its generated quotation document from generatedDocuments repository
+  const getLeadQuotation = (lead: Lead): GeneratedDocument | null => {
+    const quotationDocs = generatedDocumentsList.filter(d => d.type === 'quotation');
+
+    // 1. Direct match by leadId
+    const byLeadId = quotationDocs.find(d => d.leadId === lead.id);
+    if (byLeadId) return byLeadId;
+
+    // 2. Direct match by quotationId on lead
+    if (lead.quotationId) {
+      const byQuoteId = quotationDocs.find(d => d.id === lead.quotationId || d.docNumber === lead.quotationId);
+      if (byQuoteId) return byQuoteId;
+    }
+
+    // 3. Match by customer phone digits
+    const cleanDigits = (s?: string) => (s || '').replace(/\D/g, '');
+    const leadPhoneDigits = cleanDigits(lead.phone);
+    if (leadPhoneDigits && leadPhoneDigits.length >= 10) {
+      const byPhone = quotationDocs.find(d => {
+        const docPhoneDigits = cleanDigits(d.customerPhone);
+        return docPhoneDigits.length >= 10 && docPhoneDigits.slice(-10) === leadPhoneDigits.slice(-10);
+      });
+      if (byPhone) return byPhone;
+    }
+
+    // 4. Match by customer email
+    if (lead.email && lead.email.trim()) {
+      const leadEmail = lead.email.trim().toLowerCase();
+      const byEmail = quotationDocs.find(d => (d.customerEmail || '').trim().toLowerCase() === leadEmail);
+      if (byEmail) return byEmail;
+    }
+
+    // 5. Match by customer name (case-insensitive)
+    if (lead.name && lead.name.trim()) {
+      const leadName = lead.name.trim().toLowerCase();
+      const byName = quotationDocs.find(d => (d.customerName || '').trim().toLowerCase() === leadName);
+      if (byName) return byName;
+    }
+
+    // 6. If lead document in Firestore explicitly has quotationGenerated: true
+    if (lead.quotationGenerated) {
+      return {
+        id: lead.quotationId || lead.id,
+        docNumber: lead.quotationId ? (lead.quotationId.startsWith('QT') ? lead.quotationId : `QT-${lead.quotationId.slice(-6)}`) : `QT-${lead.id.slice(-6)}`,
+        type: 'quotation',
+        customerName: lead.name,
+        customerPhone: lead.phone,
+        customerEmail: lead.email,
+        customerAddress: lead.address,
+        city: lead.city,
+        state: lead.state,
+        leadId: lead.id,
+        totalAmount: Number(lead.quotationTotalCost || lead.estimatedSystemCost || 0),
+        systemCapacityKw: Number(lead.quotationSystemSize || lead.systemSizeKw || (lead.expectedLoad ? parseFloat(lead.expectedLoad) : 5)),
+        status: 'Approved',
+        createdAt: lead.createdAt || new Date().toISOString(),
+        userId: user?.uid || 'system',
+        userName: user?.name || 'Solar Consultant',
+        userEmail: user?.email || '',
+        userRole: user?.role || 'Sales Executive',
+        companyName: user?.companyName || 'Meta Green Global HQ',
+        items: [
+          {
+            name: `Solar PV System (${lead.quotationSystemSize || lead.systemSizeKw || (lead.expectedLoad ? parseFloat(lead.expectedLoad) : 5)} kW)`,
+            description: `Grid-tied Rooftop Solar Power Plant with High-Efficiency Solar Modules & String Inverter`,
+            quantity: 1,
+            unitPrice: Number(lead.quotationTotalCost || lead.estimatedSystemCost || 0),
+            amount: Number(lead.quotationTotalCost || lead.estimatedSystemCost || 0)
+          }
+        ]
+      } as GeneratedDocument;
+    }
+
+    return null;
+  };
+
+  const handleDocClick = (e: React.MouseEvent, lead: Lead) => {
+    e.stopPropagation();
+    const quote = getLeadQuotation(lead);
+    if (quote) {
+      // If quotation is generated, open the document details modal (same as generated documents!)
+      setViewingQuotationDoc(quote);
+    } else {
+      // If not generated, redirect to the quotation page with lead pre-selected
+      if (onNavigate) {
+        onNavigate('quotation', lead.name);
+      } else {
+        setSelectedLeadForQuotation(lead);
+        setIsQuotationModalOpen(true);
+      }
+    }
+  };
 
   // Location Matching Engine for Regional Officers
   const getMatchedRegionalOfficers = (lead: Lead | null): DynamicOfficer[] => {
@@ -585,6 +695,7 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
         setIsAssignModalOpen(false);
         setSelected3DLead(null);
         setEditingLeadId(null);
+        setViewingQuotationDoc(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -750,7 +861,9 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
 
         {/* Mobile View: Touch-Optimized Cards (< md breakpoint) */}
         <div className="block md:hidden divide-y divide-slate-100">
-          {filteredLeads.map((lead) => (
+          {filteredLeads.map((lead) => {
+            const quote = getLeadQuotation(lead);
+            return (
             <div 
               key={lead.id} 
               onClick={() => {
@@ -762,6 +875,36 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
+                  {/* Mobile Quotation Status - Shown ABOVE the Name */}
+                  <div onClick={(e) => e.stopPropagation()} className="mb-1">
+                    {quote ? (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDocClick(e, lead)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+                        title="Click to view quotation document"
+                      >
+                        <FileCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Quotation: {quote.docNumber}</span>
+                        {Number(quote.totalAmount) > 0 && (
+                          <span className="text-emerald-800 font-extrabold ml-1">
+                            ₹{Number(quote.totalAmount).toLocaleString()}
+                          </span>
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDocClick(e, lead)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50/80 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+                        title="Quotation not generated. Click to create quotation."
+                      >
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Quotation: Not Generated</span>
+                      </button>
+                    )}
+                  </div>
+
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-bold text-slate-900 text-base group-hover:text-emerald-700 transition-colors">{lead.name}</span>
                     {lead.expectedLoad && (
@@ -833,15 +976,19 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                     <Box className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedLeadForQuotation(lead);
-                      setIsQuotationModalOpen(true);
-                    }}
-                    className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition-all border border-emerald-100 cursor-pointer"
-                    title="Generate Quotation"
+                    onClick={(e) => handleDocClick(e, lead)}
+                    className={cn(
+                      "p-2 rounded-xl transition-all border cursor-pointer relative",
+                      quote 
+                        ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200" 
+                        : "bg-slate-50 hover:bg-slate-100 text-slate-500 border-slate-200"
+                    )}
+                    title={quote ? `View Quotation (${quote.docNumber})` : "Quotation Not Generated - Click to Create"}
                   >
-                    <FileText className="w-4 h-4" />
+                    {quote ? <FileCheck className="w-4 h-4 text-emerald-600" /> : <FileText className="w-4 h-4" />}
+                    {quote && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
+                    )}
                   </button>
                   <button
                     onClick={(e) => {
@@ -895,7 +1042,8 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                 </div>
               </div>
             </div>
-          ))}
+          );
+        })}
 
           {filteredLeads.length === 0 && (
             <div className="p-8 text-center">
@@ -923,7 +1071,9 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredLeads.map((lead) => (
+              {filteredLeads.map((lead) => {
+                const quote = getLeadQuotation(lead);
+                return (
                 <tr 
                   key={lead.id} 
                   onClick={() => {
@@ -934,18 +1084,51 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                   className="hover:bg-emerald-50/30 transition-colors group cursor-pointer"
                 >
                   <td className="px-6 py-5">
-                    <div className="flex flex-col">
+                    <div className="flex flex-col items-start gap-1">
+                      {/* Quotation Generation Status Badge - Shown ABOVE the Name */}
+                      <div onClick={(e) => e.stopPropagation()} className="mb-0.5">
+                        {quote ? (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDocClick(e, lead)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer group/q"
+                            title="Quotation Generated. Click to view document details."
+                          >
+                            <FileCheck className="w-3.5 h-3.5 text-emerald-600 group-hover/q:scale-110 transition-transform" />
+                            <span>Quotation: {quote.docNumber}</span>
+                            {Number(quote.totalAmount) > 0 && (
+                              <span className="text-emerald-800 font-extrabold ml-0.5">
+                                ₹{Number(quote.totalAmount).toLocaleString()}
+                              </span>
+                            )}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDocClick(e, lead)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50/80 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer group/q"
+                            title="Quotation Not Generated. Click to redirect to Quotation Builder."
+                          >
+                            <Clock className="w-3.5 h-3.5 text-amber-500 group-hover/q:scale-110 transition-transform" />
+                            <span>Quotation: Not Generated</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Lead Name & Capacity */}
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">{lead.name}</span>
+                        <span className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors text-sm">{lead.name}</span>
                         {lead.expectedLoad && (
                           <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
                             {lead.expectedLoad} {lead.expectedLoadUnit || 'KW'}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-1 font-medium uppercase tracking-tight">
-                        <MapPin className="w-3 h-3 text-slate-400" />
-                        {lead.address}
+
+                      {/* Address */}
+                      <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium uppercase tracking-tight">
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate max-w-[220px]">{lead.address}</span>
                       </div>
                     </div>
                   </td>
@@ -999,15 +1182,23 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                     </button>
 
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedLeadForQuotation(lead);
-                        setIsQuotationModalOpen(true);
-                      }}
-                      className="p-2 hover:bg-emerald-50 hover:shadow-sm rounded-lg text-emerald-600 transition-all border border-transparent hover:border-emerald-100 group cursor-pointer"
-                      title="Generate Quotation"
+                      onClick={(e) => handleDocClick(e, lead)}
+                      className={cn(
+                        "p-2 hover:shadow-sm rounded-lg transition-all border group cursor-pointer relative",
+                        quote
+                          ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                          : "hover:bg-slate-100 text-slate-400 hover:text-slate-700 border-transparent hover:border-slate-200"
+                      )}
+                      title={quote ? `View Quotation (${quote.docNumber})` : "Quotation Not Generated - Click to Create"}
                     >
-                      <FileText className="w-4 h-4" />
+                      {quote ? (
+                        <>
+                          <FileCheck className="w-4 h-4 text-emerald-600" />
+                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
+                        </>
+                      ) : (
+                        <FileText className="w-4 h-4" />
+                      )}
                     </button>
                     <button
                       onClick={(e) => {
@@ -1060,7 +1251,8 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                     )}
                   </td>
                 </tr>
-              ))}
+              );
+            })}
               {filteredLeads.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-20 text-center">
@@ -2066,6 +2258,125 @@ export default function CRM({ initialFilter }: { initialFilter?: string }) {
                 lat={selected3DLead.gpsLocation && selected3DLead.gpsLocation.includes(',') ? parseFloat(selected3DLead.gpsLocation.split(',')[0]) : 17.3850}
                 lng={selected3DLead.gpsLocation && selected3DLead.gpsLocation.includes(',') ? parseFloat(selected3DLead.gpsLocation.split(',')[1]) : 78.4867}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW QUOTATION DOCUMENT MODAL (IDENTICAL TO GENERATED DOCUMENTS) */}
+      {viewingQuotationDoc && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => setViewingQuotationDoc(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 my-8"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <FileCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2">
+                    QUOTATION #{viewingQuotationDoc.docNumber}
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold uppercase tracking-wider">
+                      {viewingQuotationDoc.status || 'Approved'}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Generated for {viewingQuotationDoc.customerName}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setViewingQuotationDoc(null)} 
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg transition-colors cursor-pointer"
+                title="Close Modal (ESC)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 text-xs">
+              {/* Top Meta info */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase block">Grand Total</span>
+                  <span className="text-base font-black text-emerald-700">₹{Number(viewingQuotationDoc.totalAmount).toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase block">System Size</span>
+                  <span className="text-xs font-bold text-slate-700">{viewingQuotationDoc.systemCapacityKw || '5'} kW</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase block">Created By</span>
+                  <span className="text-xs font-bold text-slate-800 truncate block">{viewingQuotationDoc.userName || 'Solar Consultant'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase block">Company</span>
+                  <span className="text-xs font-bold text-slate-800 truncate block">{viewingQuotationDoc.companyName || 'Meta Green Global HQ'}</span>
+                </div>
+              </div>
+
+              {/* Customer Info */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
+                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Customer Details</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  <div><strong className="text-slate-500">Name:</strong> {viewingQuotationDoc.customerName}</div>
+                  <div><strong className="text-slate-500">Phone:</strong> {viewingQuotationDoc.customerPhone || 'N/A'}</div>
+                  <div><strong className="text-slate-500">Address:</strong> {viewingQuotationDoc.customerAddress || 'N/A'}</div>
+                  <div><strong className="text-slate-500">Location:</strong> {viewingQuotationDoc.city ? `${viewingQuotationDoc.city}, ${viewingQuotationDoc.state}` : viewingQuotationDoc.state || 'N/A'}</div>
+                </div>
+              </div>
+
+              {/* Line Items */}
+              {viewingQuotationDoc.items && viewingQuotationDoc.items.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Itemized Breakdown</h4>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-2.5">Item</th>
+                          <th className="p-2.5 text-center">Qty</th>
+                          <th className="p-2.5 text-right">Rate</th>
+                          <th className="p-2.5 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {viewingQuotationDoc.items.map((item: any, i: number) => (
+                          <tr key={i}>
+                            <td className="p-2.5 font-medium text-slate-800">{item.name || item.description}</td>
+                            <td className="p-2.5 text-center text-slate-600">{item.quantity || 1}</td>
+                            <td className="p-2.5 text-right text-slate-600">₹{Number(item.unitPrice || item.rate || 0).toLocaleString()}</td>
+                            <td className="p-2.5 text-right font-bold text-slate-900">₹{Number(item.amount || (item.quantity * item.unitPrice) || 0).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions Footer */}
+              <div className="pt-4 border-t border-slate-100 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setViewingQuotationDoc(null)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadDocumentPDF(viewingQuotationDoc, logos)}
+                  className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-1.5 shadow-md shadow-emerald-200 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" /> Re-Download PDF
+                </button>
+              </div>
             </div>
           </div>
         </div>

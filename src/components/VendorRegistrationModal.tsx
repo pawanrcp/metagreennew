@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Building2, 
   User, 
@@ -8,17 +8,20 @@ import {
   Sparkles, 
   CheckCircle2, 
   ArrowRight, 
-  X,
-  Users,
-  HardDrive,
-  AlertCircle,
-  MapPin,
-  Compass,
-  LocateFixed,
-  Loader2,
-  Wrench
+  X, 
+  Users, 
+  HardDrive, 
+  AlertCircle, 
+  MapPin, 
+  Compass, 
+  LocateFixed, 
+  Loader2, 
+  Wrench, 
+  Tag, 
+  Gift, 
+  Percent 
 } from 'lucide-react';
-import { subscriptionService, SubscriptionPlan } from '@/src/services/subscription.service';
+import { subscriptionService, SubscriptionPlan, SubscriptionCoupon } from '@/src/services/subscription.service';
 import { authService } from '@/src/services/auth.service';
 import { cn } from '@/src/lib/utils';
 import { useToast } from '@/src/context/ToastContext';
@@ -39,6 +42,90 @@ export default function VendorRegistrationModal({
   const { toast } = useToast();
   const [activeStep, setActiveStep] = useState<1 | 2>(1);
   const [chosenPlan, setChosenPlan] = useState<SubscriptionPlan>(selectedPlan);
+  const [billingCycle, setBillingCycle] = useState<'annual' | 'monthly'>('annual');
+
+  // Coupon & Discount states (Coupon is completely optional)
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<SubscriptionCoupon | null>(null);
+  const [couponBreakdown, setCouponBreakdown] = useState<{
+    originalAmount: number;
+    discountPercentage: number;
+    discountAmount: number;
+    finalPrice: number;
+  } | null>(null);
+  const [couponFeedback, setCouponFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [mismatchPlanSuggestion, setMismatchPlanSuggestion] = useState<{
+    requiredPlanId: string;
+    requiredPlanName: string;
+  } | null>(null);
+
+  const handleApplyCoupon = async (explicitCode?: string) => {
+    const code = (explicitCode !== undefined ? explicitCode : couponCodeInput).trim();
+    if (!code) return;
+    setIsValidatingCoupon(true);
+    setCouponFeedback(null);
+    setMismatchPlanSuggestion(null);
+    try {
+      const res = await subscriptionService.validateCoupon(
+        code,
+        formData.email,
+        chosenPlan,
+        billingCycle,
+        formData.accountType
+      );
+      if (res.valid && res.coupon) {
+        setAppliedCoupon(res.coupon);
+        setCouponBreakdown({
+          originalAmount: res.originalAmount,
+          discountPercentage: res.discountPercentage,
+          discountAmount: res.discountAmount,
+          finalPrice: res.finalPrice
+        });
+        setCouponFeedback({ type: 'success', message: res.message });
+      } else {
+        setAppliedCoupon(null);
+        setCouponBreakdown(null);
+        setCouponFeedback({ type: 'error', message: res.message });
+        if (res.planMismatch && res.requiredPlanId) {
+          setMismatchPlanSuggestion({
+            requiredPlanId: res.requiredPlanId,
+            requiredPlanName: res.requiredPlanName || res.requiredPlanId
+          });
+        }
+      }
+    } catch (err: any) {
+      setCouponFeedback({ type: 'error', message: err.message || 'Failed to validate coupon code.' });
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponBreakdown(null);
+    setCouponCodeInput('');
+    setCouponFeedback(null);
+    setMismatchPlanSuggestion(null);
+  };
+
+  const handleSwitchToRequiredPlan = (planId: string) => {
+    const matched = allPlans.find(p => p.id === planId);
+    if (matched) {
+      setChosenPlan(matched);
+      setMismatchPlanSuggestion(null);
+      setTimeout(() => {
+        handleApplyCoupon(couponCodeInput);
+      }, 100);
+    }
+  };
+
+  // Automatically recalculate coupon discount if user changes chosen plan or billing cycle
+  useEffect(() => {
+    if (appliedCoupon) {
+      handleApplyCoupon(appliedCoupon.code);
+    }
+  }, [chosenPlan, billingCycle]);
 
   const [formData, setFormData] = useState({
     accountType: 'Vendor' as 'Vendor' | 'Installer',
@@ -110,48 +197,49 @@ export default function VendorRegistrationModal({
         }));
       }
     } catch (err) {
-      console.error('Reverse geocoding error:', err);
-      setFormData(prev => ({
-        ...prev,
-        latitude: lat.toFixed(6),
-        longitude: lon.toFixed(6)
-      }));
+      console.warn('Reverse geocoding error:', err);
     } finally {
       setIsDetectingLocation(false);
     }
   };
 
-  const handleAutoDetectGPS = () => {
+  // Auto-Detect Current GPS Location
+  const handleDetectCurrentLocation = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
+      toast.warning('Geolocation is not supported by your browser.', 'Location Error');
       return;
     }
+
     setIsDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        fetchAddressFromCoords(position.coords.latitude, position.coords.longitude);
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        fetchAddressFromCoords(latitude, longitude);
       },
-      (error) => {
-        console.error('GPS Geolocation Error:', error);
+      (err) => {
         setIsDetectingLocation(false);
-        // Fallback default coordinates (Hyderabad, Telangana)
-        fetchAddressFromCoords(17.385044, 78.486671);
+        console.warn('Geolocation failed:', err.message);
+        toast.warning('Could not detect location automatically. Please type in your address.', 'GPS Permission Required');
       },
-      { timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 8000 }
     );
   };
 
-  const handleNext = (e: React.FormEvent) => {
+  const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage('');
-    if (!formData.companyName || !formData.contactPerson || !formData.email || !formData.phone || !formData.password) {
-      setErrorMessage('Please fill in all required company details.');
+    if (!formData.companyName || !formData.email || !formData.contactPerson || !formData.phone || !formData.password) {
+      setErrorMessage('Please fill in all required company fields.');
       return;
     }
     if (formData.password !== formData.confirmPassword) {
       setErrorMessage('Passwords do not match.');
       return;
     }
+    if (formData.password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters.');
+      return;
+    }
+    setErrorMessage('');
     setActiveStep(2);
   };
 
@@ -171,7 +259,7 @@ export default function VendorRegistrationModal({
         formData.companyName
       );
 
-      // 2. Initialize Subscription & 7-Day Free Trial
+      // 2. Initialize Subscription & Free Trial (Coupon Code is strictly optional)
       await subscriptionService.registerVendorSubscription({
         uid: userProfile.uid,
         companyName: formData.companyName,
@@ -187,11 +275,14 @@ export default function VendorRegistrationModal({
         gstin: formData.gstin,
         latitude: formData.latitude,
         longitude: formData.longitude,
-        plan: chosenPlan
+        plan: chosenPlan,
+        billingCycle,
+        accountType: formData.accountType,
+        couponCode: appliedCoupon?.code
       });
 
       toast.success(
-        `🎉 ${formData.accountType === 'Installer' ? 'Solar Installer Contractor' : 'Equipment Vendor'} Account registered successfully! 7-Day Free Trial for ${chosenPlan.name} is now active.`,
+        `🎉 ${formData.accountType === 'Installer' ? 'Solar Installer Contractor' : 'Equipment Vendor'} Account registered successfully! Free Trial for ${chosenPlan.name} (${billingCycle === 'annual' ? 'Annual Plan' : 'Monthly Plan'}${appliedCoupon ? ` with ${appliedCoupon.code} discount` : ''}) is now active.`,
         'Account Registered'
       );
       onSuccess();
@@ -234,7 +325,7 @@ export default function VendorRegistrationModal({
 
         {/* STEP 1: VENDOR & INSTALLER DETAILS FORM */}
         {activeStep === 1 && (
-          <form onSubmit={handleNext} className="p-6 space-y-4 overflow-y-auto flex-1 font-sans">
+          <form onSubmit={handleNextStep} className="p-6 space-y-4 overflow-y-auto flex-1 font-sans">
             {/* Account Role Selector */}
             <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Select Registration Category</label>
@@ -375,7 +466,7 @@ export default function VendorRegistrationModal({
 
                   <button
                     type="button"
-                    onClick={handleAutoDetectGPS}
+                    onClick={handleDetectCurrentLocation}
                     disabled={isDetectingLocation}
                     className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 text-[11px] font-black rounded-xl hover:from-emerald-400 hover:to-teal-400 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10 cursor-pointer disabled:opacity-50 shrink-0"
                     title="Auto-detect current GPS location and fetch full street address details"
@@ -531,11 +622,49 @@ export default function VendorRegistrationModal({
         {activeStep === 2 && (
           <form onSubmit={handleCompleteRegistration} className="p-6 space-y-6 overflow-y-auto flex-1 font-sans">
             <div className="space-y-3">
-              <label className="block text-xs font-extrabold text-slate-300 uppercase">Select Subscription Plan (Configured by Global Admin)</label>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label className="block text-xs font-extrabold text-slate-300 uppercase">
+                  Select Subscription Plan
+                </label>
+
+                {/* Annual vs Monthly Billing Switch */}
+                <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setBillingCycle('annual')}
+                    className={cn(
+                      "px-3 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer",
+                      billingCycle === 'annual'
+                        ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
+                        : "text-slate-400 hover:text-white"
+                    )}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+                    Annual (Save 20%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBillingCycle('monthly')}
+                    className={cn(
+                      "px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer",
+                      billingCycle === 'monthly'
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                        : "text-slate-400 hover:text-white"
+                    )}
+                  >
+                    Monthly
+                  </button>
+                </div>
+              </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
                 {allPlans.map(plan => {
                   const isSelected = chosenPlan.id === plan.id;
+                  const monthlyRate = plan.priceMonthly || 4999;
+                  const annualRate = plan.priceAnnual ?? Math.round(monthlyRate * 12 * 0.8);
+                  const effectiveMonthly = Math.round(annualRate / 12);
+                  const discountPercent = plan.annualDiscountPercentage ?? 20;
+
                   return (
                     <div
                       key={plan.id}
@@ -548,13 +677,28 @@ export default function VendorRegistrationModal({
                     >
                       <div className="flex items-center justify-between">
                         <h4 className="text-sm font-black text-white">{plan.name}</h4>
-                        {isSelected && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+                        {isSelected && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
                       </div>
 
-                      <div className="mt-2 flex items-baseline gap-1">
-                        <span className="text-xl font-black text-white">₹{plan.priceMonthly.toLocaleString()}</span>
-                        <span className="text-[10px] text-slate-400 font-bold">/ month</span>
-                      </div>
+                      {billingCycle === 'annual' ? (
+                        <div className="mt-2">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-xl font-black text-white">₹{annualRate.toLocaleString()}</span>
+                            <span className="text-[10px] text-slate-400 font-bold">/ year</span>
+                            <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[9px] font-black rounded-full uppercase ml-auto">
+                              Save {discountPercent}%
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-emerald-400 font-bold mt-0.5">
+                            Effective ₹{effectiveMonthly.toLocaleString()}/mo billed annually
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-2 flex items-baseline gap-1">
+                          <span className="text-xl font-black text-white">₹{monthlyRate.toLocaleString()}</span>
+                          <span className="text-[10px] text-slate-400 font-bold">/ month</span>
+                        </div>
+                      )}
 
                       <div className="mt-3 flex items-center justify-between text-[11px] font-bold text-slate-300 pt-2 border-t border-slate-800">
                         <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5 text-emerald-400" /> {plan.userLimit} Users</span>
@@ -566,11 +710,151 @@ export default function VendorRegistrationModal({
               </div>
             </div>
 
+            {/* Promo / Particular Person Coupon Code Input (Optional) */}
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-black uppercase text-slate-200 flex items-center gap-1.5">
+                    <Gift className="w-3.5 h-3.5 text-emerald-400" />
+                    Coupon Code <span className="text-slate-500 font-bold normal-case">(Optional)</span>
+                  </span>
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                    Have an authorized promo or partner discount code? Enter it below. (Coupons are completely optional)
+                  </p>
+                </div>
+                {appliedCoupon && (
+                  <span className="text-[10px] font-black text-emerald-400 uppercase bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1 shrink-0">
+                    <CheckCircle2 className="w-3 h-3" /> Coupon Active
+                  </span>
+                )}
+              </div>
+
+              {!appliedCoupon ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Tag className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="e.g. ANNUAL25 or VIP50 (Optional)"
+                        value={couponCodeInput}
+                        onChange={e => {
+                          setCouponCodeInput(e.target.value.toUpperCase());
+                          if (couponFeedback) setCouponFeedback(null);
+                          if (mismatchPlanSuggestion) setMismatchPlanSuggestion(null);
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleApplyCoupon();
+                          }
+                        }}
+                        className="w-full pl-8 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold uppercase text-white outline-none focus:border-emerald-500 transition-colors"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCoupon()}
+                      disabled={isValidatingCoupon || !couponCodeInput.trim()}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs rounded-xl transition-colors shrink-0 disabled:opacity-50 cursor-pointer shadow-sm"
+                    >
+                      {isValidatingCoupon ? (
+                        <span className="flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Verifying...
+                        </span>
+                      ) : (
+                        'Apply Code'
+                      )}
+                    </button>
+                  </div>
+
+                  {couponFeedback && (
+                    <p className={cn(
+                      "text-[11px] font-bold",
+                      couponFeedback.type === 'success' ? "text-emerald-400" : "text-rose-400"
+                    )}>
+                      {couponFeedback.message}
+                    </p>
+                  )}
+
+                  {mismatchPlanSuggestion && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between gap-2 mt-2">
+                      <div className="text-[11px] text-amber-300 font-semibold">
+                        This coupon is exclusive to the <strong className="text-white">{mismatchPlanSuggestion.requiredPlanName}</strong> plan.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchToRequiredPlan(mismatchPlanSuggestion.requiredPlanId)}
+                        className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black rounded-lg cursor-pointer shrink-0 transition-colors"
+                      >
+                        Switch to {mismatchPlanSuggestion.requiredPlanName}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {/* Dynamic Calculation Breakdown */}
+                  <div className="p-3.5 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-emerald-400" />
+                        <div>
+                          <span className="text-xs font-black text-emerald-300 font-mono tracking-wide">
+                            {appliedCoupon.code}
+                          </span>
+                          {appliedCoupon.name && (
+                            <span className="text-[10px] text-slate-400 ml-1.5 font-semibold">
+                              ({appliedCoupon.name})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="text-[11px] font-bold text-rose-400 hover:text-rose-300 underline cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex justify-between text-slate-400">
+                        <span>Selected Plan ({chosenPlan.name} • {billingCycle === 'annual' ? 'Annual' : 'Monthly'}):</span>
+                        <span className="font-bold text-white">₹{couponBreakdown?.originalAmount.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-400 font-medium">
+                        <span>Coupon Discount ({couponBreakdown?.discountPercentage}%):</span>
+                        <span className="font-bold">-₹{couponBreakdown?.discountAmount.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm font-black pt-1.5 border-t border-slate-800 text-white">
+                        <span>Final Payable Amount:</span>
+                        <span className="text-emerald-400 text-base">
+                          ₹{couponBreakdown?.finalPrice.toLocaleString()}
+                          <span className="text-[10px] text-slate-400 font-bold ml-1">
+                            {billingCycle === 'annual' ? '/year' : '/month'}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {couponFeedback && couponFeedback.type === 'success' && (
+                    <p className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {couponFeedback.message}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Trial Banner Confirmation */}
             <div className="p-4 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 rounded-2xl flex items-center justify-between">
               <div>
                 <span className="text-xs font-black text-emerald-400 uppercase flex items-center gap-1">
-                  <Sparkles className="w-4 h-4" /> 7-Day Free Trial Included
+                  <Sparkles className="w-4 h-4" /> Free Trial Included • {billingCycle === 'annual' ? 'Annual Plan Selection' : 'Monthly Plan'}
                 </span>
                 <p className="text-[11px] text-slate-300 font-medium mt-0.5">
                   You will not be charged today. Full access for {chosenPlan.trialDays || 7} days under {chosenPlan.name}.

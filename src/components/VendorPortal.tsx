@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Truck, 
   FileText, 
@@ -20,6 +20,10 @@ import {
   AlertCircle,
   ShieldAlert,
   ArrowRight,
+  ArrowLeft,
+  ChevronRight,
+  Search,
+  X,
   Check,
   ListTodo,
   Sparkles
@@ -69,11 +73,28 @@ export interface VendorTask {
 export default function VendorPortal() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [selectedModule, setSelectedModule] = useState<TabType | null>(null);
+  const [lastVisitedModule, setLastVisitedModule] = useState<TabType | null>(null);
+  const [cardSearchQuery, setCardSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('po');
   const [pos, setPOs] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [employees, setEmployees] = useState<VendorEmployee[]>([]);
   const [tasks, setTasks] = useState<VendorTask[]>([]);
+
+  // Listen to browser Back/Forward navigation
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state && event.state.vendorModule) {
+        setSelectedModule(event.state.vendorModule);
+        setActiveTab(event.state.vendorModule);
+      } else {
+        setSelectedModule(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const [selectedVendorFilter, setSelectedVendorFilter] = useState<string>('ALL');
   const [availableVendors, setAvailableVendors] = useState<string[]>([]);
@@ -164,6 +185,80 @@ export default function VendorPortal() {
     if (selectedVendorFilter !== 'ALL') return t.vendorName === selectedVendorFilter;
     return true;
   });
+
+  const vendorModules = useMemo(() => [
+    {
+      id: 'po' as TabType,
+      label: 'Vendor Purchase Orders',
+      shortLabel: '1. Purchase Orders',
+      icon: FileText,
+      badge: `${filteredPOs.length} Orders`,
+      iconBg: 'bg-emerald-100 text-emerald-600',
+      description: 'Review client purchase orders, acknowledge and accept incoming orders, and export detailed PDF & Excel statements.',
+      stats: `${filteredPOs.filter(p => p.status === 'Accepted' || p.status === 'Received & Invoiced').length} Accepted • ₹${filteredPOs.reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toLocaleString()} Total Value`,
+    },
+    {
+      id: 'employees' as TabType,
+      label: 'Vendor Team & Users',
+      shortLabel: `2. Vendor Team (${filteredEmployees.length}/${userLimit})`,
+      icon: Users,
+      badge: `${filteredEmployees.length} / ${userLimit} Users`,
+      iconBg: 'bg-blue-100 text-blue-600',
+      description: 'Manage registered vendor staff accounts, permissions, contact details, initial passwords, and monitor subscription seat quota.',
+      stats: `${filteredEmployees.length} of ${userLimit} Seats Assigned (${Math.max(0, userLimit - filteredEmployees.length)} Available)`,
+    },
+    {
+      id: 'tasks' as TabType,
+      label: 'Employee Task Assignment',
+      shortLabel: `3. Tasks (${filteredTasks.length})`,
+      icon: CheckSquare,
+      badge: `${filteredTasks.length} Tasks`,
+      iconBg: 'bg-teal-100 text-teal-600',
+      description: 'Assign site delivery, PO dispatch, and material assembly jobs to vendor staff with priority flags and deadlines.',
+      stats: `${filteredTasks.filter(t => t.status === 'Completed').length} Done • ${filteredTasks.filter(t => t.status !== 'Completed').length} Open Tasks`,
+    },
+    {
+      id: 'invoices' as TabType,
+      label: 'Upload Tax Invoices',
+      shortLabel: '4. Tax Invoices',
+      icon: Upload,
+      badge: 'Billing & GST',
+      iconBg: 'bg-purple-100 text-purple-600',
+      description: 'Upload commercial GST tax invoices, proforma statements, and official billing slips against accepted purchase orders.',
+      stats: 'Official GST Invoices & Statements',
+    },
+    {
+      id: 'payments' as TabType,
+      label: 'Payment Ledger & Inflows',
+      shortLabel: '5. Payment Ledger',
+      icon: IndianRupee,
+      badge: `${payments.length} Records`,
+      iconBg: 'bg-amber-100 text-amber-600',
+      description: 'Track vendor milestone payments, advances received, pending settlement dues, and ledger balances.',
+      stats: `${payments.filter(p => (p.status || '').toLowerCase().includes('paid') || (p.status || '').toLowerCase().includes('received')).length} Settled Inflows`,
+    },
+    {
+      id: 'dispatch' as TabType,
+      label: 'Material Dispatch & Logistics',
+      shortLabel: '6. Material Dispatch',
+      icon: Truck,
+      badge: 'Logistics',
+      iconBg: 'bg-sky-100 text-sky-600',
+      description: 'Track material shipments, enter consignment LR numbers, logistics transporter info, and monitor site delivery status.',
+      stats: 'Carrier Tracking & Site Delivery',
+    },
+  ], [filteredPOs, filteredEmployees, userLimit, filteredTasks, payments]);
+
+  const filteredModules = useMemo(() => {
+    if (!cardSearchQuery.trim()) return vendorModules;
+    const q = cardSearchQuery.toLowerCase();
+    return vendorModules.filter(m => 
+      m.label.toLowerCase().includes(q) ||
+      m.shortLabel.toLowerCase().includes(q) ||
+      m.description.toLowerCase().includes(q) ||
+      m.badge.toLowerCase().includes(q)
+    );
+  }, [vendorModules, cardSearchQuery]);
 
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -340,114 +435,322 @@ export default function VendorPortal() {
   };
 
   return (
-    <div className="animate-in fade-in duration-500 space-y-6">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 lg:p-5 rounded-2xl border border-slate-100 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="relative group shrink-0">
-            <div className="w-14 h-14 rounded-2xl border-2 border-emerald-100 bg-slate-50 p-1 flex items-center justify-center overflow-hidden shadow-sm">
-              {user?.companyLogo || user?.vendorAccount?.companyLogo ? (
-                <img src={user.companyLogo || user.vendorAccount?.companyLogo} alt="Vendor Logo" className="max-h-full max-w-full object-contain" />
-              ) : (
-                <Building2 className="w-7 h-7 text-emerald-600" />
+    <div className="animate-in fade-in duration-300 space-y-6">
+      {selectedModule === null ? (
+        /* ========================================================================= */
+        /* 1. VENDOR PORTAL CARDS DIRECTORY / HUB (FIRST DISPLAY)                    */
+        /* ========================================================================= */
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="relative group shrink-0">
+                <div className="w-14 h-14 rounded-2xl border-2 border-emerald-100 bg-slate-50 p-1 flex items-center justify-center overflow-hidden shadow-sm">
+                  {user?.companyLogo || user?.vendorAccount?.companyLogo ? (
+                    <img src={user.companyLogo || user.vendorAccount?.companyLogo} alt="Vendor Logo" className="max-h-full max-w-full object-contain" />
+                  ) : (
+                    <Building2 className="w-7 h-7 text-emerald-600" />
+                  )}
+                </div>
+                {user?.role === 'Vendor' && (
+                  <label className="absolute -bottom-1 -right-1 p-1 bg-emerald-600 text-white rounded-full cursor-pointer hover:bg-emerald-700 shadow-md transition-transform hover:scale-105" title="Upload / Change Vendor Logo">
+                    <Upload className="w-3 h-3" />
+                    <input type="file" accept="image/*" onChange={handleVendorLogoUpload} className="hidden" />
+                  </label>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="px-3 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                    <Building2 className="w-3 h-3 text-emerald-600" /> Vendor: {currentVendorName}
+                  </span>
+                  <span className="text-xs text-slate-400 font-bold">
+                    {vendorModules.length} Modules Available
+                  </span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                  Vendor Operations & Employee Task Portal
+                </h1>
+                <p className="text-slate-500 text-xs sm:text-sm font-medium mt-1">
+                  Select any vendor operations card below to manage purchase orders, team staff, task assignments, and logistics.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+              {/* Quick Filter Search */}
+              <div className="relative w-full sm:w-64 md:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search vendor modules..."
+                  value={cardSearchQuery}
+                  onChange={(e) => setCardSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+                />
+                {cardSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setCardSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Vendor Filter Dropdown for Admin */}
+              {user?.role !== 'Vendor' && (
+                <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-2xl border border-slate-200 shrink-0">
+                  <Filter className="w-4 h-4 text-slate-400" />
+                  <span className="text-xs font-bold text-slate-500 uppercase hidden lg:inline">Vendor:</span>
+                  <select 
+                    value={selectedVendorFilter}
+                    onChange={e => setSelectedVendorFilter(e.target.value)}
+                    className="text-xs font-bold bg-white p-1.5 border border-slate-200 rounded-lg outline-none cursor-pointer"
+                  >
+                    <option value="ALL">All Vendor Orders</option>
+                    {availableVendors.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </div>
               )}
             </div>
-            {user?.role === 'Vendor' && (
-              <label className="absolute -bottom-1 -right-1 p-1 bg-emerald-600 text-white rounded-full cursor-pointer hover:bg-emerald-700 shadow-md transition-transform hover:scale-105" title="Upload / Change Vendor Logo">
-                <Upload className="w-3 h-3" />
-                <input type="file" accept="image/*" onChange={handleVendorLogoUpload} className="hidden" />
-              </label>
-            )}
-          </div>
+          </header>
 
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider flex items-center gap-1">
-                <Building2 className="w-3.5 h-3.5 text-emerald-600" />
-                Vendor: {currentVendorName}
-              </span>
+          {/* Active Subscription Plan & Quota Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 p-5 rounded-2xl text-white border border-slate-700 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-black rounded-full uppercase tracking-wider border border-emerald-500/30 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-400" /> Plan: {user?.vendorAccount?.planName || 'Starter Solar Vendor (3 Users)'}
+                </span>
+                {user?.vendorAccount?.billingCycle === 'annual' ? (
+                  <span className="px-2.5 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-black rounded-full uppercase tracking-wider border border-purple-500/30">
+                    ✨ Annual Subscription (365 Days)
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] font-black rounded-full uppercase tracking-wider border border-blue-500/30">
+                    Monthly Subscription
+                  </span>
+                )}
+                <span className={cn(
+                  "px-2.5 py-0.5 text-[10px] font-black rounded-full uppercase tracking-wider border",
+                  user?.vendorAccount?.subscriptionStatus === 'active'
+                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                    : user?.vendorAccount?.subscriptionStatus === 'trial'
+                    ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                    : "bg-red-500/20 text-red-300 border-red-500/30"
+                )}>
+                  {user?.vendorAccount?.subscriptionStatus === 'trial' ? 'Free Trial Active' : 
+                   user?.vendorAccount?.subscriptionStatus === 'active' ? 'Account Active' : 'Subscription Expired'}
+                </span>
+              </div>
+              <p className="text-sm font-extrabold text-slate-100">
+                Company: {currentVendorName} • User Seat Quota: {filteredEmployees.length} / {userLimit} Seats
+              </p>
+              <p className="text-xs text-slate-400 font-medium">
+                Cloud Storage Vault: {user?.vendorAccount?.storageGBLimit || 10} GB Scope • Unlimited PO & Auto-Inventory Processing
+              </p>
             </div>
-            <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              Vendor Operations & Employee Task Portal
-            </h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Manage purchase orders, vendor employees (User Limit: {filteredEmployees.length}/{userLimit}), and internal employee task assignments.
-            </p>
+
+            <div className="flex items-center gap-4 w-full md:w-auto shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-700">
+              <div className="bg-slate-950/80 px-4 py-2 rounded-xl border border-slate-800 text-center flex-1 md:flex-initial">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Team Members</p>
+                <p className="text-sm font-black text-emerald-400">{filteredEmployees.length} / {userLimit} Seats</p>
+              </div>
+              <div className="bg-slate-950/80 px-4 py-2 rounded-xl border border-slate-800 text-center flex-1 md:flex-initial">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Assigned Tasks</p>
+                <p className="text-sm font-black text-teal-400">{filteredTasks.length} Tasks</p>
+              </div>
+            </div>
           </div>
+
+          {/* Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredModules.map((tab) => {
+              const isJustVisited = lastVisitedModule === tab.id;
+              const IconComp = tab.icon;
+
+              return (
+                <div
+                  key={tab.id}
+                  id={`card-${tab.id}`}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSelectedModule(tab.id);
+                    setLastVisitedModule(tab.id);
+                    try {
+                      window.history.pushState({ vendorModule: tab.id }, '', window.location.href);
+                    } catch (_) {}
+                  }}
+                  className={cn(
+                    "rounded-2xl p-5 transition-all duration-200 cursor-pointer flex flex-col justify-between group relative border text-left",
+                    isJustVisited
+                      ? "bg-white border-emerald-500 ring-2 ring-emerald-500/50 shadow-lg -translate-y-0.5"
+                      : "bg-white hover:bg-slate-50/90 text-slate-800 border-slate-200 hover:shadow-lg hover:border-slate-300 hover:-translate-y-1"
+                  )}
+                >
+                  <div>
+                    {/* Top Row: Icon + Badge */}
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className={cn(
+                        "p-3 rounded-xl border transition-colors",
+                        isJustVisited
+                          ? "bg-emerald-500 text-white border-emerald-400 shadow-sm"
+                          : (tab.iconBg + " border-slate-100")
+                      )}>
+                        <IconComp className="w-5 h-5" />
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {isJustVisited ? (
+                          <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border tracking-wider bg-emerald-500 text-white border-emerald-400 shadow-sm">
+                            Recently Viewed
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border tracking-wider bg-slate-100 text-slate-600 border-slate-200">
+                            {tab.badge}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Title & Description */}
+                    <h3 className={cn(
+                      "font-black text-sm tracking-tight mb-1.5",
+                      isJustVisited ? "text-emerald-950" : "text-slate-900 group-hover:text-emerald-700"
+                    )}>
+                      {tab.label}
+                    </h3>
+                    <p className="text-xs leading-relaxed text-slate-500 font-medium line-clamp-2">
+                      {tab.description}
+                    </p>
+
+                    {/* Live Metric / Stats pill */}
+                    <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-100 text-[11px] font-bold text-slate-600 max-w-full">
+                      <Sparkles className="w-3 h-3 text-emerald-500 shrink-0" />
+                      <span className="truncate">{tab.stats}</span>
+                    </div>
+                  </div>
+
+                  {/* Card Bottom / Action CTA */}
+                  <div className={cn(
+                    "mt-4 pt-3 border-t flex items-center justify-between text-xs font-black",
+                    isJustVisited
+                      ? "border-emerald-100 text-emerald-600"
+                      : "border-slate-100 text-emerald-600 group-hover:text-emerald-700"
+                  )}>
+                    <span>Launch Module →</span>
+                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {filteredModules.length === 0 && (
+            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 space-y-3">
+              <Building2 className="w-10 h-10 text-slate-300 mx-auto" />
+              <p className="text-sm font-bold text-slate-600">No vendor modules matched "{cardSearchQuery}".</p>
+              <button
+                type="button"
+                onClick={() => setCardSearchQuery('')}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Clear Search Filter
+              </button>
+            </div>
+          )}
         </div>
+      ) : (
+        /* ========================================================================= */
+        /* 2. DEDICATED MODULE PAGE (OPENED AS DIFFERENT PAGE WITH BACK NAVIGATION)  */
+        /* ========================================================================= */
+        <div className="space-y-6">
+          {/* Top Sticky Navigation Bar */}
+          <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedModule(null);
+                  try {
+                    window.history.pushState(null, '', window.location.href);
+                  } catch (_) {}
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-2xl transition-all shadow-md hover:shadow-lg hover:-translate-x-0.5 cursor-pointer shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4 text-emerald-400" /> Back to Vendor Portal Cards
+              </button>
 
-        {/* Vendor Filter Dropdown for Admin */}
-        {user?.role !== 'Vendor' && (
-          <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
-            <Filter className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-bold text-slate-500 uppercase">Vendor Filter:</span>
-            <select 
-              value={selectedVendorFilter}
-              onChange={e => setSelectedVendorFilter(e.target.value)}
-              className="text-xs font-bold bg-white p-1.5 border border-slate-200 rounded-lg outline-none"
-            >
-              <option value="ALL">All Vendor Orders</option>
-              {availableVendors.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </div>
-        )}
-      </header>
+              <div className="h-6 w-px bg-slate-200 hidden sm:block" />
 
-      {/* Active Subscription Plan & Quota Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 p-5 rounded-2xl text-white border border-slate-700 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-black rounded-full uppercase tracking-wider border border-emerald-500/30 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-emerald-400" /> Plan: {user?.vendorAccount?.planName || 'Starter Solar Vendor (3 Users)'}
-            </span>
-            <span className="px-2.5 py-0.5 bg-cyan-500/20 text-cyan-300 text-[10px] font-black rounded-full uppercase tracking-wider border border-cyan-500/30">
-              7-Day Trial Active
-            </span>
-          </div>
-          <p className="text-sm font-extrabold text-slate-100">
-            Company: {currentVendorName} • User Seat Quota: {filteredEmployees.length} / {userLimit} Seats
-          </p>
-          <p className="text-xs text-slate-400 font-medium">
-            Cloud Storage Vault: {user?.vendorAccount?.storageGBLimit || 10} GB Scope • Unlimited PO & Auto-Inventory Processing
-          </p>
-        </div>
+              {/* Breadcrumb Navigation */}
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 overflow-hidden text-ellipsis whitespace-nowrap">
+                <span 
+                  onClick={() => {
+                    setSelectedModule(null);
+                    try {
+                      window.history.pushState(null, '', window.location.href);
+                    } catch (_) {}
+                  }}
+                  className="hover:text-slate-900 cursor-pointer underline-offset-2 hover:underline"
+                >
+                  Vendor Portal
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="text-slate-900 font-black truncate">
+                  {vendorModules.find(t => t.id === selectedModule)?.label}
+                </span>
+              </div>
+            </div>
 
-        <div className="flex items-center gap-4 w-full md:w-auto shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-700">
-          <div className="bg-slate-950/80 px-4 py-2 rounded-xl border border-slate-800 text-center flex-1 md:flex-initial">
-            <p className="text-[10px] font-bold text-slate-400 uppercase">Team Members</p>
-            <p className="text-sm font-black text-emerald-400">{filteredEmployees.length} / {userLimit} Seats</p>
+            {/* Quick Switch Module Dropdown */}
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+              <span className="text-xs text-slate-400 font-bold hidden md:inline">Jump to Module:</span>
+              <select
+                value={selectedModule}
+                onChange={(e) => {
+                  const newMod = e.target.value as TabType;
+                  setSelectedModule(newMod);
+                  setActiveTab(newMod);
+                  setLastVisitedModule(newMod);
+                  try {
+                    window.history.pushState({ vendorModule: newMod }, '', window.location.href);
+                  } catch (_) {}
+                }}
+                className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer w-full sm:w-auto"
+              >
+                {vendorModules.map(t => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="bg-slate-950/80 px-4 py-2 rounded-xl border border-slate-800 text-center flex-1 md:flex-initial">
-            <p className="text-[10px] font-bold text-slate-400 uppercase">Assigned Tasks</p>
-            <p className="text-sm font-black text-teal-400">{filteredTasks.length} Tasks</p>
-          </div>
-        </div>
-      </div>
 
-      {/* Tabs Bar */}
-      <div className="flex overflow-x-auto pb-2 gap-2 no-scrollbar border-b border-slate-100">
-        {[
-          { id: 'po', label: '1. Vendor Purchase Orders', icon: FileText },
-          { id: 'employees', label: `2. Vendor Team (${filteredEmployees.length}/${userLimit} Users)`, icon: Users },
-          { id: 'tasks', label: `3. Employee Task Assignment (${filteredTasks.length})`, icon: CheckSquare },
-          { id: 'invoices', label: '4. Upload Tax Invoices', icon: Upload },
-          { id: 'payments', label: '5. Payment Ledger', icon: IndianRupee },
-          { id: 'dispatch', label: '6. Material Dispatch', icon: Truck },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-extrabold transition-all whitespace-nowrap cursor-pointer",
-              activeTab === tab.id 
-                ? "bg-emerald-600 text-white shadow-md shadow-emerald-200" 
-                : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
-            )}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+          {/* Tabs Bar */}
+          <div className="flex overflow-x-auto pb-2 gap-2 no-scrollbar border-b border-slate-100">
+            {vendorModules.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setSelectedModule(tab.id);
+                  setLastVisitedModule(tab.id);
+                }}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-extrabold transition-all whitespace-nowrap cursor-pointer",
+                  activeTab === tab.id 
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-200" 
+                    : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.shortLabel}
+              </button>
+            ))}
+          </div>
 
       {/* TAB 1: PURCHASE ORDERS */}
       {activeTab === 'po' && (
@@ -750,6 +1053,8 @@ export default function VendorPortal() {
           <Truck className="w-12 h-12 text-blue-500 mx-auto" />
           <h3 className="text-lg font-bold text-slate-900">Dispatch & Delivery Tracking</h3>
           <p className="max-w-md mx-auto text-xs">Vendors can update dispatch details (LR number, Transporter, expected ETA) for materials sent to the site.</p>
+        </div>
+      )}
         </div>
       )}
 

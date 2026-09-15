@@ -1142,80 +1142,123 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
           </div>
 
           {/* Pricing Cards */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {(plans.length > 0 ? plans.filter(p => p.status === 'active') : [DEFAULT_FALLBACK_PLAN]).map((p, idx) => {
+              const isAnnualOnly = p.billingInterval === 'annual';
+              const isMonthlyOnly = p.billingInterval === 'monthly';
+              const effectiveBillingCycle = isAnnualOnly ? 'annual' : (isMonthlyOnly ? 'monthly' : billingCycle);
 
-            {/* Starter Plan */}
-            <div className={`p-8 rounded-3xl border flex flex-col justify-between space-y-6 transition-all ${isDarkMode ? 'bg-[#0B132B] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-              }`}>
-              <div className="space-y-4">
-                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Starter EPC</span>
-                <p className="text-4xl font-black">
-                  ₹{billingCycle === 'annual' ? '1,999' : '2,499'}
-                  <span className="text-xs font-normal text-slate-400">/month</span>
-                </p>
-                <p className="text-xs text-slate-400">Ideal for independent solar installers & small teams up to 5 users.</p>
+              const monthlyPrice = p.priceMonthly || 0;
+              const annualPrice = p.priceAnnual || (monthlyPrice ? Math.round(monthlyPrice * 12 * 0.8) : 0);
+              const effectiveMonthly = effectiveBillingCycle === 'annual'
+                ? Math.round(annualPrice / 12)
+                : monthlyPrice;
+              const discount = p.annualDiscountPercentage ?? 20;
+              const isPopular = idx === 1 || p.name.toLowerCase().includes('enterprise') || p.name.toLowerCase().includes('growth');
 
-                <div className="space-y-2.5 pt-4 text-xs font-bold">
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Up to 5 Active Team Users</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> 3D Solar Layout Generator</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Mobile Site Survey App</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Basic GST Invoicing</div>
+              return (
+                <div
+                  key={p.id || idx}
+                  className={`p-7 rounded-3xl border relative flex flex-col justify-between space-y-6 transition-all ${
+                    isPopular
+                      ? 'border-2 border-emerald-500 shadow-xl shadow-emerald-500/10 ' + (isDarkMode ? 'bg-[#0E1B38]' : 'bg-white')
+                      : (isDarkMode ? 'bg-[#0B132B] border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-sm hover:shadow-md')
+                  }`}
+                >
+                  {isPopular && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
+                      Most Popular
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-xs font-black uppercase tracking-wider truncate ${isPopular ? 'text-emerald-400' : 'text-slate-400'}`}>
+                        {p.name}
+                      </span>
+                      {effectiveBillingCycle === 'annual' && discount > 0 && (
+                        <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-black rounded-full uppercase shrink-0">
+                          Save {discount}%
+                        </span>
+                      )}
+                      {isAnnualOnly && (
+                        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-black rounded-full uppercase shrink-0">
+                          Annual Only
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="text-3xl sm:text-4xl font-black">
+                        ₹{effectiveMonthly.toLocaleString()}
+                        <span className="text-xs font-normal text-slate-400">/month</span>
+                      </p>
+                      {effectiveBillingCycle === 'annual' ? (
+                        <p className="text-[11px] font-bold text-emerald-400 mt-1">
+                          Billed annually at ₹{annualPrice.toLocaleString()}/yr
+                        </p>
+                      ) : (
+                        <p className="text-[11px] font-medium text-slate-400 mt-1">
+                          Billed monthly
+                        </p>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-400">
+                      Includes {p.userLimit} team {p.userLimit === 1 ? 'user' : 'users'} & {p.storageGBLimit} GB encrypted vault.
+                    </p>
+
+                    <div className="space-y-2.5 pt-3 text-xs font-semibold">
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span>Up to {p.userLimit} Active Team Seats</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span>{p.storageGBLimit} GB Storage Vault</span>
+                      </div>
+                      {p.features && p.features.map((feat, fIdx) => (
+                        <div key={fIdx} className="flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span className="truncate">{feat}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleStartTrial(p)}
+                    className={`w-full py-3.5 font-bold rounded-2xl text-xs transition-all cursor-pointer ${
+                      isPopular
+                        ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/25'
+                        : 'bg-slate-800 hover:bg-slate-700 text-white'
+                    }`}
+                  >
+                    {p.trialEnabled ? `Start ${p.trialDays || 7}-Day Free Trial` : 'Subscribe Now'}
+                  </button>
                 </div>
-              </div>
-
-              <button
-                onClick={() => handleStartTrial(plans[0])}
-                className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl text-xs transition-all cursor-pointer"
-              >
-                Start 14-Day Free Trial
-              </button>
-            </div>
-
-            {/* Growth Plan (Popular) */}
-            <div className={`p-8 rounded-3xl border-2 border-emerald-500 relative flex flex-col justify-between space-y-6 transition-all shadow-xl shadow-emerald-500/10 ${isDarkMode ? 'bg-[#0E1B38]' : 'bg-white'
-              }`}>
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
-                Most Popular
-              </div>
-
-              <div className="space-y-4">
-                <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">Commercial Growth</span>
-                <p className="text-4xl font-black">
-                  ₹{billingCycle === 'annual' ? '5,599' : '6,999'}
-                  <span className="text-xs font-normal text-slate-400">/month</span>
-                </p>
-                <p className="text-xs text-slate-400">Built for growing solar companies & multi-project operators.</p>
-
-                <div className="space-y-2.5 pt-4 text-xs font-bold">
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Up to 25 Active Users</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Multi-Warehouse Stock & QR</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> PM Surya Ghar Subsidy Tracker</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Vendor Purchase Order Portal</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> MetaCheck Identity Sync</div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => handleStartTrial(plans[1])}
-                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs transition-all cursor-pointer shadow-lg shadow-emerald-500/25"
-              >
-                Start 14-Day Free Trial
-              </button>
-            </div>
+              );
+            })}
 
             {/* Enterprise Plan */}
-            <div className={`p-8 rounded-3xl border flex flex-col justify-between space-y-6 transition-all ${isDarkMode ? 'bg-[#0B132B] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-              }`}>
+            <div className={`p-7 rounded-3xl border flex flex-col justify-between space-y-6 transition-all ${
+              isDarkMode ? 'bg-[#0B132B] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+            }`}>
               <div className="space-y-4">
-                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Enterprise & Multi-Branch</span>
-                <p className="text-4xl font-black">Custom</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Enterprise & Multi-Branch</span>
+                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] font-black rounded-full uppercase">
+                    Franchise
+                  </span>
+                </div>
+                <p className="text-3xl sm:text-4xl font-black">Custom</p>
                 <p className="text-xs text-slate-400">Tailored deployments, SLA guarantees, dedicated account managers.</p>
 
-                <div className="space-y-2.5 pt-4 text-xs font-bold">
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Unlimited Users & Locations</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Dedicated Cloud / On-Premise</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> Custom API & Webhook Integrations</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500" /> 24/7 Priority SLA Support</div>
+                <div className="space-y-2.5 pt-3 text-xs font-semibold">
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Unlimited Users & Locations</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Dedicated Cloud / On-Premise</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Custom API & Webhook Integrations</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> 24/7 Priority SLA Support</div>
                 </div>
               </div>
 
