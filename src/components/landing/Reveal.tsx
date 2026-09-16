@@ -10,6 +10,7 @@ interface RevealProps {
   className?: string;
   once?: boolean;
   threshold?: number;
+  key?: React.Key;
 }
 
 const HIDDEN: Record<RevealVariant, string> = {

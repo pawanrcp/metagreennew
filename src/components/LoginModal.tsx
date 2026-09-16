@@ -6,11 +6,11 @@ interface LoginModalProps {
   onClose: () => void;
   onSuccess: () => void;
   onOpenSignUp: () => void;
-  initialRole?: 'admin' | 'vendor' | 'installer' | 'customer' | 'staff';
+  initialRole?: 'admin' | 'hr' | 'vendor' | 'installer' | 'customer' | 'staff';
 }
 
 export default function LoginModal({ onClose, onSuccess, onOpenSignUp, initialRole = 'admin' }: LoginModalProps) {
-  const [loginType, setLoginType] = useState<'admin' | 'vendor' | 'installer' | 'customer' | 'staff'>(initialRole);
+  const [loginType, setLoginType] = useState<'admin' | 'hr' | 'vendor' | 'installer' | 'customer' | 'staff'>(initialRole);
   const [email, setEmail] = useState('admin@solar.com');
   const [password, setPassword] = useState('admin123');
   const [loading, setLoading] = useState(false);
@@ -30,12 +30,15 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp, initialRo
     }
   }, [initialRole]);
 
-  const handleTabSwitch = (type: 'admin' | 'vendor' | 'installer' | 'customer' | 'staff') => {
+  const handleTabSwitch = (type: 'admin' | 'hr' | 'vendor' | 'installer' | 'customer' | 'staff') => {
     setLoginType(type);
     setError('');
     if (type === 'admin') {
       setEmail('admin@solar.com');
       setPassword('admin123');
+    } else if (type === 'hr') {
+      setEmail('hr@solar.com');
+      setPassword('hr123');
     } else if (type === 'vendor') {
       setEmail('vendor@vikramsolar.com');
       setPassword('vendor123');
@@ -59,6 +62,7 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp, initialRo
     try {
       const isMatchingDemo = 
         (loginType === 'admin' && email === 'admin@solar.com') ||
+        (loginType === 'hr' && email === 'hr@solar.com') ||
         (loginType === 'vendor' && email === 'vendor@vikramsolar.com') ||
         (loginType === 'installer' && email === 'installer@solar.com') ||
         (loginType === 'customer' && email === 'customer@solar.com') ||
@@ -272,8 +276,8 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp, initialRo
         ) : (
           /* Standard Sign In View */
           <>
-            {/* 5 Separate Login Type Tabs */}
-            <div className="p-2 bg-slate-950/60 border-b border-slate-800 grid grid-cols-5 gap-1 text-center">
+            {/* 6 Separate Login Type Tabs */}
+            <div className="p-2 bg-slate-950/60 border-b border-slate-800 grid grid-cols-6 gap-1 text-center">
               <button
                 type="button"
                 onClick={() => handleTabSwitch('admin')}
@@ -285,6 +289,19 @@ export default function LoginModal({ onClose, onSuccess, onOpenSignUp, initialRo
               >
                 <span>👑</span>
                 <span className="truncate w-full text-[10px]">Admin</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('hr')}
+                className={`py-2 px-1 rounded-xl text-[11px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                  loginType === 'hr' 
+                    ? 'bg-purple-500 text-white shadow-md scale-102' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                }`}
+              >
+                <span>👥</span>
+                <span className="truncate w-full text-[10px]">HR</span>
               </button>
 
               <button

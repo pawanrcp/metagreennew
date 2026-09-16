@@ -35,8 +35,9 @@ import { collection, query, onSnapshot, orderBy, doc, updateDoc, addDoc, deleteD
 import { db } from '@/src/lib/firebase';
 import { useAuth } from '@/src/context/AuthContext';
 import { useToast } from '@/src/context/ToastContext';
+import { SubscriberWebsiteEditor } from './settings/SubscriberWebsiteEditor';
 
-type TabType = 'po' | 'invoices' | 'employees' | 'tasks' | 'payments' | 'dispatch';
+type TabType = 'po' | 'invoices' | 'employees' | 'tasks' | 'payments' | 'dispatch' | 'website';
 
 export interface VendorEmployee {
   id: string;
@@ -254,6 +255,16 @@ export default function VendorPortal({ initialFilter }: { initialFilter?: string
       iconBg: 'bg-sky-100 text-sky-600',
       description: 'Track material shipments, enter consignment LR numbers, logistics transporter info, and monitor site delivery status.',
       stats: 'Carrier Tracking & Site Delivery',
+    },
+    {
+      id: 'website' as TabType,
+      label: 'Website Customization & Themes',
+      shortLabel: '7. My Website',
+      icon: Globe,
+      badge: 'Branding & Themes',
+      iconBg: 'bg-indigo-100 text-indigo-600',
+      description: 'Customize tenant brand colors, upload logos, edit hero copy, configure custom domain, and preview live site.',
+      stats: 'Dynamic Multi-Tenant Branding',
     },
   ], [filteredPOs, filteredEmployees, userLimit, filteredTasks, payments]);
 
@@ -1098,6 +1109,11 @@ export default function VendorPortal({ initialFilter }: { initialFilter?: string
           <h3 className="text-lg font-bold text-slate-900">Dispatch & Delivery Tracking</h3>
           <p className="max-w-md mx-auto text-xs">Vendors can update dispatch details (LR number, Transporter, expected ETA) for materials sent to the site.</p>
         </div>
+      )}
+
+      {/* TAB 7: WEBSITE CUSTOMIZATION */}
+      {activeTab === 'website' && (
+        <SubscriberWebsiteEditor />
       )}
         </div>
       )}

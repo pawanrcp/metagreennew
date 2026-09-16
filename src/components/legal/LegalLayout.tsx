@@ -47,9 +47,9 @@ export function LegalLayout({
   }, [toc]);
 
   return (
-    <div className="bg-white min-h-screen text-slate-800 font-sans">
+    <div className="bg-white dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-100 font-sans transition-colors duration-300">
       {/* Hero Banner matching MetaCheck */}
-      <section className="relative isolate overflow-hidden border-b border-slate-200 bg-[#0a0a1a] px-4 pb-14 pt-28 sm:px-6 lg:px-8 lg:pb-16 lg:pt-36 text-white">
+      <section className="relative isolate overflow-hidden border-b border-slate-200 dark:border-slate-800 bg-[#0a0a1a] px-4 pb-14 pt-28 sm:px-6 lg:px-8 lg:pb-16 lg:pt-36 text-white">
         {/* Glow */}
         <div className="pointer-events-none absolute -left-28 -top-28 h-[420px] w-[420px] rounded-full bg-emerald-500/20 blur-[90px]" aria-hidden="true" />
         <div className="pointer-events-none absolute -bottom-32 -right-28 h-[460px] w-[460px] rounded-full bg-teal-500/15 blur-[90px]" aria-hidden="true" />
@@ -92,7 +92,7 @@ export function LegalLayout({
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[240px_1fr] lg:items-start">
           {/* Table of Contents Sidebar */}
           <aside className="hidden lg:flex flex-col gap-4 sticky top-28">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">On this page</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">On this page</p>
             <nav>
               <ul className="flex flex-col gap-1 text-xs">
                 {toc.map((t) => (
@@ -101,8 +101,8 @@ export function LegalLayout({
                       href={`#${t.id}`}
                       className={`block rounded-lg border-l-2 px-3 py-2 leading-snug transition-colors ${
                         active === t.id
-                          ? 'border-emerald-600 bg-emerald-50 font-bold text-emerald-800'
-                          : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                          ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 font-bold text-emerald-800 dark:text-emerald-300'
+                          : 'border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       {t.label}
@@ -114,7 +114,7 @@ export function LegalLayout({
           </aside>
 
           {/* Document Content */}
-          <article className="prose prose-slate max-w-none space-y-10 text-sm leading-relaxed text-slate-700">
+          <article className="prose prose-slate dark:prose-invert max-w-none space-y-10 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
             {children}
           </article>
         </div>

@@ -47,7 +47,8 @@ import {
   Gift,
   Receipt,
   Landmark,
-  Zap
+  Zap,
+  Globe
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { exportToPDF, exportToExcel } from '@/src/lib/exportUtils';
@@ -60,6 +61,8 @@ import { useToast } from '@/src/context/ToastContext';
 import { METAGREEN_LOGO_BASE64 } from '@/src/assets/logoDataUrl';
 
 import SubscriptionManagement from './SubscriptionManagement';
+import { DynamicRolesManager } from './settings/DynamicRolesManager';
+import { SubscriberWebsitesManager } from './settings/SubscriberWebsitesManager';
 import {
   DROPDOWN_CATEGORIES,
   DropdownCategoryKey,
@@ -71,7 +74,7 @@ import {
   seedCategoryDefaults
 } from '@/src/services/dropdownMaster.service';
 
-type TabType = 'logos' | 'subscriptions' | 'coupons' | 'users' | 'roles' | 'dropdowns' | 'roof-types' | 'states' | 'products' | 'approvals' | 'audit' | 'purge';
+type TabType = 'logos' | 'subscriptions' | 'coupons' | 'users' | 'roles' | 'subscriber-websites' | 'dropdowns' | 'roof-types' | 'states' | 'products' | 'approvals' | 'audit' | 'purge';
 
 const USER_ROLES = [
   'Super Admin',
@@ -86,6 +89,7 @@ const USER_ROLES = [
   'Solar Installer',
   'Project Manager',
   'Finance Manager',
+  'HR Manager',
   'Customer Support',
   'Customer',
   'Vendor',
@@ -337,7 +341,7 @@ export default function MasterSettings({ initialModule }: MasterSettingsProps = 
 
   // Keep activeTab safe if role is not global admin
   useEffect(() => {
-    if (!isGlobalAdmin && (activeTab === 'subscriptions' || activeTab === 'purge' || activeTab === 'audit' || activeTab === 'states' || activeTab === 'approvals')) {
+    if (!isGlobalAdmin && (activeTab === 'subscriptions' || activeTab === 'subscriber-websites' || activeTab === 'purge' || activeTab === 'audit' || activeTab === 'states' || activeTab === 'approvals')) {
       setActiveTab('users');
     }
   }, [isGlobalAdmin, activeTab]);
@@ -749,6 +753,14 @@ export default function MasterSettings({ initialModule }: MasterSettingsProps = 
             description: 'Promo codes, % or fixed ₹ off, usage limits, and particular person email restrictions.',
             badge: 'Coupons & Promos',
             iconBg: 'bg-teal-100 text-teal-600'
+          },
+          { 
+            id: 'subscriber-websites', 
+            label: 'Subscriber Websites', 
+            icon: Globe,
+            description: 'Tenant-specific website branding, themes, domains, and plan-gated capabilities.',
+            badge: 'Multi-Tenant Sites',
+            iconBg: 'bg-indigo-100 text-indigo-600'
           }
         ] : []),
         { 
@@ -1853,45 +1865,10 @@ export default function MasterSettings({ initialModule }: MasterSettingsProps = 
         );
 
       case 'roles':
-        return (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <ShieldCheck className="w-8 h-8 text-slate-300" />
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Roles & Permissions</h3>
-                <p className="text-sm text-slate-500">Configure access control matrix for different system roles.</p>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse border border-slate-200 rounded-lg min-w-[800px]">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-widest border-b border-slate-200">
-                    <th className="p-3 border-r border-slate-200 sticky left-0 bg-slate-50 z-10">Permission Module</th>
-                    {USER_ROLES.slice(0, 8).map(role => (
-                      <th key={role} className="p-3 text-center border-r border-slate-200 whitespace-nowrap">{role}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {['Manage Settings', 'Approve Quotations', 'View Financials', 'Manage Projects', 'Site Surveys', 'Design Plans'].map((perm, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                      <td className="p-3 font-medium text-slate-800 border-r border-slate-200 sticky left-0 bg-white z-10">{perm}</td>
-                      <td className="p-3 text-center border-r border-slate-200"><input type="checkbox" checked readOnly className="accent-emerald-600 w-4 h-4" /></td>
-                      <td className="p-3 text-center border-r border-slate-200"><input type="checkbox" checked={i > 0} readOnly className="accent-emerald-600 w-4 h-4" /></td>
-                      <td className="p-3 text-center border-r border-slate-200"><input type="checkbox" checked={i > 0 && i < 3} readOnly className="accent-emerald-600 w-4 h-4" /></td>
-                      <td className="p-3 text-center border-r border-slate-200"><input type="checkbox" checked={i === 1 || i === 3} readOnly className="accent-emerald-600 w-4 h-4" /></td>
-                      <td className="p-3 text-center border-r border-slate-200"><input type="checkbox" checked={i === 4} readOnly className="accent-emerald-600 w-4 h-4" /></td>
-                      <td className="p-3 text-center border-r border-slate-200"><input type="checkbox" checked={i === 5} readOnly className="accent-emerald-600 w-4 h-4" /></td>
-                      <td className="p-3 text-center border-r border-slate-200"><input type="checkbox" checked={false} readOnly className="accent-emerald-600 w-4 h-4" /></td>
-                      <td className="p-3 text-center border-r border-slate-200"><input type="checkbox" checked={false} readOnly className="accent-emerald-600 w-4 h-4" /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-4 text-xs text-slate-500 italic">Scroll horizontally to view more roles. Showing 8 of 15 roles.</div>
-          </div>
-        );
+        return <DynamicRolesManager />;
+
+      case 'subscriber-websites':
+        return <SubscriberWebsitesManager />;
 
       case 'dropdowns': {
         if (activeDropdownCategory === null) {

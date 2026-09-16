@@ -27,10 +27,12 @@ import {
   ArrowRight,
   Receipt,
   Archive,
-  Building2
+  Building2,
+  Globe
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { ViewType, UserRole } from '@/src/types';
+import { useAuth } from '@/src/context/AuthContext';
 
 interface SidebarProps {
   currentView: ViewType;
@@ -45,11 +47,13 @@ interface NavSubItem {
   description: string;
   icon: React.ElementType;
   roles?: UserRole[];
+  requiredPermission?: string;
 }
 
 interface NavCategory {
   id: string;
   title: string;
+  dropdownTitle?: string;
   badge?: string;
   icon: React.ElementType;
   directView?: ViewType;
@@ -58,6 +62,7 @@ interface NavCategory {
 }
 
 export default function Sidebar({ currentView, setView, userRole }: SidebarProps) {
+  const { user, hasPermission } = useAuth();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileSearchQuery, setMobileSearchQuery] = useState('');
@@ -100,7 +105,8 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           label: 'Dashboard',
           subHeader: 'Overview & Solar Generation Hub',
           description: 'Key performance indicators, daily solar metrics & project stages overview',
-          icon: LayoutDashboard
+          icon: LayoutDashboard,
+          requiredPermission: 'dashboard:overview:view',
         }
       ]
     },
@@ -116,7 +122,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Lead Pipeline & GPS Location',
           description: 'Customer inquiries, expected system size (KW/MW) & monthly electricity range',
           icon: Users,
-          roles: ['Super Admin', 'Solar Company Admin', 'Regional Manager', 'Sales Executive', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer', 'Survey Engineer', 'Project Manager']
+          requiredPermission: 'crm:leads:view',
         },
         {
           id: 'solar-design',
@@ -124,7 +130,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'PV System Design & 3D Rooftop',
           description: 'CAD 3D layout, shading analysis, solar module placement & string sizing',
           icon: PenTool,
-          roles: ['Super Admin', 'Solar Company Admin', 'Design Engineer', 'Project Manager', 'Solar Installer', 'Installer', 'Vendor', 'Vendor Employee', 'Sales Executive']
+          requiredPermission: 'design:cad:view',
         }
       ]
     },
@@ -141,13 +147,14 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Accounts & Client Directory',
           description: 'Client profiles, system capacities, sanctioned loads & project histories',
           icon: UserCheck,
-          roles: ['Super Admin', 'Solar Company Admin', 'Regional Manager', 'Sales Executive', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer', 'Project Manager']
+          requiredPermission: 'customers:directory:view',
         }
       ]
     },
     {
       id: 'quotes-invoices-group',
-      title: 'Quotes & Invoices',
+      title: 'Quotes',
+      dropdownTitle: 'Quotes & Invoices',
       badge: 'Billing',
       icon: Calculator,
       items: [
@@ -157,7 +164,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Customer Sales Proposals & 3D Pitch',
           description: 'System generation estimates, 3D pitch deck & solar proposal export',
           icon: FileText,
-          roles: ['Super Admin', 'Solar Company Admin', 'Sales Executive', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer', 'Project Manager']
+          requiredPermission: 'billing:quote:view',
         },
         {
           id: 'quotation',
@@ -165,7 +172,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Estimates & 70:30 Cost Breakdown',
           description: 'Detailed system material estimate, labor cost & customer quotation approvals',
           icon: Calculator,
-          roles: ['Super Admin', 'Solar Company Admin', 'Sales Executive', 'Finance Manager', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer']
+          requiredPermission: 'billing:quote:create',
         },
         {
           id: 'invoice',
@@ -173,7 +180,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Proforma & Standard Billing Invoice',
           description: 'Progress billing, milestone invoicing & proforma customer statements',
           icon: FileText,
-          roles: ['Super Admin', 'Solar Company Admin', 'Finance Manager', 'Sales Executive', 'Vendor', 'Vendor Employee', 'Installer']
+          requiredPermission: 'billing:quote:view',
         },
         {
           id: 'tax-invoice',
@@ -181,7 +188,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Official GST Tax Invoice Generator',
           description: 'Full GST 70:30 Tax Invoice generator with QR code and PDF print download',
           icon: Receipt,
-          roles: ['Super Admin', 'Solar Company Admin', 'Finance Manager', 'Auditor', 'Sales Executive', 'Vendor', 'Installer']
+          requiredPermission: 'billing:invoice:manage',
         },
         {
           id: 'quote-records',
@@ -189,23 +196,24 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'User-Wise Document Records',
           description: 'All generated quotations, proposals, commercial & tax invoices',
           icon: Archive,
-          roles: ['Super Admin', 'Solar Company Admin', 'Sales Executive', 'Finance Manager', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer', 'Auditor']
+          requiredPermission: 'billing:quote:view',
         }
       ]
     },
     {
       id: 'project-supply-group',
-      title: 'Inventory & Supply',
+      title: 'Inventory',
+      dropdownTitle: 'Inventory & Supply',
       badge: 'Supply',
       icon: Package,
       items: [
         {
           id: 'vendors',
-          label: 'Solar Supplier',
-          subHeader: 'Solar Supplier Portal & Stock',
-          description: 'Accept POs, manage hardware catalog & fulfill supplier shipments',
-          icon: Truck,
-          roles: ['Super Admin', 'Solar Company Admin', 'Solar Supplier', 'Vendor', 'Vendor Employee', 'Procurement Officer', 'Finance Manager']
+          label: 'Subscriber Portal',
+          subHeader: 'Subscriber Website & Catalog',
+          description: 'Manage live subscriber website, theme colors, branding & catalog',
+          icon: Globe,
+          requiredPermission: 'website:config:view',
         },
         {
           id: 'inventory',
@@ -213,7 +221,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Stock & Hardware Control',
           description: 'Panels, Inverters, Cables stock calculated by KW, MW, MTR, TON, KG & PCS',
           icon: Package,
-          roles: ['Super Admin', 'Solar Company Admin', 'Warehouse Manager', 'Procurement Officer', 'Solar Installer', 'Installer']
+          requiredPermission: 'inventory:stock:view',
         },
         {
           id: 'procurement',
@@ -221,7 +229,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Create Purchase Order / RFQ',
           description: 'Multi-unit live price calculations by Meter, KW, MW, TON, KG with GST summary',
           icon: ShoppingCart,
-          roles: ['Super Admin', 'Solar Company Admin', 'Procurement Officer', 'Warehouse Manager', 'Solar Installer', 'Installer']
+          requiredPermission: 'procurement:po:view',
         },
         {
           id: 'direct-suppliers',
@@ -229,7 +237,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Offline Procurement Sources',
           description: 'Manage private unregistered vendors, contact details, bank info & direct PO generation',
           icon: Building2,
-          roles: ['Super Admin', 'Solar Company Admin', 'Procurement Officer', 'Warehouse Manager', 'Solar Installer', 'Installer', 'Vendor', 'Vendor Employee']
+          requiredPermission: 'procurement:po:view',
         }
       ]
     },
@@ -245,7 +253,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: '10-Stage Minimizable Kanban',
           description: 'Initial -> In Process -> Installation -> Department Verification -> Subsidy',
           icon: Sun,
-          roles: ['Super Admin', 'Solar Company Admin', 'Regional Manager', 'Project Manager', 'Solar Installer', 'Installer']
+          requiredPermission: 'projects:tracker:view',
         },
         {
           id: 'work-orders',
@@ -253,7 +261,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Field Team Tasks & Work Orders',
           description: 'Task checklists inheriting direct employee assignment from Employee Cards',
           icon: Wrench,
-          roles: ['Super Admin', 'Solar Company Admin', 'Project Manager', 'Solar Installer', 'Installer']
+          requiredPermission: 'projects:tracker:view',
         }
       ]
     },
@@ -269,7 +277,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Customer Inflows & Invoices',
           description: 'Record customer advance, milestones, generate PDF invoices & track inflows',
           icon: IndianRupee,
-          roles: ['Super Admin', 'Solar Company Admin', 'Finance Manager', 'Auditor']
+          requiredPermission: 'finance:ledger:view',
         },
         {
           id: 'expenses',
@@ -277,7 +285,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Operating & Direct Costs',
           description: 'Manageable expense categories, labor wages, bills, material costs & project logs',
           icon: Receipt,
-          roles: ['Super Admin', 'Solar Company Admin', 'Finance Manager', 'Auditor', 'Project Manager']
+          requiredPermission: 'finance:ledger:view',
         }
       ]
     },
@@ -294,13 +302,14 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'PM Surya Ghar DBT Claims',
           description: '6-Stage subsidy tracking, application ref numbers, JIR reports & direct benefit transfers',
           icon: Landmark,
-          roles: ['Super Admin', 'Solar Company Admin', 'Finance Manager', 'Customer Support']
+          requiredPermission: 'subsidy:discom:manage',
         }
       ]
     },
     {
       id: 'support-docs-group',
-      title: 'Support & Docs',
+      title: 'Support',
+      dropdownTitle: 'Support & Docs',
       badge: 'Care',
       icon: Settings,
       items: [
@@ -310,7 +319,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Customer Care & Ticket Helpdesk',
           description: 'Multi-channel enterprise care, complaint categories, SLA tracking & engineer assignment',
           icon: MessageSquare,
-          roles: ['Super Admin', 'Solar Company Admin', 'Customer Support', 'Project Manager']
+          requiredPermission: 'dashboard:overview:view',
         },
         {
           id: 'documents',
@@ -318,47 +327,56 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
           subHeader: 'Separated Photo Galleries',
           description: 'Separated Material Photos, Site Before Photos & Site After Photos',
           icon: FolderOpen,
-          roles: ['Super Admin', 'Solar Company Admin', 'Project Manager', 'Sales Executive', 'Finance Manager']
-        },
-        {
-          id: 'projects',
-          label: 'Department Verification',
-          subHeader: 'DISCOM Inspection & Approval',
-          description: 'Departmental inspection verification, safety certificates & net metering sync',
-          icon: ShieldCheck,
-          roles: ['Super Admin', 'Solar Company Admin', 'Project Manager', 'Solar Installer']
+          requiredPermission: 'projects:tracker:view',
         }
       ]
     },
     {
-      id: 'admin-hr-group',
-      title: 'Admin & HR',
-      badge: 'Config',
-      icon: Sliders,
+      id: 'hr-group',
+      title: 'HR',
+      dropdownTitle: 'Human Resources & Payroll',
+      badge: 'People',
+      icon: UserCheck,
+      directView: 'hr' as ViewType,
       items: [
         {
           id: 'hr',
-          label: 'HR & Payroll',
-          subHeader: 'Direct Project Assignment & Payroll',
-          description: 'Employee cards, direct project assignment, fixed salary & commission (% / kW)',
+          label: 'HR & Workforce Directory',
+          subHeader: 'Staff, Attendance & Payroll',
+          description: 'Employee profiles, direct project assignments, fixed salaries & commissions (% / kW)',
           icon: UserCheck,
-          roles: ['Super Admin', 'Solar Company Admin', 'Regional Manager']
-        },
+          requiredPermission: 'hr:employees:view',
+        }
+      ]
+    },
+    {
+      id: 'admin-group',
+      title: 'Admin',
+      dropdownTitle: 'Master Administration & Settings',
+      badge: 'System',
+      icon: Sliders,
+      directView: 'settings' as ViewType,
+      items: [
         {
           id: 'settings',
-          label: 'Master Settings',
+          label: 'Master Settings & Security',
           subHeader: 'System Configuration & User Masters',
-          description: 'Team users, branding, system specifications & master data',
+          description: 'System accounts, RBAC dynamic roles matrix, subscriber websites & master data catalogs',
           icon: Sliders,
-          roles: ['Super Admin', 'Solar Company Admin', 'Vendor', 'Vendor Employee', 'Installer', 'Solar Installer', 'Regional Manager', 'Project Manager', 'Finance Manager', 'Warehouse Manager', 'Procurement Officer', 'Sales Executive']
+          requiredPermission: 'roles:role:view',
         }
       ]
     }
   ];
 
   const filterSubItems = (items: NavSubItem[]) => {
-    // All modules are visible in both Vendor, Installer, and Admin logins
-    return items;
+    if (!user) return items;
+    if (user.isSuperAdmin || user.role === 'Super Admin') return items;
+    return items.filter((item) => {
+      if (!item.requiredPermission) return true;
+      const parts = item.requiredPermission.split(':');
+      return hasPermission(parts[0], parts[1], parts[2]);
+    });
   };
 
   const isCategoryActive = (category: NavCategory) => {
@@ -370,7 +388,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
   const getActiveItemInfo = () => {
     for (const cat of navigationCategories) {
       if (cat.directView === currentView) {
-        return { category: cat.title, label: cat.title, icon: cat.icon };
+        return { category: cat.title, label: cat.dropdownTitle || cat.title, icon: cat.icon };
       }
       const found = cat.items.find(i => i.id === currentView);
       if (found) {
@@ -430,8 +448,8 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
       )}
 
       {/* --- DESKTOP NAVIGATION BAR (lg screens and above) --- */}
-      <div className="hidden lg:flex px-3 xl:px-6 py-2 items-center justify-between relative z-[95] overflow-visible">
-        <div className="flex items-center gap-1 xl:gap-2.5 w-full overflow-visible">
+      <div className="hidden lg:flex px-2 xl:px-4 py-1.5 items-center justify-between relative z-[95] overflow-visible">
+        <div className="flex items-center gap-0.5 xl:gap-1.5 w-full overflow-visible">
           {navigationCategories.map((category, idx) => {
             const validItems = filterSubItems(category.items);
             if (validItems.length === 0) return null;
@@ -439,7 +457,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
             const isActive = isCategoryActive(category);
             const hasSubmenu = !category.directView && validItems.length > 1;
             const isOpen = openDropdown === category.id;
-            const isRightAligned = idx >= navigationCategories.length - 2; // Align right for Support & Docs, Admin & HR
+            const isRightAligned = idx >= navigationCategories.length - 3; // Align right for Support, HR, Admin
 
             return (
               <div key={category.id} className="relative shrink-0 overflow-visible">
@@ -448,18 +466,18 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
                   type="button"
                   onClick={() => handleCategoryClick(category)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-xl text-[11.5px] xl:text-xs font-black transition-all duration-200 border cursor-pointer select-none",
+                    "flex items-center gap-1 xl:gap-1.5 rounded-xl text-[11px] xl:text-xs font-black transition-all duration-200 border cursor-pointer select-none",
                     category.iconOnly
-                      ? "px-2.5 py-1.5 justify-center"
-                      : "px-2.5 xl:px-3 py-1.5",
+                      ? "px-2 py-1 xl:px-2.5 xl:py-1.5 justify-center"
+                      : "px-2 xl:px-2.5 py-1 xl:py-1.5",
                     isActive
-                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm"
+                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-xs"
                       : isOpen
                       ? "bg-slate-800 text-white border-slate-700 ring-2 ring-emerald-500/30"
                       : "border-transparent text-slate-300 hover:bg-slate-800/80 hover:text-white"
                   )}
-                  title={category.title}
-                  aria-label={category.title}
+                  title={category.dropdownTitle || category.title}
+                  aria-label={category.dropdownTitle || category.title}
                 >
                   <category.icon className={cn(
                     "w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0 transition-colors",
@@ -493,7 +511,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
                     <div className="px-3 py-2 border-b border-slate-800 mb-1.5 flex justify-between items-center bg-slate-950/60 rounded-xl">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                         <category.icon className="w-3.5 h-3.5 text-emerald-400" />
-                        {category.title} Modules
+                        {category.dropdownTitle || category.title} Modules
                       </span>
                       {category.badge && (
                         <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -661,7 +679,7 @@ export default function Sidebar({ currentView, setView, userRole }: SidebarProps
                       <div className="flex items-center gap-2">
                         <category.icon className="w-4 h-4 text-emerald-400" />
                         <span className="text-xs font-black uppercase tracking-wider text-slate-200">
-                          {category.title}
+                          {category.dropdownTitle || category.title}
                         </span>
                       </div>
                       {category.badge && (

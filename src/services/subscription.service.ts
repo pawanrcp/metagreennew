@@ -27,6 +27,7 @@ export interface SubscriptionPlan {
   trialDays: number;
   status: 'active' | 'inactive';
   features: string[];
+  websiteCustomizationTier?: 'basic' | 'pro' | 'enterprise';
   createdAt?: any;
   updatedAt?: any;
 }

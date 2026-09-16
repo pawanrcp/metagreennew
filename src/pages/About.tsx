@@ -55,9 +55,9 @@ const FOUNDERS = [
 
 export function About({ onNavigateContact, onNavigateSolutions, onOpenDemo, onOpenPartner }: AboutProps) {
   return (
-    <div className="bg-white min-h-screen text-slate-800">
+    <div className="bg-white dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-100 transition-colors duration-200">
       {/* Hero Section matching MetaCheck */}
-      <section className="relative overflow-hidden bg-[#050510] pt-28 pb-20 sm:pt-36 sm:pb-28 text-white">
+      <section className="relative overflow-hidden bg-slate-900 dark:bg-[#050510] pt-28 pb-20 sm:pt-36 sm:pb-28 text-white">
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
           <div className="absolute -left-[15%] top-[10%] h-[500px] w-[500px] rounded-full bg-emerald-600/20 blur-[130px]" />
           <div className="absolute -right-[10%] top-[30%] h-[400px] w-[400px] rounded-full bg-teal-600/15 blur-[110px]" />
@@ -83,13 +83,13 @@ export function About({ onNavigateContact, onNavigateSolutions, onOpenDemo, onOp
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <button
                 onClick={onOpenDemo}
-                className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-xs font-bold text-white shadow-glow hover:brightness-110 transition-all"
+                className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-xs font-bold text-white shadow-glow hover:brightness-110 transition-all cursor-pointer"
               >
                 Experience MetaGreen
               </button>
               <button
                 onClick={onNavigateSolutions}
-                className="rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-xs font-semibold text-white hover:bg-white/10 transition-all"
+                className="rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-xs font-semibold text-white hover:bg-white/10 transition-all cursor-pointer"
               >
                 View Solar OS Architecture
               </button>
@@ -99,7 +99,7 @@ export function About({ onNavigateContact, onNavigateSolutions, onOpenDemo, onOp
       </section>
 
       {/* Core Values Section matching MetaCheck */}
-      <section className="py-24 sm:py-32 bg-slate-50 border-y border-slate-200">
+      <section className="py-24 sm:py-32 bg-slate-50 dark:bg-[#070716] border-y border-slate-200 dark:border-slate-800 transition-colors duration-200">
         <Container>
           <SectionHeading
             eyebrow="Core Values"
@@ -113,12 +113,12 @@ export function About({ onNavigateContact, onNavigateSolutions, onOpenDemo, onOp
               const Icon = val.icon;
               return (
                 <Reveal key={val.title} variant="up" delay={index * 100}>
-                  <div className="group h-full rounded-2xl border border-slate-200 bg-white p-7 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-soft">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 mb-5 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <div className="group h-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-7 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-soft dark:hover:shadow-glow">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 mb-5 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                       <Icon className="h-6 w-6" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900">{val.title}</h3>
-                    <p className="mt-2 text-xs leading-relaxed text-slate-600">{val.description}</p>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">{val.title}</h3>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{val.description}</p>
                   </div>
                 </Reveal>
               );
@@ -128,7 +128,7 @@ export function About({ onNavigateContact, onNavigateSolutions, onOpenDemo, onOp
       </section>
 
       {/* 3-Step Approach matching MetaCheck */}
-      <section className="py-24 sm:py-32 bg-white">
+      <section className="py-24 sm:py-32 bg-white dark:bg-slate-950 transition-colors duration-200">
         <Container>
           <SectionHeading
             eyebrow="Our Methodology"
@@ -140,14 +140,14 @@ export function About({ onNavigateContact, onNavigateSolutions, onOpenDemo, onOp
           <div className="mt-16 grid gap-8 md:grid-cols-3">
             {APPROACH.map((app, index) => (
               <Reveal key={app.step} variant="up" delay={index * 120}>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-8 relative overflow-hidden h-full flex flex-col justify-between">
-                  <div className="absolute top-4 right-4 text-4xl font-black text-slate-200 select-none">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 p-8 relative overflow-hidden h-full flex flex-col justify-between">
+                  <div className="absolute top-4 right-4 text-4xl font-black text-slate-200 dark:text-slate-800 select-none">
                     {app.step}
                   </div>
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">Step {app.step}</span>
-                    <h3 className="text-xl font-bold text-slate-900 mt-2">{app.title}</h3>
-                    <p className="text-xs leading-relaxed text-slate-600 mt-3">{app.description}</p>
+                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Step {app.step}</span>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-2">{app.title}</h3>
+                    <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400 mt-3">{app.description}</p>
                   </div>
                 </div>
               </Reveal>
@@ -157,7 +157,7 @@ export function About({ onNavigateContact, onNavigateSolutions, onOpenDemo, onOp
       </section>
 
       {/* Leadership / Founders Section matching MetaCheck */}
-      <section className="py-24 sm:py-32 bg-slate-900 text-white relative overflow-hidden" id="leadership">
+      <section className="py-24 sm:py-32 bg-slate-900 dark:bg-[#070714] text-white relative overflow-hidden" id="leadership">
         <div className="pointer-events-none absolute inset-0 bg-grid-dark opacity-30" />
         <Container className="relative z-10">
           <Reveal variant="up" once className="mx-auto max-w-3xl text-center mb-16">
@@ -173,7 +173,7 @@ export function About({ onNavigateContact, onNavigateSolutions, onOpenDemo, onOp
           <div className="grid gap-10 md:grid-cols-2 max-w-5xl mx-auto">
             {FOUNDERS.map((founder, index) => (
               <Reveal key={founder.name} variant="up" delay={index * 140}>
-                <div className="rounded-3xl border border-white/10 bg-slate-950 p-8 shadow-glow flex flex-col justify-between h-full">
+                <div className="rounded-3xl border border-white/10 bg-slate-950/80 p-8 shadow-glow flex flex-col justify-between h-full backdrop-blur-sm">
                   <div>
                     <div className="flex items-center gap-4 border-b border-white/10 pb-6">
                       <img
@@ -213,24 +213,24 @@ export function About({ onNavigateContact, onNavigateSolutions, onOpenDemo, onOp
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-white border-t border-slate-200 text-center">
+      <section className="py-20 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 text-center transition-colors duration-200">
         <Container>
-          <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white sm:text-4xl">
             Join us in building a cleaner world
           </h2>
-          <p className="mt-3 text-sm text-slate-600 max-w-xl mx-auto">
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 max-w-xl mx-auto">
             Whether you are an EPC contractor looking to scale operations or a passionate engineer ready to build high-impact clean tech.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <button
               onClick={onOpenPartner}
-              className="rounded-xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white shadow hover:bg-emerald-500 transition-all"
+              className="rounded-xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white shadow hover:bg-emerald-500 transition-all cursor-pointer"
             >
               Partner With Us
             </button>
             <button
               onClick={onNavigateContact}
-              className="rounded-xl border border-slate-300 bg-slate-50 px-6 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-all"
+              className="rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 px-6 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
             >
               Contact Team
             </button>

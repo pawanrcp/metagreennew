@@ -107,21 +107,21 @@ interface EcosystemSectionProps {
 
 export function EcosystemSection({ onPartnerClick }: EcosystemSectionProps) {
   return (
-    <section className="relative overflow-hidden bg-slate-50 py-24 sm:py-32" id="ecosystem">
+    <section className="relative overflow-hidden bg-slate-50 dark:bg-slate-950 py-24 sm:py-32 transition-colors duration-200" id="ecosystem">
       {/* Decorative gradient blur */}
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-        <div className="absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-emerald-100/40 blur-[100px]" />
-        <div className="absolute right-0 bottom-0 h-80 w-80 rounded-full bg-teal-100/30 blur-[90px]" />
+        <div className="absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-emerald-100/40 dark:bg-emerald-950/20 blur-[100px]" />
+        <div className="absolute right-0 bottom-0 h-80 w-80 rounded-full bg-teal-100/30 dark:bg-teal-950/20 blur-[90px]" />
       </div>
 
       <Container className="relative">
         <Reveal variant="up" once className="mx-auto max-w-3xl text-center">
-          <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Meta Ecosystem</p>
-          <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
+          <p className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Meta Ecosystem</p>
+          <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl lg:text-5xl">
             Powering clean energy with{' '}
-            <span className="text-gradient">interconnected intelligence</span>
+            <span className="text-gradient dark:text-gradient-dark">interconnected intelligence</span>
           </h2>
-          <p className="mt-5 text-lg leading-relaxed text-slate-600">
+          <p className="mt-5 text-lg leading-relaxed text-slate-600 dark:text-slate-300">
             MetaGreen seamlessly interconnects with the complete Meta enterprise suite — syncing contractor verification, solar billing, supply chains, and approval workflows.
           </p>
         </Reveal>
@@ -186,7 +186,7 @@ export function EcosystemSection({ onPartnerClick }: EcosystemSectionProps) {
             const Icon = product.icon;
             return (
               <Reveal key={product.id} variant="up" delay={100 + idx * 60}>
-                <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 transition-all duration-300 hover:-translate-y-1.5 hover:border-slate-300 hover:shadow-soft">
+                <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-soft">
                   {/* Top accent line */}
                   <div
                     className="absolute inset-x-0 top-0 h-[3px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
@@ -196,33 +196,33 @@ export function EcosystemSection({ onPartnerClick }: EcosystemSectionProps) {
 
                   <div className="flex items-start justify-between gap-3">
                     <div
-                      className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-100 shadow-sm transition-transform duration-300 group-hover:scale-105"
+                      className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm transition-transform duration-300 group-hover:scale-105"
                       style={{ backgroundColor: `${product.accent}15` }}
                     >
                       <Icon className="h-6 w-6" style={{ color: product.accent }} aria-hidden="true" />
                     </div>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-600/10">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-600/10 dark:ring-emerald-500/20">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" /> Live Integration
                     </span>
                   </div>
 
                   <div className="mt-4 flex items-center gap-2">
-                    <h4 className="text-lg font-bold tracking-tight text-slate-900">{product.name}</h4>
+                    <h4 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">{product.name}</h4>
                     <span className="text-xs font-semibold" style={{ color: product.accent }}>
                       • {product.subtitle}
                     </span>
                   </div>
 
-                  <p className="mt-3 text-xs leading-relaxed text-slate-600 flex-1">
+                  <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300 flex-1">
                     {product.benefitForMetaGreen}
                   </p>
 
-                  <div className="mt-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-500 ring-1 ring-slate-100">
+                  <div className="mt-4 flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 ring-1 ring-slate-100 dark:ring-slate-700">
                     <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: product.accent }} />
                     Seamless Two-Way Webhook
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3">
                     <a
                       href={product.href}
                       target="_blank"

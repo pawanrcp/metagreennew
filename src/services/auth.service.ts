@@ -27,10 +27,16 @@ export interface UserProfile {
   latitude?: string;
   longitude?: string;
   status?: 'Pending' | 'Active' | 'Rejected';
+  phone?: string;
+  hasWebsiteSubscription?: boolean;
   mustChangePassword?: boolean;
   isFirstLogin?: boolean;
   tempPassword?: string;
   vendorAccount?: any;
+  organizationId?: string;
+  isSuperAdmin?: boolean;
+  roleId?: string;
+  customPermissions?: string[];
   createdAt?: any;
 }
 
@@ -166,7 +172,7 @@ export const authService = {
   },
 
   // Bulletproof Quick Demo Logins with multi-password fallback
-  async loginDemoUser(targetRole: 'admin' | 'vendor' | 'installer' | 'customer' | 'staff' | 'vendor-employee'): Promise<UserProfile> {
+  async loginDemoUser(targetRole: 'admin' | 'hr' | 'vendor' | 'installer' | 'customer' | 'staff' | 'vendor-employee'): Promise<UserProfile> {
     let demoEmail = 'admin@solar.com';
     let demoPasses = ['admin123', 'demo1234', 'Admin123!', 'Password123!'];
     let expectedRole: UserRole = 'Super Admin';
@@ -174,7 +180,13 @@ export const authService = {
     let demoCompany = 'Meta Green Global HQ';
     let mustChange = false;
 
-    if (targetRole === 'installer') {
+    if (targetRole === 'hr') {
+      demoEmail = 'hr@solar.com';
+      demoPasses = ['hr123', 'demo1234', 'Hr123!', 'Password123!'];
+      expectedRole = 'HR Manager';
+      demoName = 'Priya Sharma (HR Director)';
+      demoCompany = 'Meta Green Human Resources';
+    } else if (targetRole === 'installer') {
       demoEmail = 'installer@solar.com';
       demoPasses = ['installer123', 'demo1234', 'Installer123!', 'Password123!'];
       expectedRole = 'Installer';

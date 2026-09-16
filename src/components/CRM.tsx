@@ -1969,8 +1969,8 @@ export default function CRM({
                           className="w-full px-3 py-2 bg-white border border-purple-200 rounded-lg text-xs font-bold text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
                         />
                         <datalist id="lead-vendor-options">
-                          {vendorsList.map((v) => (
-                            <option key={v} value={v} />
+                          {vendorsList.map((v: any) => (
+                            <option key={v.id || v.name || v} value={v.name || v} />
                           ))}
                         </datalist>
                       </div>

@@ -43,6 +43,8 @@ export interface Lead {
   createdBy?: string;
   creatorName?: string;
   vendor?: string;
+  vendorName?: string;
+  assignedOfficer?: string;
   salesRep?: string;
   installerId?: string;
   region?: string;
@@ -210,6 +212,7 @@ export type UserRole =
   | 'Installer'
   | 'Project Manager'
   | 'Finance Manager'
+  | 'HR Manager'
   | 'Customer Support'
   | 'Customer'
   | 'Solar Supplier'

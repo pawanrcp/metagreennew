@@ -1021,19 +1021,13 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (view: ViewType
             </button>
             <button
               onClick={() => setAdminPerspective('VENDOR')}
-              className={cn(
-                "px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer",
-                adminPerspective === 'VENDOR' ? "bg-amber-500 text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-900"
-              )}
+              className="px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer text-slate-500 hover:text-slate-900"
             >
               🏢 Vendor Perspective
             </button>
             <button
               onClick={() => setAdminPerspective('INSTALLER')}
-              className={cn(
-                "px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer",
-                adminPerspective === 'INSTALLER' ? "bg-teal-500 text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-900"
-              )}
+              className="px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer text-slate-500 hover:text-slate-900"
             >
               🔧 Installer Perspective
             </button>

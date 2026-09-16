@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Sun,
+  Moon,
   Zap,
   ShieldCheck,
   CheckCircle2,
@@ -48,6 +49,8 @@ import {
 } from 'lucide-react';
 
 import { MetaGreenLogo } from './MetaGreenLogo';
+import { useTheme } from '@/src/context/ThemeContext';
+import { useTenantWebsite } from '@/src/context/TenantWebsiteContext';
 import { subscriptionService, SubscriptionPlan } from '@/src/services/subscription.service';
 import VendorRegistrationModal from './VendorRegistrationModal';
 import LoginModal from './LoginModal';
@@ -98,6 +101,22 @@ interface LandingPageProps {
 }
 
 export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVendorView }: LandingPageProps) {
+  const { isDarkMode, toggleTheme } = useTheme();
+  const { config: tenantConfig, isSubscriberSite, setTenantSlug } = useTenantWebsite();
+
+  // Dynamic Browser Tab Title & Favicon from Tenant Website Config
+  useEffect(() => {
+    if (tenantConfig?.branding?.websiteTitle) {
+      document.title = tenantConfig.branding.websiteTitle;
+    }
+    if (tenantConfig?.branding?.faviconUrl) {
+      const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+      if (link) {
+        link.href = tenantConfig.branding.faviconUrl;
+      }
+    }
+  }, [tenantConfig]);
+
   // Routing State matching MetaCheck multi-page system
   const [currentPath, setCurrentPath] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -114,7 +133,7 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
   // Modals state
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [loginModalInitialRole, setLoginModalInitialRole] = useState<'admin' | 'vendor' | 'installer' | 'customer' | 'staff'>('admin');
+  const [loginModalInitialRole, setLoginModalInitialRole] = useState<'admin' | 'hr' | 'vendor' | 'installer' | 'customer' | 'staff'>('admin');
   const [isBookDemoOpen, setIsBookDemoOpen] = useState(false);
   const [isContactCareerOpen, setIsContactCareerOpen] = useState(false);
   const [contactPurpose, setContactPurpose] = useState<ContactPurpose>('Sales');
@@ -203,7 +222,16 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
     }
   }, [vendorBranding]);
 
-  const isCustomLandingActive = Boolean(activeVendorBranding?.hasWebsiteSubscription);
+  const isCustomLandingActive = Boolean(isSubscriberSite || activeVendorBranding?.hasWebsiteSubscription);
+  const activeBrandName = (isSubscriberSite && tenantConfig)
+    ? tenantConfig.branding.websiteName
+    : (activeVendorBranding?.companyName || 'MetaGreen');
+  const activeBrandLogo = (isSubscriberSite && tenantConfig)
+    ? tenantConfig.branding.logoUrl
+    : (activeVendorBranding?.companyLogo || '');
+  const activeTagline = (isSubscriberSite && tenantConfig)
+    ? (tenantConfig.branding.tagline || tenantConfig.branding.websiteTitle)
+    : 'Solar EPC Operations, 3D CAD & Automated DISCOM Telemetry';
 
   const DEFAULT_FALLBACK_PLAN: SubscriptionPlan = {
     id: 'plan_starter',
@@ -223,7 +251,7 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
     ]
   };
 
-  const handleOpenLogin = (role: 'admin' | 'vendor' | 'installer' | 'customer' | 'staff' = 'admin') => {
+  const handleOpenLogin = (role: 'admin' | 'hr' | 'vendor' | 'installer' | 'customer' | 'staff' = 'admin') => {
     setLoginModalInitialRole(role);
     setIsLoginModalOpen(true);
   };
@@ -454,57 +482,65 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
         return (
           <>
             {/* HERO SECTION */}
-            <section className="relative min-h-screen overflow-hidden bg-[#050510] pt-24 pb-20 sm:pt-28 sm:pb-28 flex items-center" id="hero">
+            <section className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-[#050510] pt-24 pb-20 sm:pt-28 sm:pb-28 flex items-center transition-colors duration-200" id="hero">
               <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-                <div className="absolute left-1/2 top-1/4 h-[550px] w-[550px] -translate-x-1/2 rounded-full bg-emerald-600/15 blur-[140px]" />
-                <div className="absolute right-0 top-1/3 h-[450px] w-[450px] rounded-full bg-teal-600/10 blur-[120px]" />
-                <div className="absolute left-0 bottom-0 h-[400px] w-[400px] rounded-full bg-cyan-600/10 blur-[100px]" />
+                <div className="absolute left-1/2 top-1/4 h-[550px] w-[550px] -translate-x-1/2 rounded-full bg-emerald-500/10 dark:bg-emerald-600/15 blur-[140px]" />
+                <div className="absolute right-0 top-1/3 h-[450px] w-[450px] rounded-full bg-teal-500/10 dark:bg-teal-600/10 blur-[120px]" />
+                <div className="absolute left-0 bottom-0 h-[400px] w-[400px] rounded-full bg-cyan-500/10 dark:bg-cyan-600/10 blur-[100px]" />
               </div>
-              <div className="pointer-events-none absolute inset-0 bg-grid-dark opacity-30 [mask-image:radial-gradient(ellipse_70%_70%_at_50%_50%,black_30%,transparent_100%)]" aria-hidden="true" />
+              <div className="pointer-events-none absolute inset-0 bg-grid dark:bg-grid-dark opacity-35 dark:opacity-30 [mask-image:radial-gradient(ellipse_70%_70%_at_50%_50%,black_30%,transparent_100%)]" aria-hidden="true" />
 
               <Container className="relative z-10">
                 <div className="grid w-full items-center gap-12 py-10 lg:grid-cols-2 lg:gap-16">
                   <Reveal variant="left" className="max-w-2xl">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 backdrop-blur-sm">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 dark:border-emerald-400/30 bg-emerald-500/10 px-4 py-2 backdrop-blur-sm">
                       <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 dark:bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400" />
                       </span>
-                      <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
-                        Enterprise Clean Energy & Solar EPC OS
+                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
+                        {isSubscriberSite && tenantConfig ? (tenantConfig.branding.tagline || tenantConfig.branding.websiteName) : 'Enterprise Clean Energy & Solar EPC OS'}
                       </span>
                     </div>
 
-                    <h1 className="mt-7 text-4xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl xl:text-7xl">
-                      Powering a{' '}
-                      <span className="relative inline-block">
-                        <span className="text-gradient-dark">greener, smarter</span>
-                        <svg
-                          className="absolute -bottom-2 left-0 h-3 w-full"
-                          viewBox="0 0 200 12"
-                          fill="none"
-                          aria-hidden="true"
-                        >
-                          <path
-                            d="M2 8c30-6 70-6 100-2s60 4 96-2"
-                            stroke="url(#underline-grad-green)"
-                            strokeWidth="3.5"
-                            strokeLinecap="round"
-                          />
-                          <defs>
-                            <linearGradient id="underline-grad-green" x1="0" y1="0" x2="200" y2="0" gradientUnits="userSpaceOnUse">
-                              <stop stopColor="#10b981" />
-                              <stop offset="0.5" stopColor="#14b8a6" />
-                              <stop offset="1" stopColor="#06b6d4" />
-                            </linearGradient>
-                          </defs>
-                        </svg>
-                      </span>{' '}
-                      energy future
+                    <h1 className="mt-7 text-4xl font-extrabold leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-5xl lg:text-6xl xl:text-7xl">
+                      {isSubscriberSite && tenantConfig ? (
+                        tenantConfig.content.heroHeading
+                      ) : (
+                        <>
+                          Powering a{' '}
+                          <span className="relative inline-block">
+                            <span className="text-gradient dark:text-gradient-dark">greener, smarter</span>
+                            <svg
+                              className="absolute -bottom-2 left-0 h-3 w-full"
+                              viewBox="0 0 200 12"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="M2 8c30-6 70-6 100-2s60 4 96-2"
+                                stroke="url(#underline-grad-green)"
+                                strokeWidth="3.5"
+                                strokeLinecap="round"
+                              />
+                              <defs>
+                                <linearGradient id="underline-grad-green" x1="0" y1="0" x2="200" y2="0" gradientUnits="userSpaceOnUse">
+                                  <stop stopColor="#10b981" />
+                                  <stop offset="0.5" stopColor="#14b8a6" />
+                                  <stop offset="1" stopColor="#06b6d4" />
+                                </linearGradient>
+                              </defs>
+                            </svg>
+                          </span>{' '}
+                          energy future
+                        </>
+                      )}
                     </h1>
 
-                    <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
-                      MetaGreen brings technology, solar engineering intelligence, and automated compliance together — empowering developers, rooftop EPCs, and clean energy enterprises to design, install, and monitor solar at scale.
+                    <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-600 dark:text-slate-300 sm:text-lg">
+                      {isSubscriberSite && tenantConfig
+                        ? tenantConfig.content.heroSubheading
+                        : 'MetaGreen brings technology, solar engineering intelligence, and automated compliance together — empowering developers, rooftop EPCs, and clean energy enterprises to design, install, and monitor solar at scale.'}
                     </p>
 
                     <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -512,34 +548,38 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                         onClick={() => setIsBookDemoOpen(true)}
                         className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-6 py-3.5 text-sm font-bold text-white shadow-glow hover:shadow-glow-lg transition-all hover:brightness-110"
                       >
-                        <span>Book Live Demo</span>
+                        <span>
+                          {isSubscriberSite && tenantConfig?.content?.heroCtaText 
+                            ? tenantConfig.content.heroCtaText 
+                            : 'Book Live Demo'}
+                        </span>
                         <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
                       </button>
                       <button
                         onClick={() => navigateTo('/solutions')}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white hover:bg-white/10 transition-all"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-6 py-3.5 text-sm font-semibold text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 shadow-xs dark:shadow-none transition-all"
                       >
                         Explore Solutions
                       </button>
                       <button
                         onClick={() => setIsRegisterModalOpen(true)}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-6 py-3.5 text-sm font-bold text-emerald-300 hover:bg-emerald-500/20 transition-all"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-6 py-3.5 text-sm font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition-all"
                       >
                         Partner With Us
                       </button>
                     </div>
 
                     {/* Quick Tracking Bar */}
-                    <div className="mt-8 rounded-2xl border border-white/10 bg-slate-900/60 p-3 backdrop-blur-md">
+                    <div className="mt-8 rounded-2xl border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/60 p-3 shadow-card dark:shadow-none backdrop-blur-md">
                       <form onSubmit={handleHeroTrackSubmit} className="flex flex-col sm:flex-row gap-2">
                         <div className="relative flex-1">
-                          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-400" />
+                          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                           <input
                             type="text"
                             value={heroTrackInput}
                             onChange={(e) => setHeroTrackInput(e.target.value)}
                             placeholder="Track Solar Application / Project ID / Mobile No..."
-                            className="w-full rounded-xl border border-white/10 bg-black/40 pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                            className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/40 pl-10 pr-4 py-2.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
                           />
                         </div>
                         <button
@@ -551,14 +591,14 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                       </form>
                     </div>
 
-                    <div className="mt-10 flex flex-wrap items-center gap-6 border-t border-white/10 pt-7">
+                    <div className="mt-10 flex flex-wrap items-center gap-6 border-t border-slate-200 dark:border-white/10 pt-7">
                       {[
                         { icon: ShieldCheck, label: 'MNRE Certified' },
                         { icon: Zap, label: '1.2s Inverter Sync' },
                         { icon: Globe, label: '10,000+ Active Sites' },
                       ].map(({ icon: Icon, label }) => (
-                        <div key={label} className="flex items-center gap-2 text-xs font-medium text-slate-400">
-                          <Icon className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+                        <div key={label} className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                          <Icon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
                           {label}
                         </div>
                       ))}
@@ -573,18 +613,18 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
             </section>
 
             {/* STATS SECTION */}
-            <section className="relative overflow-hidden bg-white py-20 sm:py-28 text-slate-900" aria-label="MetaGreen in numbers">
+            <section className="relative overflow-hidden bg-white dark:bg-slate-900 py-20 sm:py-28 text-slate-900 dark:text-white transition-colors duration-200 border-y border-slate-100 dark:border-slate-800/80" aria-label="MetaGreen in numbers">
               <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-                <div className="absolute left-1/2 top-0 h-px w-[80%] -translate-x-1/2 bg-gradient-to-r from-transparent via-emerald-300 to-transparent" />
+                <div className="absolute left-1/2 top-0 h-px w-[80%] -translate-x-1/2 bg-gradient-to-r from-transparent via-emerald-300 dark:via-emerald-500/50 to-transparent" />
               </div>
 
               <Container className="relative">
                 <Reveal variant="up" once className="mx-auto max-w-2xl text-center">
-                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Proof at scale</p>
-                  <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Proof at scale</p>
+                  <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
                     Numbers we&apos;re held accountable to
                   </h2>
-                  <p className="mt-3 text-base text-slate-600">
+                  <p className="mt-3 text-base text-slate-600 dark:text-slate-300">
                     Measured continuously across the MetaGreen clean energy and solar EPC network.
                   </p>
                 </Reveal>
@@ -597,13 +637,13 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                     { id: '4', value: 45, prefix: '₹', suffix: ' Cr+', label: 'Annual Electricity Saved', detail: 'Delivered directly to enterprise and domestic owners' },
                   ].map((metric, index) => (
                     <Reveal key={metric.id} variant="up" delay={index * 100}>
-                      <div className="group relative rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-7 text-center transition-all duration-500 hover:border-emerald-300 hover:shadow-soft">
+                      <div className="group relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-br from-slate-50 to-white dark:from-slate-850 dark:to-slate-900 p-7 text-center transition-all duration-500 hover:border-emerald-300 dark:hover:border-emerald-500/50 hover:shadow-soft">
                         <div className="absolute left-1/2 top-0 h-[2px] w-12 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-500 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                        <dd className="text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">
+                        <dd className="text-4xl font-black tracking-tight text-slate-900 dark:text-white sm:text-5xl">
                           <Counter end={metric.value} prefix={metric.prefix} suffix={metric.suffix} decimals={metric.decimals} />
                         </dd>
-                        <dt className="mt-3 text-sm font-bold text-emerald-800">{metric.label}</dt>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-500">{metric.detail}</p>
+                        <dt className="mt-3 text-sm font-bold text-emerald-800 dark:text-emerald-400">{metric.label}</dt>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{metric.detail}</p>
                       </div>
                     </Reveal>
                   ))}
@@ -612,20 +652,20 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
             </section>
 
             {/* PROBLEM CHALLENGES */}
-            <section className="relative overflow-hidden bg-slate-50 py-24 sm:py-32 text-slate-900">
+            <section className="relative overflow-hidden bg-slate-50 dark:bg-[#070716] py-24 sm:py-32 text-slate-900 dark:text-white transition-colors duration-200">
               <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-                <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-emerald-100/40 blur-[100px]" />
-                <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-teal-100/40 blur-[80px]" />
+                <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-emerald-100/40 dark:bg-emerald-950/20 blur-[100px]" />
+                <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-teal-100/40 dark:bg-teal-950/20 blur-[80px]" />
               </div>
 
               <Container className="relative">
                 <Reveal variant="up" once className="mx-auto max-w-3xl text-center">
-                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">The Challenge</p>
-                  <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">The Challenge</p>
+                  <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl lg:text-5xl">
                     The energy transition is accelerating.{' '}
-                    <span className="text-gradient">Solar operations must keep up.</span>
+                    <span className="text-gradient dark:text-gradient-dark">Solar operations must keep up.</span>
                   </h2>
-                  <p className="mt-5 text-base leading-relaxed text-slate-600 sm:text-lg">
+                  <p className="mt-5 text-base leading-relaxed text-slate-600 dark:text-slate-300 sm:text-lg">
                     As clean energy demand explodes across residential, commercial, and utility sectors, developers and EPCs face operational bottlenecks that compromise speed, compliance, and profitability.
                   </p>
                 </Reveal>
@@ -633,20 +673,20 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                 <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                   {PROBLEMS.map((problem, index) => (
                     <Reveal key={problem.number} variant="up" delay={index * 120}>
-                      <article className="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-7 transition-all duration-500 hover:-translate-y-2 hover:shadow-soft">
+                      <article className="group relative h-full overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-7 transition-all duration-500 hover:-translate-y-2 hover:shadow-soft dark:hover:shadow-glow">
                         <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${problem.accent} opacity-0 transition-opacity duration-500 group-hover:opacity-100`} />
 
                         <div className="flex items-start justify-between">
-                          <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${problem.bg} transition-transform duration-500 group-hover:scale-110`}>
+                          <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${problem.bg} dark:bg-slate-800 transition-transform duration-500 group-hover:scale-110`}>
                             <problem.icon className={`h-6 w-6 ${problem.iconColor}`} aria-hidden="true" />
                           </span>
-                          <span className="text-3xl font-black text-slate-200 transition-colors duration-500 group-hover:text-slate-300">
+                          <span className="text-3xl font-black text-slate-200 dark:text-slate-800 transition-colors duration-500 group-hover:text-slate-300 dark:group-hover:text-slate-700">
                             {problem.number}
                           </span>
                         </div>
 
-                        <h3 className="mt-5 text-lg font-bold text-slate-900">{problem.title}</h3>
-                        <p className="mt-3 text-xs leading-relaxed text-slate-600">{problem.description}</p>
+                        <h3 className="mt-5 text-lg font-bold text-slate-900 dark:text-white">{problem.title}</h3>
+                        <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{problem.description}</p>
                         <div className="absolute bottom-0 left-0 h-px w-0 bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700 group-hover:w-full" />
                       </article>
                     </Reveal>
@@ -662,16 +702,17 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
             <EcosystemSection onPartnerClick={() => setIsRegisterModalOpen(true)} />
 
             {/* SOLUTIONS & MODULES */}
-            <section className="relative overflow-hidden bg-white py-24 sm:py-32 text-slate-900" id="solutions">
+            <section className="relative overflow-hidden bg-white dark:bg-slate-950 py-24 sm:py-32 text-slate-900 dark:text-white transition-colors duration-200" id="solutions">
               <Container className="relative">
                 <SectionHeading
+                  dark={isDarkMode}
                   eyebrow="Flagship Capabilities"
                   title="Engineered for"
                   highlight="every solar milestone"
                   description="From lead acquisition and 3D rooftop simulation to government subsidy disbursement and live inverter generation monitoring."
                 />
 
-                <div className="mt-14 flex flex-wrap justify-center gap-2 border-b border-slate-200 pb-4">
+                <div className="mt-14 flex flex-wrap justify-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
                   {SOLUTION_TABS.map((tab) => (
                     <button
                       key={tab.id}
@@ -679,7 +720,7 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                       className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
                         activeSolutionTab === tab.id
                           ? 'bg-emerald-600 text-white shadow-md'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                          : 'bg-slate-100 dark:bg-slate-850 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       {tab.label}
@@ -690,25 +731,25 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                 {(() => {
                   const currentTab = SOLUTION_TABS.find((t) => t.id === activeSolutionTab) || SOLUTION_TABS[0];
                   return (
-                    <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50/80 p-8 sm:p-12 shadow-soft">
+                    <div className="mt-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60 p-8 sm:p-12 shadow-soft">
                       <div className="grid gap-8 lg:grid-cols-12 lg:items-center">
                         <div className="lg:col-span-7">
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
-                            <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 px-3 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                            <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                             {currentTab.metric}
                           </span>
-                          <h3 className="mt-4 text-2xl font-bold text-slate-900 sm:text-3xl">
+                          <h3 className="mt-4 text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
                             {currentTab.title}
                           </h3>
-                          <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
+                          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300 sm:text-base">
                             {currentTab.description}
                           </p>
 
                           <div className="mt-6 grid gap-3 sm:grid-cols-2">
                             {currentTab.features.map((feat) => (
                               <div key={feat} className="flex items-start gap-2.5">
-                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
-                                <span className="text-xs font-medium text-slate-700">{feat}</span>
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{feat}</span>
                               </div>
                             ))}
                           </div>
@@ -722,7 +763,7 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                             </button>
                             <button
                               onClick={() => navigateTo('/solutions')}
-                              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all"
+                              className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-all"
                             >
                               View Full Solution Architecture
                             </button>
@@ -730,27 +771,27 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                         </div>
 
                         <div className="lg:col-span-5">
-                          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-6 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Feature Status</span>
-                              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">Production Ready</span>
+                              <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">Production Ready</span>
                             </div>
                             <div className="mt-4 space-y-3 text-xs">
-                              <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
-                                <span className="text-slate-500">Processing Speed</span>
-                                <span className="font-bold text-slate-800">&lt; 1.2 Seconds</span>
+                              <div className="flex items-center justify-between py-1.5 border-b border-slate-50 dark:border-slate-800/60">
+                                <span className="text-slate-500 dark:text-slate-400">Processing Speed</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200">&lt; 1.2 Seconds</span>
                               </div>
-                              <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
-                                <span className="text-slate-500">DISCOM Compatibility</span>
-                                <span className="font-bold text-slate-800">All Indian State Discoms</span>
+                              <div className="flex items-center justify-between py-1.5 border-b border-slate-50 dark:border-slate-800/60">
+                                <span className="text-slate-500 dark:text-slate-400">DISCOM Compatibility</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200">All Indian State Discoms</span>
                               </div>
-                              <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
-                                <span className="text-slate-500">Export Formats</span>
-                                <span className="font-bold text-slate-800">PDF, DXF, CSV, JSON API</span>
+                              <div className="flex items-center justify-between py-1.5 border-b border-slate-50 dark:border-slate-800/60">
+                                <span className="text-slate-500 dark:text-slate-400">Export Formats</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200">PDF, DXF, CSV, JSON API</span>
                               </div>
                               <div className="flex items-center justify-between py-1.5">
-                                <span className="text-slate-500">Security Standard</span>
-                                <span className="font-bold text-emerald-600">AES-256 / ISO 27001</span>
+                                <span className="text-slate-500 dark:text-slate-400">Security Standard</span>
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">AES-256 / ISO 27001</span>
                               </div>
                             </div>
                           </div>
@@ -846,9 +887,10 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
             </section>
 
             {/* HOW IT WORKS */}
-            <section className="relative overflow-hidden bg-white py-24 sm:py-32 text-slate-900" id="how-it-works">
+            <section className="relative overflow-hidden bg-white dark:bg-[#070714] py-24 sm:py-32 text-slate-900 dark:text-white transition-colors duration-200" id="how-it-works">
               <Container className="relative">
                 <SectionHeading
+                  dark={isDarkMode}
                   eyebrow="Workflow Engine"
                   title="How MetaGreen simplifies"
                   highlight="the solar journey"
@@ -874,9 +916,9 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                             </div>
 
                             <div className={`ml-20 sm:ml-0 ${isEven ? 'sm:text-right sm:pr-16' : 'sm:col-start-2 sm:pl-16'}`}>
-                              <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">Step {step}</span>
-                              <h3 className="mt-2 text-2xl font-bold text-slate-900">{title}</h3>
-                              <p className="mt-3 text-sm leading-relaxed text-slate-600">{description}</p>
+                              <span className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Step {step}</span>
+                              <h3 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{title}</h3>
+                              <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{description}</p>
                             </div>
 
                             {isEven && <div className="hidden sm:block" />}
@@ -893,9 +935,10 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
             <SecuritySection />
 
             {/* USE CASES */}
-            <section className="relative overflow-hidden bg-slate-50 py-24 sm:py-32 text-slate-900" id="use-cases">
+            <section className="relative overflow-hidden bg-slate-50 dark:bg-[#050510] py-24 sm:py-32 text-slate-900 dark:text-white transition-colors duration-200" id="use-cases">
               <Container className="relative">
                 <SectionHeading
+                  dark={isDarkMode}
                   eyebrow="Target Verticals"
                   title="Engineered for every"
                   highlight="clean energy stakeholder"
@@ -934,7 +977,7 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                     },
                   ].map(({ icon: Icon, title, description, stats, color }, index) => (
                     <Reveal key={title} variant="up" delay={index * 110}>
-                      <article className="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-7 transition-all duration-500 hover:-translate-y-2 hover:shadow-soft">
+                      <article className="group relative h-full overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-7 transition-all duration-500 hover:-translate-y-2 hover:shadow-soft dark:hover:shadow-glow">
                         <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 transition-opacity duration-500 group-hover:opacity-[0.03]`} />
 
                         <div className="relative">
@@ -942,17 +985,17 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                             <span className={`inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${color} text-white shadow-lg transition-transform duration-500 group-hover:scale-110`}>
                               <Icon className="h-7 w-7" aria-hidden="true" />
                             </span>
-                            <ArrowUpRight className="h-5 w-5 text-slate-300 transition-all duration-300 group-hover:-translate-y-1 group-hover:translate-x-1 group-hover:text-emerald-600" aria-hidden="true" />
+                            <ArrowUpRight className="h-5 w-5 text-slate-300 dark:text-slate-600 transition-all duration-300 group-hover:-translate-y-1 group-hover:translate-x-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400" aria-hidden="true" />
                           </div>
 
-                          <h3 className="mt-5 text-lg font-bold text-slate-900">{title}</h3>
-                          <p className="mt-2.5 text-xs leading-relaxed text-slate-600">{description}</p>
+                          <h3 className="mt-5 text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
+                          <p className="mt-2.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300">{description}</p>
 
-                          <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
-                            <span className="text-xs font-bold text-emerald-600">{stats}</span>
+                          <div className="mt-6 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-4">
+                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{stats}</span>
                             <button
                               onClick={() => setIsBookDemoOpen(true)}
-                              className="text-xs font-semibold text-slate-400 group-hover:text-emerald-600 transition-colors"
+                              className="text-xs font-semibold text-slate-400 dark:text-slate-500 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors"
                             >
                               Explore →
                             </button>
@@ -966,9 +1009,10 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
             </section>
 
             {/* CUSTOMER STORIES */}
-            <section className="relative overflow-hidden bg-white py-24 sm:py-32 text-slate-900">
+            <section className="relative overflow-hidden bg-white dark:bg-[#070716] py-24 sm:py-32 text-slate-900 dark:text-white transition-colors duration-200">
               <Container className="relative">
                 <SectionHeading
+                  dark={isDarkMode}
                   eyebrow="Customer Stories"
                   title="Solar leaders scaling"
                   highlight="with confidence"
@@ -978,8 +1022,8 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                 <div className="mt-16 grid gap-8 lg:grid-cols-3">
                   {TESTIMONIALS.map((t, index) => (
                     <Reveal key={t.name} variant="up" delay={index * 120}>
-                      <figure className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/50 p-8 transition-all duration-500 hover:-translate-y-2 hover:shadow-soft">
-                        <Quote className="absolute -right-2 -top-2 h-24 w-24 text-emerald-100/60 transition-all duration-500 group-hover:text-emerald-200/80" aria-hidden="true" />
+                      <figure className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/80 p-8 transition-all duration-500 hover:-translate-y-2 hover:shadow-soft">
+                        <Quote className="absolute -right-2 -top-2 h-24 w-24 text-emerald-100/60 dark:text-emerald-950/40 transition-all duration-500 group-hover:text-emerald-200/80 dark:group-hover:text-emerald-900/40" aria-hidden="true" />
 
                         <div className="relative z-10 flex-1 flex flex-col justify-between">
                           <div>
@@ -988,18 +1032,18 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                                 <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
                               ))}
                             </div>
-                            <blockquote className="mt-5 text-sm leading-relaxed text-slate-700 font-medium">
+                            <blockquote className="mt-5 text-sm leading-relaxed text-slate-700 dark:text-slate-200 font-medium">
                               &ldquo;{t.quote}&rdquo;
                             </blockquote>
                           </div>
 
-                          <figcaption className="mt-8 flex items-center gap-3.5 border-t border-slate-200 pt-5">
+                          <figcaption className="mt-8 flex items-center gap-3.5 border-t border-slate-200 dark:border-slate-800 pt-5">
                             <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-teal-500 text-sm font-black text-white shadow-md">
                               {t.name.split(' ').map((p) => p[0]).slice(0, 2).join('')}
                             </span>
                             <div>
-                              <p className="text-sm font-bold text-slate-900">{t.name}</p>
-                              <p className="text-xs text-slate-500">{t.role} • {t.company}</p>
+                              <p className="text-sm font-bold text-slate-900 dark:text-white">{t.name}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">{t.role} • {t.company}</p>
                             </div>
                           </figcaption>
                         </div>
@@ -1011,24 +1055,24 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
             </section>
 
             {/* PRICING */}
-            <section className="relative overflow-hidden bg-slate-900 py-24 sm:py-32 text-white" id="pricing">
-              <div className="pointer-events-none absolute inset-0 bg-grid-dark opacity-30" />
+            <section className="relative overflow-hidden bg-slate-100 dark:bg-[#070714] py-24 sm:py-32 text-slate-900 dark:text-white transition-colors duration-200 border-t border-slate-200 dark:border-slate-800" id="pricing">
+              <div className="pointer-events-none absolute inset-0 bg-grid dark:bg-grid-dark opacity-30" />
 
               <Container className="relative z-10">
                 <Reveal variant="up" once className="mx-auto max-w-3xl text-center">
-                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">Predictable Plans</p>
-                  <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Predictable Plans</p>
+                  <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl lg:text-5xl">
                     Transparent investment for high-growth solar EPCs
                   </h2>
-                  <p className="mt-3 text-base text-slate-400">
+                  <p className="mt-3 text-base text-slate-600 dark:text-slate-400">
                     Start with a 7-day fully featured free trial. Upgrade or cancel anytime with zero lock-in contracts.
                   </p>
 
-                  <div className="mt-8 inline-flex items-center gap-3 rounded-full border border-white/10 bg-slate-950 px-4 py-2">
+                  <div className="mt-8 inline-flex items-center gap-3 rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-2 shadow-xs">
                     <button
                       onClick={() => setBillingCycle('monthly')}
                       className={`rounded-full px-4 py-1.5 text-xs font-bold transition-colors ${
-                        billingCycle === 'monthly' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                        billingCycle === 'monthly' ? 'bg-emerald-600 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       Monthly
@@ -1036,11 +1080,11 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                     <button
                       onClick={() => setBillingCycle('annual')}
                       className={`rounded-full px-4 py-1.5 text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                        billingCycle === 'annual' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                        billingCycle === 'annual' ? 'bg-emerald-600 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       <span>Annual</span>
-                      <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] text-emerald-300 font-extrabold">
+                      <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300 font-extrabold">
                         Save 20%
                       </span>
                     </button>
@@ -1111,8 +1155,8 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                         key={plan.id}
                         className={`relative flex flex-col justify-between rounded-3xl p-8 transition-all ${
                           isFeatured
-                            ? 'border-2 border-emerald-500 bg-slate-950 shadow-glow-lg -translate-y-2'
-                            : 'border border-white/10 bg-slate-950/60 hover:border-white/20'
+                            ? 'border-2 border-emerald-500 bg-white dark:bg-slate-950 shadow-xl dark:shadow-glow-lg -translate-y-2'
+                            : 'border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-950/60 hover:border-slate-300 dark:hover:border-white/20 shadow-soft'
                         }`}
                       >
                         {isFeatured && (
@@ -1122,35 +1166,35 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                         )}
 
                         <div>
-                          <h3 className="text-xl font-bold text-white">{plan.name}</h3>
-                          <p className="mt-2 text-xs text-slate-400">Up to {plan.userLimit} team seats • {plan.storageGBLimit} GB Cloud Storage</p>
+                          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{plan.name}</h3>
+                          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Up to {plan.userLimit} team seats • {plan.storageGBLimit} GB Cloud Storage</p>
 
                           <div className="mt-6 flex items-baseline gap-1">
-                            <span className="text-4xl font-black text-white tracking-tight">₹{displayPrice.toLocaleString()}</span>
-                            <span className="text-xs text-slate-400">/ month</span>
+                            <span className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">₹{displayPrice.toLocaleString()}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">/ month</span>
                           </div>
                           {billingCycle === 'annual' && (
-                            <p className="text-[11px] text-emerald-400 font-medium mt-1">Billed annually (Save ₹{(plan.priceMonthly * 12 * 0.2).toLocaleString()}/yr)</p>
+                            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">Billed annually (Save ₹{(plan.priceMonthly * 12 * 0.2).toLocaleString()}/yr)</p>
                           )}
 
                           <div className="mt-8 space-y-3">
-                            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Included Features:</p>
+                            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Included Features:</p>
                             {plan.features.map((f: string) => (
-                              <div key={f} className="flex items-start gap-2.5 text-xs text-slate-300">
-                                <Check className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                              <div key={f} className="flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                                <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
                                 <span>{f}</span>
                               </div>
                             ))}
                           </div>
                         </div>
 
-                        <div className="mt-8 pt-6 border-t border-white/10">
+                        <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/10">
                           <button
                             onClick={() => handleStartTrial(plan as any)}
-                            className={`w-full py-3 rounded-xl font-bold text-xs transition-all shadow-md ${
+                            className={`w-full py-3 rounded-xl font-bold text-xs transition-all shadow-md cursor-pointer ${
                               isFeatured
                                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-glow'
-                                : 'bg-white/10 hover:bg-white/15 text-white'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-900 dark:bg-white/10 dark:hover:bg-white/15 dark:text-white border border-slate-200 dark:border-transparent'
                             }`}
                           >
                             Start {plan.trialDays || 7}-Day Free Trial
@@ -1164,43 +1208,43 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
             </section>
 
             {/* CTA BANNER */}
-            <section className="relative overflow-hidden bg-[#0a0a1a] py-20 sm:py-28">
+            <section className="relative overflow-hidden bg-slate-50 dark:bg-[#0a0a1a] py-20 sm:py-28 transition-colors duration-200">
               <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-emerald-600/20 blur-[130px]" />
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-emerald-600/15 blur-[130px]" />
               </div>
 
               <Container className="relative z-10">
-                <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 p-8 sm:p-14 text-center shadow-glow-lg">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-bold text-emerald-300 mb-6">
-                    <Sparkles className="h-4 w-4 text-emerald-400" />
+                <div className="relative overflow-hidden rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-gradient-to-br from-white via-slate-50 to-emerald-50/20 dark:from-slate-900 dark:via-slate-950 dark:to-slate-950 p-8 sm:p-14 text-center shadow-soft dark:shadow-glow-lg">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 dark:border-emerald-400/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-6">
+                    <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     Modernize Your Clean Energy Enterprise
                   </div>
 
-                  <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl max-w-2xl mx-auto">
+                  <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl lg:text-5xl max-w-2xl mx-auto">
                     Ready to scale your solar operations?
                   </h2>
 
-                  <p className="mt-4 text-base leading-relaxed text-slate-400 max-w-xl mx-auto">
+                  <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-slate-400 max-w-xl mx-auto">
                     Join over 500+ forward-thinking clean energy companies, rooftop installers, and solar developers running on MetaGreen OS.
                   </p>
 
                   <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3.5">
                     <button
                       onClick={() => setIsBookDemoOpen(true)}
-                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-8 py-3.5 text-sm font-bold text-white shadow-glow hover:brightness-110 transition-all"
+                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-8 py-3.5 text-sm font-bold text-white shadow-glow hover:brightness-110 transition-all cursor-pointer"
                     >
                       <span>Book a Guided Demo</span>
                       <ArrowRight className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => setIsRegisterModalOpen(true)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-8 py-3.5 text-sm font-semibold text-white hover:bg-white/10 transition-all"
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-8 py-3.5 text-sm font-semibold text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 shadow-xs transition-all cursor-pointer"
                     >
                       Register as EPC Partner
                     </button>
                     <button
                       onClick={() => handleOpenLogin('admin')}
-                      className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-8 py-3.5 text-sm font-bold text-emerald-300 hover:bg-emerald-500/20 transition-all"
+                      className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-8 py-3.5 text-sm font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition-all cursor-pointer"
                     >
                       Sign In to OS
                     </button>
@@ -1214,16 +1258,20 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 font-sans text-slate-100 antialiased selection:bg-emerald-500 selection:text-slate-950">
+    <div className="min-h-screen bg-white dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 antialiased selection:bg-emerald-500 selection:text-slate-950 transition-colors duration-200">
       
       {/* ========================================================================= */}
       {/* STICKY GLASS NAVBAR (Matching MetaCheck with Active Nav Highlighting)      */}
       {/* ========================================================================= */}
       <header
         className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
-          isScrolled || mobileMenuOpen
-            ? 'bg-[#0a0a1a]/95 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.4)]'
-            : 'bg-[#0a0a1a]/80 backdrop-blur-md'
+          isDarkMode
+            ? isScrolled || mobileMenuOpen
+              ? 'bg-[#0a0a1a]/95 text-white backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.4)]'
+              : 'bg-[#0a0a1a]/80 text-white backdrop-blur-md'
+            : isScrolled || mobileMenuOpen
+              ? 'bg-white/95 text-slate-900 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.06)] border-b border-slate-200/80'
+              : 'bg-white/80 text-slate-900 backdrop-blur-md border-b border-slate-200/60'
         }`}
       >
         <div
@@ -1231,10 +1279,53 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
           aria-hidden="true"
         />
 
+        {isSubscriberSite && tenantConfig && (
+          <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white text-xs px-4 py-1.5 flex items-center justify-between font-medium shadow-inner">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+              <span>Viewing Tenant Branded Site: <strong className="font-bold text-white underline">{tenantConfig.branding.websiteName}</strong></span>
+            </div>
+            <button
+              onClick={() => {
+                setTenantSlug('default');
+                window.location.search = '';
+              }}
+              className="text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-0.5 rounded-full text-white transition font-semibold"
+            >
+              Exit Custom View ✕
+            </button>
+          </div>
+        )}
+
         <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:h-[72px] lg:px-8">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            {isCustomLandingActive && activeVendorBranding ? (
+            {isSubscriberSite && tenantConfig ? (
+              <div className="flex items-center gap-3">
+                {tenantConfig.branding.logoUrl ? (
+                  <img
+                    src={tenantConfig.branding.logoUrl}
+                    alt={tenantConfig.branding.websiteName}
+                    className="h-10 w-auto object-contain rounded-lg bg-white p-1 shadow-sm"
+                  />
+                ) : (
+                  <div
+                    className="h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white shadow-md text-base"
+                    style={{ backgroundColor: tenantConfig.theme.primaryColor || '#059669' }}
+                  >
+                    {tenantConfig.branding.websiteName.charAt(0)}
+                  </div>
+                )}
+                <div>
+                  <span className={`font-extrabold text-base tracking-tight block ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                    {tenantConfig.branding.websiteName}
+                  </span>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold tracking-wider uppercase block">
+                    {tenantConfig.branding.tagline || 'Powered by MetaGreen OS'}
+                  </span>
+                </div>
+              </div>
+            ) : isCustomLandingActive && activeVendorBranding ? (
               <div className="flex items-center gap-3">
                 {activeVendorBranding.companyLogo ? (
                   <img
@@ -1248,10 +1339,10 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                   </div>
                 )}
                 <div>
-                  <span className="font-extrabold text-base tracking-tight text-white block">
+                  <span className={`font-extrabold text-base tracking-tight block ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                     {activeVendorBranding.companyName}
                   </span>
-                  <span className="text-[10px] text-emerald-400 font-semibold tracking-wider uppercase block">
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold tracking-wider uppercase block">
                     Powered by MetaGreen OS
                   </span>
                 </div>
@@ -1279,8 +1370,12 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                     onClick={() => navigateTo(item.path)}
                     className={`relative rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
                       isActive
-                        ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-white shadow-glow'
-                        : 'text-slate-300 hover:text-white hover:bg-white/5'
+                        ? isDarkMode
+                          ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-white shadow-glow'
+                          : 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200/60 shadow-xs'
+                        : isDarkMode
+                          ? 'text-slate-300 hover:text-white hover:bg-white/5'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
                     <span>{item.label}</span>
@@ -1295,12 +1390,30 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
 
           {/* Right Action Buttons */}
           <div className="hidden items-center gap-2.5 sm:flex">
+            {/* Dark / Light Mode Toggle */}
+            <button
+              onClick={toggleTheme}
+              className={`inline-flex items-center justify-center h-9 w-9 rounded-xl transition-all cursor-pointer ${
+                isDarkMode
+                  ? 'border border-white/10 bg-white/5 text-amber-400 hover:bg-white/10 hover:text-amber-300'
+                  : 'border border-slate-200 bg-slate-100/80 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
+              }`}
+              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {isDarkMode ? (
+                <Sun className="h-4 w-4 transition-transform hover:rotate-45 duration-300" />
+              ) : (
+                <Moon className="h-4 w-4 transition-transform hover:-rotate-12 duration-300" />
+              )}
+            </button>
+
             <button
               onClick={() => {
                 setTrackingInitialQuery('');
                 setIsTrackingModalOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 px-3 py-2 text-xs font-semibold text-teal-300 hover:bg-teal-500/20 transition-all"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 px-3 py-2 text-xs font-semibold text-teal-400 dark:text-teal-300 hover:bg-teal-500/20 transition-all"
             >
               <Search className="h-3.5 w-3.5" />
               Track Solar
@@ -1308,14 +1421,18 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
 
             <button
               onClick={() => handleOpenLogin('admin')}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 hover:text-white transition-all"
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all ${
+                isDarkMode
+                  ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white'
+                  : 'border-slate-200 bg-slate-100/80 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
+              }`}
             >
               Sign In
             </button>
 
             <button
               onClick={() => setIsRegisterModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 transition-all"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 transition-all"
             >
               Partner
             </button>
@@ -1332,7 +1449,9 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
           {/* Mobile hamburger */}
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-white hover:bg-white/10 md:hidden"
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl md:hidden transition-colors ${
+              isDarkMode ? 'text-white hover:bg-white/10' : 'text-slate-700 hover:bg-slate-100'
+            }`}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle Navigation Menu"
           >
@@ -1342,7 +1461,9 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
 
         {/* Mobile Menu Drawer */}
         {mobileMenuOpen && (
-          <div className="border-t border-white/10 bg-[#0a0a1a]/95 px-5 py-5 backdrop-blur-xl md:hidden space-y-3">
+          <div className={`border-t px-5 py-5 backdrop-blur-xl md:hidden space-y-3 ${
+            isDarkMode ? 'border-white/10 bg-[#0a0a1a]/95 text-white' : 'border-slate-200 bg-white/95 text-slate-900 shadow-xl'
+          }`}>
             <div className="grid grid-cols-2 gap-2">
               {[
                 { label: 'Home', path: '/' },
@@ -1356,13 +1477,31 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
                   onClick={() => navigateTo(item.path)}
                   className={`rounded-lg p-2.5 text-left text-xs font-semibold ${
                     currentPath === item.path
-                      ? 'bg-emerald-500/20 text-emerald-400 font-bold'
-                      : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                      ? isDarkMode ? 'bg-emerald-500/20 text-emerald-400 font-bold' : 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200'
+                      : isDarkMode ? 'text-slate-300 hover:bg-white/5 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   {item.label}
                 </button>
               ))}
+            </div>
+
+            {/* Mobile Theme Toggle */}
+            <div className={`flex items-center justify-between p-3 rounded-xl border ${
+              isDarkMode ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-slate-50'
+            }`}>
+              <div className="flex items-center gap-2">
+                {isDarkMode ? <Moon className="h-4 w-4 text-emerald-400" /> : <Sun className="h-4 w-4 text-amber-500" />}
+                <span className={`text-xs font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>
+                  {isDarkMode ? 'Dark Theme' : 'Light Theme'}
+                </span>
+              </div>
+              <button
+                onClick={toggleTheme}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-colors cursor-pointer"
+              >
+                Switch to {isDarkMode ? 'Light' : 'Dark'}
+              </button>
             </div>
 
             <div className="pt-3 border-t border-white/10 flex flex-col gap-2">

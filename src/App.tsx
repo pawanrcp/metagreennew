@@ -35,6 +35,7 @@ import Login from './components/Login';
 import LandingPage from './components/LandingPage';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import { ToastProvider, useToast } from './context/ToastContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 import { ViewType, AuthenticatedUser } from './types';
 import { 
@@ -78,7 +79,7 @@ function AppContent() {
   const [isPunchedIn, setIsPunchedIn] = useState(false);
   const [punchTime, setPunchTime] = useState<Date | null>(null);
   const [currentFilter, setCurrentFilter] = useState<string | undefined>();
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDarkMode, toggleTheme } = useTheme();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSupportDrawerOpen, setIsSupportDrawerOpen] = useState(false);
   const [isLandingPageMode, setIsLandingPageMode] = useState<boolean>(() => {
@@ -174,14 +175,6 @@ function AppContent() {
       console.error('Logout error:', err);
     }
   };
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
 
   useEffect(() => {
     if (user) {
@@ -442,7 +435,7 @@ function AppContent() {
           <div className="flex items-center gap-1 sm:gap-1.5 border-l border-slate-800 pl-1.5 sm:pl-3">
             {/* Dark / Light Toggle */}
             <button 
-              onClick={() => setIsDarkMode(!isDarkMode)} 
+              onClick={toggleTheme} 
               className="p-1.5 sm:p-2 hover:bg-slate-800 rounded-full text-slate-300 hover:text-white transition-colors cursor-pointer"
               title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
@@ -756,14 +749,20 @@ function AppContent() {
   );
 }
 
+import { TenantWebsiteProvider } from './context/TenantWebsiteContext';
+
 export default function App() {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <LogoProvider>
-          <AppContent />
-        </LogoProvider>
-      </AuthProvider>
-    </ToastProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <LogoProvider>
+            <TenantWebsiteProvider>
+              <AppContent />
+            </TenantWebsiteProvider>
+          </LogoProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

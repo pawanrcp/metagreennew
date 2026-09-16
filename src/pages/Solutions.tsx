@@ -86,7 +86,7 @@ curl -X POST https://api.metagreen.io/v1/solar/projects \\
 
 export function Solutions({ onOpenDemo, onOpenPartner, onNavigateContact }: SolutionsProps) {
   return (
-    <div className="bg-white min-h-screen text-slate-800">
+    <div className="bg-white dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-100 transition-colors duration-300">
       {/* Hero Section matching MetaCheck */}
       <section className="relative overflow-hidden bg-[#050510] pt-28 pb-20 sm:pt-36 sm:pb-28 text-white">
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
@@ -108,13 +108,13 @@ export function Solutions({ onOpenDemo, onOpenPartner, onNavigateContact }: Solu
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <button
                 onClick={onOpenDemo}
-                className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 text-xs font-bold text-white shadow-glow hover:brightness-110 transition-all"
+                className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 text-xs font-bold text-white shadow-glow hover:brightness-110 transition-all cursor-pointer"
               >
                 Schedule Architecture Demo
               </button>
               <button
                 onClick={onOpenPartner}
-                className="rounded-xl border border-white/20 bg-white/5 px-6 py-3.5 text-xs font-semibold text-white hover:bg-white/10 transition-all"
+                className="rounded-xl border border-white/20 bg-white/5 px-6 py-3.5 text-xs font-semibold text-white hover:bg-white/10 transition-all cursor-pointer"
               >
                 Register as EPC Partner
               </button>
@@ -124,7 +124,7 @@ export function Solutions({ onOpenDemo, onOpenPartner, onNavigateContact }: Solu
       </section>
 
       {/* Modules Deep Dive */}
-      <section className="py-24 sm:py-32 bg-slate-50 border-y border-slate-200">
+      <section className="py-24 sm:py-32 bg-slate-50 dark:bg-[#070716] border-y border-slate-200 dark:border-slate-800 transition-colors duration-200">
         <Container>
           <SectionHeading
             eyebrow="Capabilities"
@@ -138,33 +138,33 @@ export function Solutions({ onOpenDemo, onOpenPartner, onNavigateContact }: Solu
               const Icon = m.icon;
               return (
                 <Reveal key={m.title} variant="up" delay={index * 100}>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-8 sm:p-10 shadow-soft grid gap-8 md:grid-cols-12 md:items-center">
+                  <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-8 sm:p-10 shadow-soft dark:shadow-glow grid gap-8 md:grid-cols-12 md:items-center transition-all">
                     <div className="md:col-span-8">
                       <div className="flex items-center gap-3">
                         <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${m.color} text-white shadow-sm`}>
                           <Icon className="h-6 w-6" />
                         </div>
-                        <h3 className="text-xl font-bold text-slate-900">{m.title}</h3>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white">{m.title}</h3>
                       </div>
-                      <p className="mt-3 text-xs leading-relaxed text-slate-600">{m.desc}</p>
+                      <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{m.desc}</p>
                       <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         {m.features.map((f) => (
-                          <div key={f} className="flex items-center gap-2 text-xs font-medium text-slate-700">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <div key={f} className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                             <span>{f}</span>
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="md:col-span-4 flex flex-col justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-6 md:pt-0 md:pl-8">
+                    <div className="md:col-span-4 flex flex-col justify-center border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-800 pt-6 md:pt-0 md:pl-8">
                       <button
                         onClick={onOpenDemo}
-                        className="rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow hover:bg-emerald-500 transition-all text-center"
+                        className="rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow hover:bg-emerald-500 transition-all text-center cursor-pointer"
                       >
                         Request Module Demo
                       </button>
-                      <p className="mt-2 text-[11px] text-center text-slate-400">Available across all standard tiers</p>
+                      <p className="mt-2 text-[11px] text-center text-slate-400 dark:text-slate-500">Available across all standard tiers</p>
                     </div>
                   </div>
                 </Reveal>
@@ -224,24 +224,24 @@ export function Solutions({ onOpenDemo, onOpenPartner, onNavigateContact }: Solu
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-white border-t border-slate-200 text-center">
+      <section className="py-20 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 text-center transition-colors duration-200">
         <Container>
-          <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white sm:text-4xl">
             Modernize your solar EPC workflow today
           </h2>
-          <p className="mt-3 text-sm text-slate-600 max-w-lg mx-auto">
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 max-w-lg mx-auto">
             Book a personalized walkthrough with our technical architects and see MetaGreen in action.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <button
               onClick={onOpenDemo}
-              className="rounded-xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white shadow hover:bg-emerald-500 transition-all"
+              className="rounded-xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white shadow hover:bg-emerald-500 transition-all cursor-pointer"
             >
               Book Live Demo
             </button>
             <button
               onClick={onNavigateContact}
-              className="rounded-xl border border-slate-300 bg-slate-50 px-6 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-all"
+              className="rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-6 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
             >
               Contact Sales Team
             </button>

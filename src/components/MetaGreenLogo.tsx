@@ -29,7 +29,8 @@ export const MetaGreenLogo: React.FC<MetaGreenLogoProps> = ({
     xl: { width: 450, height: 130, iconSize: 100, fontSize: 42 },
   }[size];
 
-  const isDarkMode = variant === 'dark' || inverted;
+  const isExplicitDark = variant === 'dark' || inverted;
+  const isExplicitLight = variant === 'light';
   const customLogo = user?.companyLogo || user?.vendorAccount?.companyLogo || logos.companyLogo;
   const companyTitle = user?.companyName || user?.vendorAccount?.companyName || logos.companyName || 'METAGREEN';
   const subText = textSub || logos.tagline || 'SOLAR SOFTWARE SOLUTIONS';
@@ -134,10 +135,14 @@ export const MetaGreenLogo: React.FC<MetaGreenLogoProps> = ({
       {showText && (
         <div className="flex flex-col">
           <div className="flex items-center font-black tracking-tight leading-none" style={{ fontSize: dimensions.fontSize }}>
-            <span className={isDarkMode ? "text-white" : "text-[#0F172A]"}>{companyTitle}</span>
+            <span className={isExplicitDark ? "text-white" : isExplicitLight ? "text-[#0F172A]" : "text-[#0F172A] dark:text-white"}>
+              {companyTitle}
+            </span>
           </div>
           {subText && (
-            <span className={`text-[9px] md:text-[10px] font-black uppercase tracking-[0.25em] mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+            <span className={`text-[9px] md:text-[10px] font-black uppercase tracking-[0.25em] mt-0.5 ${
+              isExplicitDark ? 'text-slate-400' : isExplicitLight ? 'text-slate-500' : 'text-slate-500 dark:text-slate-400'
+            }`}>
               {subText}
             </span>
           )}
