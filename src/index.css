@@ -27,10 +27,53 @@
     border: 1px solid rgba(51, 65, 85, 0.8);
   }
 
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(16, 185, 129, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16, 185, 129, 0.05) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  .bg-grid-dark {
+    background-image:
+      linear-gradient(rgba(16, 185, 129, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16, 185, 129, 0.08) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  .bg-dot {
+    background-image: radial-gradient(circle, rgba(16, 185, 129, 0.12) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
   .text-gradient {
+    background: linear-gradient(135deg, #059669 0%, #10b981 50%, #06b6d4 100%);
     background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+  }
+
+  .text-gradient-dark {
+    background: linear-gradient(135deg, #34d399 0%, #6ee7b7 50%, #22d3ee 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .shadow-soft {
+    box-shadow: 0 8px 30px rgba(2, 6, 23, 0.07);
+  }
+
+  .shadow-card {
+    box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04), 0 4px 16px rgba(2, 6, 23, 0.05);
+  }
+
+  .shadow-glow {
+    box-shadow: 0 0 40px rgba(16, 185, 129, 0.18);
+  }
+
+  .shadow-glow-lg {
+    box-shadow: 0 0 80px rgba(16, 185, 129, 0.25);
   }
 
   .bg-grid-pattern {
@@ -58,6 +101,19 @@
   .glow-indigo {
     box-shadow: 0 0 45px -5px rgba(79, 70, 229, 0.35);
   }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+.animate-float {
+  animation: float 7s ease-in-out infinite;
 }
 
 @keyframes pulseGlow {

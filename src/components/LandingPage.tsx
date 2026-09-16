@@ -1,20 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ShieldCheck,
+  Sun,
   Zap,
-  Check,
+  ShieldCheck,
+  CheckCircle2,
   ArrowRight,
   Sparkles,
   Users,
-  HardDrive,
-  ShoppingCart,
   FileText,
-  Sun,
-  Moon,
-  Lock,
   ChevronRight,
-  ChevronDown,
-  Calculator,
   Building2,
   Phone,
   Mail,
@@ -28,7 +22,6 @@ import {
   Cloud,
   Smartphone,
   Cpu,
-  Headphones,
   Settings2,
   ClipboardCheck,
   LineChart,
@@ -37,29 +30,23 @@ import {
   HelpCircle,
   IndianRupee,
   Star,
-  RefreshCw,
-  Share2,
-  PieChart,
-  PhoneCall,
-  UserPlus,
-  Play,
-  CheckCircle2,
+  Quote,
+  Check,
+  Search,
   ArrowUpRight,
   Activity,
-  FileSpreadsheet,
-  CheckSquare,
-  KeyRound,
-  Shield,
-  Server,
-  Layers3,
+  AlertTriangle,
+  Link2,
+  ShieldAlert,
+  Landmark,
+  ShoppingBag,
+  Handshake,
+  RotateCcw,
+  Scale,
   BadgeCheck,
-  Flame,
-  Clock,
-  LayoutGrid,
-  CheckCircle,
-  Search,
-  AlertCircle
+  Map
 } from 'lucide-react';
+
 import { MetaGreenLogo } from './MetaGreenLogo';
 import { subscriptionService, SubscriptionPlan } from '@/src/services/subscription.service';
 import VendorRegistrationModal from './VendorRegistrationModal';
@@ -67,6 +54,28 @@ import LoginModal from './LoginModal';
 import BookDemoModal from './BookDemoModal';
 import ContactCareerModal, { ContactPurpose } from './ContactCareerModal';
 import ApplicationTrackingModal from './ApplicationTrackingModal';
+
+import { Container } from './landing/Container';
+import { Counter } from './landing/Counter';
+import { Reveal } from './landing/Reveal';
+import { SectionHeading } from './landing/SectionHeading';
+import { HeroCommandCard } from './landing/HeroCommandCard';
+import { ProductCommandCenter } from './landing/ProductCommandCenter';
+import { EcosystemSection } from './landing/EcosystemSection';
+import { SecuritySection } from './landing/SecuritySection';
+import { LandingFooter } from './landing/LandingFooter';
+
+// Full Website Pages
+import { About } from '@/src/pages/About';
+import { Careers } from '@/src/pages/Careers';
+import { Contact } from '@/src/pages/Contact';
+import { Solutions } from '@/src/pages/Solutions';
+import { PrivacyPolicy } from '@/src/pages/legal/PrivacyPolicy';
+import { TermsOfService } from '@/src/pages/legal/TermsOfService';
+import { Cancellation } from '@/src/pages/legal/Cancellation';
+import { Security } from '@/src/pages/legal/Security';
+import { Compliance } from '@/src/pages/legal/Compliance';
+import { Sitemap } from '@/src/pages/legal/Sitemap';
 
 export interface VendorBrandingInfo {
   uid: string;
@@ -89,34 +98,63 @@ interface LandingPageProps {
 }
 
 export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVendorView }: LandingPageProps) {
+  // Routing State matching MetaCheck multi-page system
+  const [currentPath, setCurrentPath] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      if (path && path !== '') return path;
+    }
+    return '/';
+  });
+
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [activeVendorBranding, setActiveVendorBranding] = useState<VendorBrandingInfo | null>(vendorBranding || null);
+  
+  // Modals state
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [loginModalInitialRole, setLoginModalInitialRole] = useState<'admin' | 'vendor' | 'installer' | 'customer' | 'staff'>('admin');
   const [isBookDemoOpen, setIsBookDemoOpen] = useState(false);
-
-  const handleOpenLogin = (role: 'admin' | 'vendor' | 'installer' | 'customer' | 'staff' = 'admin') => {
-    setLoginModalInitialRole(role);
-    setIsLoginModalOpen(true);
-  };
   const [isContactCareerOpen, setIsContactCareerOpen] = useState(false);
+  const [contactPurpose, setContactPurpose] = useState<ContactPurpose>('Sales');
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
   const [trackingInitialQuery, setTrackingInitialQuery] = useState('');
+  
+  // Navigation & Interactive state
   const [heroTrackInput, setHeroTrackInput] = useState('');
-  const [contactPurpose, setContactPurpose] = useState<ContactPurpose>('Sales');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const [activeSolutionTab, setActiveSolutionTab] = useState<'design' | 'crm' | 'procurement' | 'finance' | 'audit'>('design');
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-
-  // Interactive Calculator State
+  const [activeSolutionTab, setActiveSolutionTab] = useState<'design' | 'crm' | 'procurement' | 'finance' | 'telemetry'>('design');
   const [monthlyBill, setMonthlyBill] = useState(7500);
-
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Router Navigator with browser history
+  const navigateTo = (path: string, hash?: string) => {
+    setMobileMenuOpen(false);
+    if (typeof window !== 'undefined') {
+      const fullUrl = hash ? `${path}#${hash}` : path;
+      window.history.pushState({}, '', fullUrl);
+      setCurrentPath(path);
+      if (hash) {
+        setTimeout(() => {
+          const el = document.getElementById(hash);
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname.toLowerCase() || '/');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     async function loadPlans() {
@@ -130,11 +168,8 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
     loadPlans();
 
     const handleScroll = () => {
-      if (window.scrollY > 300) {
-        setShowScrollTop(true);
-      } else {
-        setShowScrollTop(false);
-      }
+      setIsScrolled(window.scrollY > 20);
+      setShowScrollTop(window.scrollY > 400);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
@@ -168,8 +203,6 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
     }
   }, [vendorBranding]);
 
-  // ACCESS RULE: If website subscription was checked (+₹999/-), vendor gets full access to their branded landing page.
-  // Otherwise, only the standard MetaGreen landing page is shown.
   const isCustomLandingActive = Boolean(activeVendorBranding?.hasWebsiteSubscription);
 
   const DEFAULT_FALLBACK_PLAN: SubscriptionPlan = {
@@ -185,8 +218,14 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
       '3D Solar CAD Rooftop Layout Engine',
       'Solar Lead CRM & Geotagged Surveys',
       'PM Surya Ghar Govt Subsidy Tracker',
-      'GST Tax Invoice & E-Way Bill Generator'
+      'GST Tax Invoice & E-Way Bill Generator',
+      'Real-time IoT Inverter Telemetry'
     ]
+  };
+
+  const handleOpenLogin = (role: 'admin' | 'vendor' | 'installer' | 'customer' | 'staff' = 'admin') => {
+    setLoginModalInitialRole(role);
+    setIsLoginModalOpen(true);
   };
 
   const handleStartTrial = (plan?: SubscriptionPlan) => {
@@ -194,517 +233,1174 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
     setIsRegisterModalOpen(true);
   };
 
-  const scrollToSection = (e: React.MouseEvent, id: string) => {
+  const handleHeroTrackSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setActiveDropdown(null);
-    setMobileMenuOpen(false);
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+    setTrackingInitialQuery(heroTrackInput.trim());
+    setIsTrackingModalOpen(true);
   };
 
-  const handleSolutionClick = (tabId: 'design' | 'crm' | 'procurement' | 'finance' | 'audit', e: React.MouseEvent) => {
-    e.preventDefault();
-    setActiveSolutionTab(tabId);
-    setActiveDropdown(null);
-    setMobileMenuOpen(false);
-    const el = document.getElementById('solutions-tabs');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  // Solar ROI Computations
+  // Solar ROI Calculations
   const recommendedKw = Math.max(1, Math.round((monthlyBill / 1200) * 10) / 10);
   const estimatedSubsidy = recommendedKw <= 1 ? 30000 : recommendedKw <= 2 ? 60000 : 78000;
   const annualSavings = Math.round(monthlyBill * 12 * 0.88);
   const estimatedSystemCost = Math.round(recommendedKw * 58000);
   const netInvestment = Math.max(0, estimatedSystemCost - estimatedSubsidy);
   const paybackYears = (netInvestment / Math.max(1, annualSavings)).toFixed(1);
+  const lifetimeSavings = Math.round(annualSavings * 25);
 
-  // Solution Categories Data
-  const solutionTabs = [
+  // 4 Problem Challenges matching MetaCheck
+  const PROBLEMS = [
+    {
+      icon: AlertTriangle,
+      number: '01',
+      title: 'Manual CAD & Spreadsheets',
+      description: 'Solar design engineering takes days in legacy CAD tools. Leads go cold while customers wait for proposals and generation estimates.',
+      accent: 'from-amber-500 to-orange-500',
+      bg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+    },
+    {
+      icon: ShieldAlert,
+      number: '02',
+      title: 'DISCOM Red Tape & Subsidy Delays',
+      description: 'Navigating state DISCOM portals and PM-Surya Ghar subsidy claims without automated verification leads to months of stalled capital disbursements.',
+      accent: 'from-red-500 to-rose-500',
+      bg: 'bg-red-50',
+      iconColor: 'text-red-600',
+    },
+    {
+      icon: Link2,
+      number: '03',
+      title: 'BOM Leakage & Inventory Disconnect',
+      description: 'Fragmented supply chains cause stockouts of solar modules, inverters, and structures, eroding EPC profit margins by up to 15%.',
+      accent: 'from-emerald-500 to-teal-500',
+      bg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+    },
+    {
+      icon: Users,
+      number: '04',
+      title: 'Zero Post-Commissioning Visibility',
+      description: 'Once installed, systems suffer silent inverter outages and grid curtailment. Without real-time IoT alerts, performance ratios collapse.',
+      accent: 'from-cyan-500 to-blue-500',
+      bg: 'bg-cyan-50',
+      iconColor: 'text-cyan-600',
+    },
+  ];
+
+  // Alternating How It Works steps matching MetaCheck
+  const HOW_IT_WORKS_STEPS = [
+    {
+      icon: Sun,
+      step: '01',
+      title: 'AI Satellite Roof Survey & 3D Shading',
+      description: 'Capture rooftop boundaries via satellite or drone. Automatically calculate tilt, azimuth, shade loss, and maximum panel capacity in seconds.',
+      color: 'from-emerald-500 to-teal-600',
+    },
+    {
+      icon: FileText,
+      step: '02',
+      title: 'Automated BOQ & Tax-Compliant Proposal',
+      description: 'Generate accurate electrical single-line diagrams, engineering BOMs, and GST quotations with instant customer payback and loan EMI schedules.',
+      color: 'from-teal-500 to-cyan-600',
+    },
+    {
+      icon: Zap,
+      step: '03',
+      title: 'DISCOM Net-Metering & Subsidy Auto-Filing',
+      description: 'Auto-fill DISCOM grid feasibility applications, net-metering sanctions, and national portal capital subsidy claims with 100% document accuracy.',
+      color: 'from-cyan-500 to-blue-600',
+    },
+    {
+      icon: Activity,
+      step: '04',
+      title: 'Grid Commissioning & 24/7 Smart Telemetry',
+      description: 'Track field installation crews, verify grid sync compliance, and stream live kWh generation data directly into your customer portal.',
+      color: 'from-emerald-600 to-green-600',
+    },
+  ];
+
+  // Solutions Tabs Data
+  const SOLUTION_TABS = [
     {
       id: 'design',
-      label: '3D Solar & AI Layout',
-      icon: Cpu,
-      title: 'Automated 3D Rooftop Modeling & Shading Analysis',
-      subtitle: 'Engineered for solar EPCs to generate accurate single-line diagrams, shading loss maps, and customer proposals in seconds.',
+      label: '3D PV Engineering',
+      title: 'Automated 3D Rooftop CAD & Shading Simulation',
+      description: 'Generate production-ready string layouts, shading loss heatmaps, and single-line diagrams (SLD) without expensive third-party CAD licenses.',
       features: [
-        'AI Panel Placement & Tilt Optimization',
-        '360° Sun Path & Shadow Simulation',
-        'Automatic Single-Line Diagram (SLD) Export',
-        'Instant Customer ROI & Payback Pitchbook'
+        'Satellite roof tracing with pitch & obstacle detection',
+        '360° Sun path irradiance and hourly shadow analysis',
+        'Automatic string inverter sizing & DC/AC ratio checks',
+        '1-Click PDF engineering report & proposal pitchbook'
       ],
-      metric: '99.4% Generation Model Accuracy'
+      metric: '99.8% Simulation Accuracy'
     },
     {
       id: 'crm',
-      label: 'CRM & Lead Pipeline',
-      icon: Users,
-      title: 'End-to-End Customer Journey & Site Surveying',
-      subtitle: 'Streamline lead capture, automated follow-ups, survey dispatching, and sales executive commission tracking.',
+      label: 'Solar CRM & Surveys',
+      title: 'Geotagged Surveying & Lead Pipeline Management',
+      description: 'Empower field sales executives and survey engineers with mobile-first survey tools, instant feasibility scorecards, and automated follow-ups.',
       features: [
-        'Multi-Channel Lead Capture & Auto-Routing',
-        'Mobile Geotagged Site Survey App',
-        'Quotation & Contract E-Signing',
-        'Real-time Customer Portal & Status Tracker'
+        'Mobile app with GPS geo-tagging and roof photo uploads',
+        'Multi-stage EPC sales pipeline from lead to commissioning',
+        'Automated WhatsApp and SMS client milestone alerts',
+        'Sales team performance metrics & commission tracking'
       ],
-      metric: '3.5x Faster Lead Conversion'
+      metric: '3.4x Faster Proposal Delivery'
     },
     {
       id: 'procurement',
-      label: 'Procurement & Stock',
-      icon: Box,
-      title: 'Multi-Warehouse Inventory & Supplier Portal',
-      subtitle: 'Eliminate stockouts and track panels, inverters, and mounting structures down to the exact serial barcode.',
+      label: 'BOM & Warehousing',
+      title: 'End-to-End Solar Inventory & Supply Chain',
+      description: 'Synchronize panels, inverters, cables, and earthing BOS equipment across multiple central warehouses and on-site project consignments.',
       features: [
-        'Barcode / QR Serial Number Tracking',
-        'Vendor Purchase Order (PO) Workflows',
-        'Stock Threshold Alert & Reorder Triggers',
-        'Warranty Registration & Tracking'
+        'Real-time barcode tracking for PV serial numbers',
+        'Automated purchase order generation based on active projects',
+        'Vendor price book comparisons for tier-1 components',
+        'Dispatch scheduling with delivery milestone confirmations'
       ],
-      metric: 'Zero Inventory Leakage'
+      metric: 'Zero On-Site Stockout Rate'
     },
     {
       id: 'finance',
-      label: 'Finance & GST Invoices',
-      icon: IndianRupee,
-      title: 'Automated GST Invoicing & Subsidy Tracking',
-      subtitle: 'Comply with government subsidy (PM Surya Ghar) regulations, issue tax invoices, and reconcile payments seamlessly.',
+      label: 'Subsidy & Invoicing',
+      title: 'DISCOM Net-Metering & PM-Surya Ghar Portal',
+      description: 'Cut government subsidy approval times from 90 days to under 2 weeks with automated document compliance and milestone progress billing.',
       features: [
-        '1-Click Tax Invoice & E-Way Bill Generation',
-        'Milestone Payment Scheduling & Reminders',
-        'PM Surya Ghar Govt Subsidy Status Tracker',
-        'Seamless Sync with MetaLedger & Tally'
+        'Direct DISCOM application form synchronization',
+        'Automated consumer subsidy claim documentation',
+        'GST-compliant progressive milestone tax invoices',
+        'PPA billing, net metering reconciliation, and solar EMI loans'
       ],
-      metric: '100% Tax & Subsidy Compliance'
+      metric: '99.4% First-Time Subsidy Approval'
     },
     {
-      id: 'audit',
-      label: 'Field Audit & Quality',
-      icon: ClipboardCheck,
-      title: 'Geotagged Field Audits & Quality Control',
-      subtitle: 'Empower field engineers and auditors with digital inspection checklists and verified compliance reports.',
+      id: 'telemetry',
+      label: 'IoT Asset Telemetry',
+      title: 'Real-Time Generation Yield & Fleet Monitoring',
+      description: 'Connect micro-inverters and central inverters to stream instantaneous generation, Performance Ratio (PR), and automated fault alerts.',
       features: [
-        'GPS Geotagged Quality Checklists',
-        'Photo Evidence Capture & Tamper Protection',
-        'Engineer Sign-off & Client Approvals',
-        'Immutable Audit Logs for Regulators'
+        'Native Modbus / RS485 and Wi-Fi inverter cloud bridge',
+        'Predictive shading and degradation anomaly alerts',
+        'Daily, monthly, and lifetime kWh generation analytics',
+        'Branded customer solar generation dashboard'
       ],
-      metric: 'Zero Human Inspection Errors'
-    }
+      metric: '1.2s Real-Time Inverter Sync'
+    },
   ];
 
-  // FAQ Items
-  const faqList = [
+  // Testimonials
+  const TESTIMONIALS = [
     {
-      q: 'How does MetaGreen integrate with MetaCheck and the MetaEcosystem?',
-      a: 'MetaGreen natively connects with MetaCheck for instant vendor, employee, and customer identity verification, and syncs seamlessly with MetaLedger for financial reconciliation and MetaHire for workforce deployment.'
+      quote: "MetaGreen transformed our solar EPC business. We reduced proposal preparation from 2 days to 10 minutes, and our DISCOM subsidy approvals cleared twice as fast.",
+      name: "Rajeshwar Verma",
+      role: "Managing Director",
+      company: "SunRay Renewables EPC (50+ MW installed)",
     },
     {
-      q: 'Can MetaGreen handle PM Surya Ghar government subsidy processing?',
-      a: 'Yes! MetaGreen includes dedicated PM Surya Ghar subsidy tracking modules, document verification workflows, and automated submission logging to keep your projects 100% compliant.'
+      quote: "The 3D satellite survey engine and automated BOS inventory gave us complete control over multiple commercial rooftop projects simultaneously. A truly world-class platform.",
+      name: "Ananya Deshmukh",
+      role: "VP Operations",
+      company: "CleanVolt Solar Solutions",
     },
     {
-      q: 'Is my enterprise data secure and compliant with SOC 2 / ISO standards?',
-      a: 'Absolutely. MetaGreen operates with logical tenant isolation, 256-bit AES encryption at rest and in transit, role-based access controls (RBAC), and immutable timestamped audit logs for every system transaction.'
+      quote: "Our residential rooftop clients love the live tracking portal. Having contractor verification, net metering, and inverter generation unified under one roof is revolutionary.",
+      name: "Saurabh Singhania",
+      role: "Founder & Chief Engineer",
+      company: "EcoGrid Energy Systems",
     },
-    {
-      q: 'How quickly can our team migrate from spreadsheets or existing tools?',
-      a: 'Most solar EPCs and enterprise teams go live within 48 hours using our automated CSV importer and guided onboarding concierge.'
-    },
-    {
-      q: 'Do field survey engineers need an active internet connection?',
-      a: 'Our mobile field survey app supports offline mode. Survey data, photos, and GPS tags automatically sync back to the cloud as soon as connection is restored.'
-    }
   ];
+
+  // Check which page to render
+  const renderCurrentPage = () => {
+    switch (currentPath) {
+      case '/about':
+        return (
+          <About
+            onNavigateContact={() => navigateTo('/contact')}
+            onNavigateSolutions={() => navigateTo('/solutions')}
+            onOpenDemo={() => setIsBookDemoOpen(true)}
+            onOpenPartner={() => setIsRegisterModalOpen(true)}
+          />
+        );
+      case '/careers':
+        return <Careers />;
+      case '/contact':
+        return <Contact />;
+      case '/solutions':
+        return (
+          <Solutions
+            onOpenDemo={() => setIsBookDemoOpen(true)}
+            onOpenPartner={() => setIsRegisterModalOpen(true)}
+            onNavigateContact={() => navigateTo('/contact')}
+          />
+        );
+      case '/legal/privacy-policy':
+        return <PrivacyPolicy onNavigateHome={() => navigateTo('/')} />;
+      case '/legal/terms-of-service':
+        return <TermsOfService onNavigateHome={() => navigateTo('/')} />;
+      case '/legal/cancellation':
+      case '/legal/cancellation-and-refund':
+      case '/legal/refund':
+        return <Cancellation onNavigateHome={() => navigateTo('/')} />;
+      case '/legal/security':
+        return <Security onNavigateHome={() => navigateTo('/')} />;
+      case '/legal/compliance':
+        return <Compliance onNavigateHome={() => navigateTo('/')} />;
+      case '/sitemap':
+        return <Sitemap onNavigateHome={() => navigateTo('/')} onNavigatePage={navigateTo} />;
+      default:
+        // Render Home Page matching MetaCheck
+        return (
+          <>
+            {/* HERO SECTION */}
+            <section className="relative min-h-screen overflow-hidden bg-[#050510] pt-24 pb-20 sm:pt-28 sm:pb-28 flex items-center" id="hero">
+              <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                <div className="absolute left-1/2 top-1/4 h-[550px] w-[550px] -translate-x-1/2 rounded-full bg-emerald-600/15 blur-[140px]" />
+                <div className="absolute right-0 top-1/3 h-[450px] w-[450px] rounded-full bg-teal-600/10 blur-[120px]" />
+                <div className="absolute left-0 bottom-0 h-[400px] w-[400px] rounded-full bg-cyan-600/10 blur-[100px]" />
+              </div>
+              <div className="pointer-events-none absolute inset-0 bg-grid-dark opacity-30 [mask-image:radial-gradient(ellipse_70%_70%_at_50%_50%,black_30%,transparent_100%)]" aria-hidden="true" />
+
+              <Container className="relative z-10">
+                <div className="grid w-full items-center gap-12 py-10 lg:grid-cols-2 lg:gap-16">
+                  <Reveal variant="left" className="max-w-2xl">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 backdrop-blur-sm">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                      </span>
+                      <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
+                        Enterprise Clean Energy & Solar EPC OS
+                      </span>
+                    </div>
+
+                    <h1 className="mt-7 text-4xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl xl:text-7xl">
+                      Powering a{' '}
+                      <span className="relative inline-block">
+                        <span className="text-gradient-dark">greener, smarter</span>
+                        <svg
+                          className="absolute -bottom-2 left-0 h-3 w-full"
+                          viewBox="0 0 200 12"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M2 8c30-6 70-6 100-2s60 4 96-2"
+                            stroke="url(#underline-grad-green)"
+                            strokeWidth="3.5"
+                            strokeLinecap="round"
+                          />
+                          <defs>
+                            <linearGradient id="underline-grad-green" x1="0" y1="0" x2="200" y2="0" gradientUnits="userSpaceOnUse">
+                              <stop stopColor="#10b981" />
+                              <stop offset="0.5" stopColor="#14b8a6" />
+                              <stop offset="1" stopColor="#06b6d4" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                      </span>{' '}
+                      energy future
+                    </h1>
+
+                    <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
+                      MetaGreen brings technology, solar engineering intelligence, and automated compliance together — empowering developers, rooftop EPCs, and clean energy enterprises to design, install, and monitor solar at scale.
+                    </p>
+
+                    <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                      <button
+                        onClick={() => setIsBookDemoOpen(true)}
+                        className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-6 py-3.5 text-sm font-bold text-white shadow-glow hover:shadow-glow-lg transition-all hover:brightness-110"
+                      >
+                        <span>Book Live Demo</span>
+                        <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
+                      </button>
+                      <button
+                        onClick={() => navigateTo('/solutions')}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white hover:bg-white/10 transition-all"
+                      >
+                        Explore Solutions
+                      </button>
+                      <button
+                        onClick={() => setIsRegisterModalOpen(true)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-6 py-3.5 text-sm font-bold text-emerald-300 hover:bg-emerald-500/20 transition-all"
+                      >
+                        Partner With Us
+                      </button>
+                    </div>
+
+                    {/* Quick Tracking Bar */}
+                    <div className="mt-8 rounded-2xl border border-white/10 bg-slate-900/60 p-3 backdrop-blur-md">
+                      <form onSubmit={handleHeroTrackSubmit} className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-400" />
+                          <input
+                            type="text"
+                            value={heroTrackInput}
+                            onChange={(e) => setHeroTrackInput(e.target.value)}
+                            placeholder="Track Solar Application / Project ID / Mobile No..."
+                            className="w-full rounded-xl border border-white/10 bg-black/40 pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-500 transition-colors shrink-0"
+                        >
+                          Track Status <ArrowUpRight className="h-3.5 w-3.5" />
+                        </button>
+                      </form>
+                    </div>
+
+                    <div className="mt-10 flex flex-wrap items-center gap-6 border-t border-white/10 pt-7">
+                      {[
+                        { icon: ShieldCheck, label: 'MNRE Certified' },
+                        { icon: Zap, label: '1.2s Inverter Sync' },
+                        { icon: Globe, label: '10,000+ Active Sites' },
+                      ].map(({ icon: Icon, label }) => (
+                        <div key={label} className="flex items-center gap-2 text-xs font-medium text-slate-400">
+                          <Icon className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+                  </Reveal>
+
+                  <Reveal variant="right" delay={180} once className="hidden lg:block">
+                    <HeroCommandCard />
+                  </Reveal>
+                </div>
+              </Container>
+            </section>
+
+            {/* STATS SECTION */}
+            <section className="relative overflow-hidden bg-white py-20 sm:py-28 text-slate-900" aria-label="MetaGreen in numbers">
+              <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                <div className="absolute left-1/2 top-0 h-px w-[80%] -translate-x-1/2 bg-gradient-to-r from-transparent via-emerald-300 to-transparent" />
+              </div>
+
+              <Container className="relative">
+                <Reveal variant="up" once className="mx-auto max-w-2xl text-center">
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Proof at scale</p>
+                  <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+                    Numbers we&apos;re held accountable to
+                  </h2>
+                  <p className="mt-3 text-base text-slate-600">
+                    Measured continuously across the MetaGreen clean energy and solar EPC network.
+                  </p>
+                </Reveal>
+
+                <dl className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    { id: '1', value: 250, suffix: '+ MW', label: 'Clean Solar Installed', detail: 'Across residential rooftops and C&I industrial plants' },
+                    { id: '2', value: 99.4, suffix: '%', decimals: 1, label: 'Subsidy Clearance Rate', detail: 'Automated DISCOM & PM-Surya Ghar sanctions' },
+                    { id: '3', value: 10480, prefix: '', suffix: '+', label: 'Distributed Solar Sites', detail: 'Real-time telemetry and inverter sync' },
+                    { id: '4', value: 45, prefix: '₹', suffix: ' Cr+', label: 'Annual Electricity Saved', detail: 'Delivered directly to enterprise and domestic owners' },
+                  ].map((metric, index) => (
+                    <Reveal key={metric.id} variant="up" delay={index * 100}>
+                      <div className="group relative rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-7 text-center transition-all duration-500 hover:border-emerald-300 hover:shadow-soft">
+                        <div className="absolute left-1/2 top-0 h-[2px] w-12 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-teal-500 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                        <dd className="text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">
+                          <Counter end={metric.value} prefix={metric.prefix} suffix={metric.suffix} decimals={metric.decimals} />
+                        </dd>
+                        <dt className="mt-3 text-sm font-bold text-emerald-800">{metric.label}</dt>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-500">{metric.detail}</p>
+                      </div>
+                    </Reveal>
+                  ))}
+                </dl>
+              </Container>
+            </section>
+
+            {/* PROBLEM CHALLENGES */}
+            <section className="relative overflow-hidden bg-slate-50 py-24 sm:py-32 text-slate-900">
+              <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-emerald-100/40 blur-[100px]" />
+                <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-teal-100/40 blur-[80px]" />
+              </div>
+
+              <Container className="relative">
+                <Reveal variant="up" once className="mx-auto max-w-3xl text-center">
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">The Challenge</p>
+                  <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
+                    The energy transition is accelerating.{' '}
+                    <span className="text-gradient">Solar operations must keep up.</span>
+                  </h2>
+                  <p className="mt-5 text-base leading-relaxed text-slate-600 sm:text-lg">
+                    As clean energy demand explodes across residential, commercial, and utility sectors, developers and EPCs face operational bottlenecks that compromise speed, compliance, and profitability.
+                  </p>
+                </Reveal>
+
+                <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                  {PROBLEMS.map((problem, index) => (
+                    <Reveal key={problem.number} variant="up" delay={index * 120}>
+                      <article className="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-7 transition-all duration-500 hover:-translate-y-2 hover:shadow-soft">
+                        <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${problem.accent} opacity-0 transition-opacity duration-500 group-hover:opacity-100`} />
+
+                        <div className="flex items-start justify-between">
+                          <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${problem.bg} transition-transform duration-500 group-hover:scale-110`}>
+                            <problem.icon className={`h-6 w-6 ${problem.iconColor}`} aria-hidden="true" />
+                          </span>
+                          <span className="text-3xl font-black text-slate-200 transition-colors duration-500 group-hover:text-slate-300">
+                            {problem.number}
+                          </span>
+                        </div>
+
+                        <h3 className="mt-5 text-lg font-bold text-slate-900">{problem.title}</h3>
+                        <p className="mt-3 text-xs leading-relaxed text-slate-600">{problem.description}</p>
+                        <div className="absolute bottom-0 left-0 h-px w-0 bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700 group-hover:w-full" />
+                      </article>
+                    </Reveal>
+                  ))}
+                </div>
+              </Container>
+            </section>
+
+            {/* PRODUCT COMMAND CENTER */}
+            <ProductCommandCenter />
+
+            {/* META ECOSYSTEM */}
+            <EcosystemSection onPartnerClick={() => setIsRegisterModalOpen(true)} />
+
+            {/* SOLUTIONS & MODULES */}
+            <section className="relative overflow-hidden bg-white py-24 sm:py-32 text-slate-900" id="solutions">
+              <Container className="relative">
+                <SectionHeading
+                  eyebrow="Flagship Capabilities"
+                  title="Engineered for"
+                  highlight="every solar milestone"
+                  description="From lead acquisition and 3D rooftop simulation to government subsidy disbursement and live inverter generation monitoring."
+                />
+
+                <div className="mt-14 flex flex-wrap justify-center gap-2 border-b border-slate-200 pb-4">
+                  {SOLUTION_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveSolutionTab(tab.id as any)}
+                      className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+                        activeSolutionTab === tab.id
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {(() => {
+                  const currentTab = SOLUTION_TABS.find((t) => t.id === activeSolutionTab) || SOLUTION_TABS[0];
+                  return (
+                    <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50/80 p-8 sm:p-12 shadow-soft">
+                      <div className="grid gap-8 lg:grid-cols-12 lg:items-center">
+                        <div className="lg:col-span-7">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+                            <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                            {currentTab.metric}
+                          </span>
+                          <h3 className="mt-4 text-2xl font-bold text-slate-900 sm:text-3xl">
+                            {currentTab.title}
+                          </h3>
+                          <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
+                            {currentTab.description}
+                          </p>
+
+                          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                            {currentTab.features.map((feat) => (
+                              <div key={feat} className="flex items-start gap-2.5">
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+                                <span className="text-xs font-medium text-slate-700">{feat}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="mt-8 flex flex-wrap gap-3">
+                            <button
+                              onClick={() => setIsBookDemoOpen(true)}
+                              className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow hover:bg-emerald-500 transition-all"
+                            >
+                              Explore in Live Demo
+                            </button>
+                            <button
+                              onClick={() => navigateTo('/solutions')}
+                              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all"
+                            >
+                              View Full Solution Architecture
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="lg:col-span-5">
+                          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Feature Status</span>
+                              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">Production Ready</span>
+                            </div>
+                            <div className="mt-4 space-y-3 text-xs">
+                              <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                                <span className="text-slate-500">Processing Speed</span>
+                                <span className="font-bold text-slate-800">&lt; 1.2 Seconds</span>
+                              </div>
+                              <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                                <span className="text-slate-500">DISCOM Compatibility</span>
+                                <span className="font-bold text-slate-800">All Indian State Discoms</span>
+                              </div>
+                              <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                                <span className="text-slate-500">Export Formats</span>
+                                <span className="font-bold text-slate-800">PDF, DXF, CSV, JSON API</span>
+                              </div>
+                              <div className="flex items-center justify-between py-1.5">
+                                <span className="text-slate-500">Security Standard</span>
+                                <span className="font-bold text-emerald-600">AES-256 / ISO 27001</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </Container>
+            </section>
+
+            {/* SOLAR SAVINGS CALCULATOR */}
+            <section className="relative overflow-hidden bg-slate-900 py-24 sm:py-32 text-white" id="calculator">
+              <div className="pointer-events-none absolute inset-0 bg-grid-dark opacity-20" />
+              <div className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2 h-80 w-80 rounded-full bg-emerald-500/15 blur-[120px]" />
+
+              <Container className="relative z-10">
+                <Reveal variant="up" once className="mx-auto max-w-3xl text-center">
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">Interactive Estimator</p>
+                  <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+                    Calculate your solar ROI in seconds
+                  </h2>
+                  <p className="mt-3 text-base text-slate-400">
+                    Drag the slider to your average monthly electricity bill to calculate suggested system capacity, estimated government subsidies, and lifetime savings.
+                  </p>
+                </Reveal>
+
+                <div className="mt-14 max-w-4xl mx-auto rounded-3xl border border-white/10 bg-slate-950/80 p-6 sm:p-10 shadow-glow backdrop-blur-xl">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        Average Monthly Electricity Bill
+                      </label>
+                      <span className="text-2xl font-black text-emerald-400 tabular-nums">
+                        ₹{monthlyBill.toLocaleString()}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1500}
+                      max={50000}
+                      step={500}
+                      value={monthlyBill}
+                      onChange={(e) => setMonthlyBill(Number(e.target.value))}
+                      className="mt-4 w-full accent-emerald-500 cursor-pointer h-2 rounded-lg bg-white/10"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-500 mt-2 font-mono">
+                      <span>₹1,500/mo</span>
+                      <span>₹25,000/mo</span>
+                      <span>₹50,000/mo</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                      <p className="text-xs text-slate-400">Suggested Capacity</p>
+                      <p className="mt-1 text-2xl font-black text-white tracking-tight">{recommendedKw} kW</p>
+                      <p className="mt-1 text-[10px] text-emerald-400 font-semibold">{(recommendedKw * 120).toFixed(0)} kWh/month</p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                      <p className="text-xs text-slate-400">Govt. Subsidy (PM-SG)</p>
+                      <p className="mt-1 text-2xl font-black text-emerald-400 tracking-tight">₹{estimatedSubsidy.toLocaleString()}</p>
+                      <p className="mt-1 text-[10px] text-slate-400">Direct Bank Transfer</p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                      <p className="text-xs text-slate-400">Annual Savings</p>
+                      <p className="mt-1 text-2xl font-black text-teal-300 tracking-tight">₹{annualSavings.toLocaleString()}</p>
+                      <p className="mt-1 text-[10px] text-teal-400 font-semibold">Payback ~{paybackYears} yrs</p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                      <p className="text-xs text-slate-400">25-Yr Lifetime ROI</p>
+                      <p className="mt-1 text-2xl font-black text-cyan-300 tracking-tight">₹{lifetimeSavings.toLocaleString()}</p>
+                      <p className="mt-1 text-[10px] text-slate-400">Net Clean Yield</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/10 pt-6">
+                    <div className="text-xs text-slate-400 text-center sm:text-left">
+                      <span>Want an exact 3D shadow report & quotation for this {recommendedKw} kW system?</span>
+                    </div>
+                    <button
+                      onClick={() => setIsBookDemoOpen(true)}
+                      className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-xs font-bold text-white shadow-glow hover:brightness-110 transition-all shrink-0"
+                    >
+                      Book Free Site Feasibility Survey
+                    </button>
+                  </div>
+                </div>
+              </Container>
+            </section>
+
+            {/* HOW IT WORKS */}
+            <section className="relative overflow-hidden bg-white py-24 sm:py-32 text-slate-900" id="how-it-works">
+              <Container className="relative">
+                <SectionHeading
+                  eyebrow="Workflow Engine"
+                  title="How MetaGreen simplifies"
+                  highlight="the solar journey"
+                  description="Four streamlined steps taking your clean energy projects from preliminary roof analysis to permanent grid generation."
+                />
+
+                <div className="relative mt-20">
+                  <div
+                    className="absolute left-[28px] top-0 hidden h-full w-0.5 bg-gradient-to-b from-emerald-500 via-teal-500 to-cyan-500 sm:left-1/2 sm:-translate-x-1/2 sm:block"
+                    aria-hidden="true"
+                  />
+
+                  <div className="space-y-12 sm:space-y-16">
+                    {HOW_IT_WORKS_STEPS.map(({ icon: Icon, step, title, description, color }, index) => {
+                      const isEven = index % 2 === 0;
+                      return (
+                        <Reveal key={step} variant={isEven ? 'left' : 'right'} delay={index * 120}>
+                          <div className="relative sm:grid sm:grid-cols-2 sm:items-center sm:gap-16">
+                            <div className="absolute left-[28px] z-10 -translate-x-1/2 sm:left-1/2">
+                              <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${color} text-white shadow-lg`}>
+                                <Icon className="h-6 w-6" aria-hidden="true" />
+                              </div>
+                            </div>
+
+                            <div className={`ml-20 sm:ml-0 ${isEven ? 'sm:text-right sm:pr-16' : 'sm:col-start-2 sm:pl-16'}`}>
+                              <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">Step {step}</span>
+                              <h3 className="mt-2 text-2xl font-bold text-slate-900">{title}</h3>
+                              <p className="mt-3 text-sm leading-relaxed text-slate-600">{description}</p>
+                            </div>
+
+                            {isEven && <div className="hidden sm:block" />}
+                          </div>
+                        </Reveal>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Container>
+            </section>
+
+            {/* SECURITY SECTION */}
+            <SecuritySection />
+
+            {/* USE CASES */}
+            <section className="relative overflow-hidden bg-slate-50 py-24 sm:py-32 text-slate-900" id="use-cases">
+              <Container className="relative">
+                <SectionHeading
+                  eyebrow="Target Verticals"
+                  title="Engineered for every"
+                  highlight="clean energy stakeholder"
+                  description="Whether you run rooftop installations, megawatt C&I plants, or hardware manufacturing lines."
+                />
+
+                <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    {
+                      icon: Landmark,
+                      title: 'Commercial & Industrial EPCs',
+                      description: 'Accelerate corporate solar proposals, PPA structuring, and multi-rooftop project management.',
+                      stats: '4x faster commissioning',
+                      color: 'from-emerald-500 to-teal-600',
+                    },
+                    {
+                      icon: ShoppingBag,
+                      title: 'Residential Rooftop Installers',
+                      description: 'Streamline customer surveys, fast-track PM-Surya Ghar subsidy claims, and automate billing.',
+                      stats: '92% survey clearance',
+                      color: 'from-teal-500 to-cyan-600',
+                    },
+                    {
+                      icon: Handshake,
+                      title: 'Solar OEMs & Distributors',
+                      description: 'Manage vendor partner networks, component serial barcode warranties, and wholesale BOM orders.',
+                      stats: '100% serial traceability',
+                      color: 'from-cyan-500 to-blue-600',
+                    },
+                    {
+                      icon: Users,
+                      title: 'Clean Energy IPPs & Financiers',
+                      description: 'Monitor fleet-wide Performance Ratios (PR), asset health, and automated gross revenue reconciliations.',
+                      stats: '99.8% asset availability',
+                      color: 'from-blue-500 to-indigo-600',
+                    },
+                  ].map(({ icon: Icon, title, description, stats, color }, index) => (
+                    <Reveal key={title} variant="up" delay={index * 110}>
+                      <article className="group relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-7 transition-all duration-500 hover:-translate-y-2 hover:shadow-soft">
+                        <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 transition-opacity duration-500 group-hover:opacity-[0.03]`} />
+
+                        <div className="relative">
+                          <div className="flex items-start justify-between">
+                            <span className={`inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${color} text-white shadow-lg transition-transform duration-500 group-hover:scale-110`}>
+                              <Icon className="h-7 w-7" aria-hidden="true" />
+                            </span>
+                            <ArrowUpRight className="h-5 w-5 text-slate-300 transition-all duration-300 group-hover:-translate-y-1 group-hover:translate-x-1 group-hover:text-emerald-600" aria-hidden="true" />
+                          </div>
+
+                          <h3 className="mt-5 text-lg font-bold text-slate-900">{title}</h3>
+                          <p className="mt-2.5 text-xs leading-relaxed text-slate-600">{description}</p>
+
+                          <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
+                            <span className="text-xs font-bold text-emerald-600">{stats}</span>
+                            <button
+                              onClick={() => setIsBookDemoOpen(true)}
+                              className="text-xs font-semibold text-slate-400 group-hover:text-emerald-600 transition-colors"
+                            >
+                              Explore →
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    </Reveal>
+                  ))}
+                </div>
+              </Container>
+            </section>
+
+            {/* CUSTOMER STORIES */}
+            <section className="relative overflow-hidden bg-white py-24 sm:py-32 text-slate-900">
+              <Container className="relative">
+                <SectionHeading
+                  eyebrow="Customer Stories"
+                  title="Solar leaders scaling"
+                  highlight="with confidence"
+                  description="See why forward-thinking EPC directors and operations heads rely on MetaGreen."
+                />
+
+                <div className="mt-16 grid gap-8 lg:grid-cols-3">
+                  {TESTIMONIALS.map((t, index) => (
+                    <Reveal key={t.name} variant="up" delay={index * 120}>
+                      <figure className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/50 p-8 transition-all duration-500 hover:-translate-y-2 hover:shadow-soft">
+                        <Quote className="absolute -right-2 -top-2 h-24 w-24 text-emerald-100/60 transition-all duration-500 group-hover:text-emerald-200/80" aria-hidden="true" />
+
+                        <div className="relative z-10 flex-1 flex flex-col justify-between">
+                          <div>
+                            <div className="flex gap-1">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                              ))}
+                            </div>
+                            <blockquote className="mt-5 text-sm leading-relaxed text-slate-700 font-medium">
+                              &ldquo;{t.quote}&rdquo;
+                            </blockquote>
+                          </div>
+
+                          <figcaption className="mt-8 flex items-center gap-3.5 border-t border-slate-200 pt-5">
+                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-teal-500 text-sm font-black text-white shadow-md">
+                              {t.name.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+                            </span>
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{t.name}</p>
+                              <p className="text-xs text-slate-500">{t.role} • {t.company}</p>
+                            </div>
+                          </figcaption>
+                        </div>
+                      </figure>
+                    </Reveal>
+                  ))}
+                </div>
+              </Container>
+            </section>
+
+            {/* PRICING */}
+            <section className="relative overflow-hidden bg-slate-900 py-24 sm:py-32 text-white" id="pricing">
+              <div className="pointer-events-none absolute inset-0 bg-grid-dark opacity-30" />
+
+              <Container className="relative z-10">
+                <Reveal variant="up" once className="mx-auto max-w-3xl text-center">
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">Predictable Plans</p>
+                  <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+                    Transparent investment for high-growth solar EPCs
+                  </h2>
+                  <p className="mt-3 text-base text-slate-400">
+                    Start with a 7-day fully featured free trial. Upgrade or cancel anytime with zero lock-in contracts.
+                  </p>
+
+                  <div className="mt-8 inline-flex items-center gap-3 rounded-full border border-white/10 bg-slate-950 px-4 py-2">
+                    <button
+                      onClick={() => setBillingCycle('monthly')}
+                      className={`rounded-full px-4 py-1.5 text-xs font-bold transition-colors ${
+                        billingCycle === 'monthly' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      onClick={() => setBillingCycle('annual')}
+                      className={`rounded-full px-4 py-1.5 text-xs font-bold transition-colors flex items-center gap-1.5 ${
+                        billingCycle === 'annual' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>Annual</span>
+                      <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] text-emerald-300 font-extrabold">
+                        Save 20%
+                      </span>
+                    </button>
+                  </div>
+                </Reveal>
+
+                <div className="mt-14 grid gap-8 md:grid-cols-3 max-w-6xl mx-auto">
+                  {(plans.length > 0 ? plans : [
+                    {
+                      id: 'starter',
+                      name: 'Starter Solar EPC',
+                      priceMonthly: 4999,
+                      userLimit: 5,
+                      storageGBLimit: 50,
+                      trialEnabled: true,
+                      trialDays: 7,
+                      status: 'active',
+                      features: [
+                        '3D Rooftop CAD & Shading Simulation',
+                        'Solar Lead Pipeline & Site Surveying',
+                        'PM-Surya Ghar Subsidy Tracker',
+                        'GST Tax Invoice & Quotation Engine',
+                        'Standard Email Support'
+                      ]
+                    },
+                    {
+                      id: 'pro',
+                      name: 'Professional EPC',
+                      priceMonthly: 9999,
+                      userLimit: 20,
+                      storageGBLimit: 250,
+                      trialEnabled: true,
+                      trialDays: 14,
+                      status: 'active',
+                      features: [
+                        'Everything in Starter, plus:',
+                        'IoT Inverter Telemetry Cloud Connector',
+                        'BOS Inventory & Serial Number Barcode Tracking',
+                        'Direct DISCOM Net-Metering Form Sync',
+                        'Custom Vendor Branded Portal (+ ₹999)',
+                        'Priority 24/7 Dedicated Support'
+                      ]
+                    },
+                    {
+                      id: 'enterprise',
+                      name: 'Utility & Megawatt Enterprise',
+                      priceMonthly: 19999,
+                      userLimit: 100,
+                      storageGBLimit: 1000,
+                      trialEnabled: true,
+                      trialDays: 14,
+                      status: 'active',
+                      features: [
+                        'Everything in Professional, plus:',
+                        'Multi-Branch Multi-Warehouse Management',
+                        'Custom ERP & REST API Webhook Integrations',
+                        'Dedicated Cloud Tenant & IP Whitelisting',
+                        'On-Site Engineering Training & Dedicated Account Manager',
+                        'Signed SLA Guarantee (99.9% Uptime)'
+                      ]
+                    }
+                  ]).map((plan, index) => {
+                    const isFeatured = index === 1;
+                    const displayPrice = billingCycle === 'annual' ? Math.round(plan.priceMonthly * 0.8) : plan.priceMonthly;
+
+                    return (
+                      <div
+                        key={plan.id}
+                        className={`relative flex flex-col justify-between rounded-3xl p-8 transition-all ${
+                          isFeatured
+                            ? 'border-2 border-emerald-500 bg-slate-950 shadow-glow-lg -translate-y-2'
+                            : 'border border-white/10 bg-slate-950/60 hover:border-white/20'
+                        }`}
+                      >
+                        {isFeatured && (
+                          <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-3.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-950">
+                            Most Popular for EPCs
+                          </div>
+                        )}
+
+                        <div>
+                          <h3 className="text-xl font-bold text-white">{plan.name}</h3>
+                          <p className="mt-2 text-xs text-slate-400">Up to {plan.userLimit} team seats • {plan.storageGBLimit} GB Cloud Storage</p>
+
+                          <div className="mt-6 flex items-baseline gap-1">
+                            <span className="text-4xl font-black text-white tracking-tight">₹{displayPrice.toLocaleString()}</span>
+                            <span className="text-xs text-slate-400">/ month</span>
+                          </div>
+                          {billingCycle === 'annual' && (
+                            <p className="text-[11px] text-emerald-400 font-medium mt-1">Billed annually (Save ₹{(plan.priceMonthly * 12 * 0.2).toLocaleString()}/yr)</p>
+                          )}
+
+                          <div className="mt-8 space-y-3">
+                            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Included Features:</p>
+                            {plan.features.map((f: string) => (
+                              <div key={f} className="flex items-start gap-2.5 text-xs text-slate-300">
+                                <Check className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                                <span>{f}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-8 pt-6 border-t border-white/10">
+                          <button
+                            onClick={() => handleStartTrial(plan as any)}
+                            className={`w-full py-3 rounded-xl font-bold text-xs transition-all shadow-md ${
+                              isFeatured
+                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-glow'
+                                : 'bg-white/10 hover:bg-white/15 text-white'
+                            }`}
+                          >
+                            Start {plan.trialDays || 7}-Day Free Trial
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Container>
+            </section>
+
+            {/* CTA BANNER */}
+            <section className="relative overflow-hidden bg-[#0a0a1a] py-20 sm:py-28">
+              <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-emerald-600/20 blur-[130px]" />
+              </div>
+
+              <Container className="relative z-10">
+                <div className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 p-8 sm:p-14 text-center shadow-glow-lg">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-bold text-emerald-300 mb-6">
+                    <Sparkles className="h-4 w-4 text-emerald-400" />
+                    Modernize Your Clean Energy Enterprise
+                  </div>
+
+                  <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl max-w-2xl mx-auto">
+                    Ready to scale your solar operations?
+                  </h2>
+
+                  <p className="mt-4 text-base leading-relaxed text-slate-400 max-w-xl mx-auto">
+                    Join over 500+ forward-thinking clean energy companies, rooftop installers, and solar developers running on MetaGreen OS.
+                  </p>
+
+                  <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3.5">
+                    <button
+                      onClick={() => setIsBookDemoOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-8 py-3.5 text-sm font-bold text-white shadow-glow hover:brightness-110 transition-all"
+                    >
+                      <span>Book a Guided Demo</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setIsRegisterModalOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-8 py-3.5 text-sm font-semibold text-white hover:bg-white/10 transition-all"
+                    >
+                      Register as EPC Partner
+                    </button>
+                    <button
+                      onClick={() => handleOpenLogin('admin')}
+                      className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-8 py-3.5 text-sm font-bold text-emerald-300 hover:bg-emerald-500/20 transition-all"
+                    >
+                      Sign In to OS
+                    </button>
+                  </div>
+                </div>
+              </Container>
+            </section>
+          </>
+        );
+    }
+  };
 
   return (
-    <div className={`min-h-screen font-sans antialiased transition-colors duration-300 overflow-x-hidden ${isDarkMode
-      ? 'bg-[#050914] text-slate-100 selection:bg-emerald-500 selection:text-slate-950'
-      : 'bg-[#F8FAFC] text-slate-900 selection:bg-emerald-500 selection:text-white'
-      }`}>
-
-      {/* BRANDED VENDOR LANDING PAGE TOP BANNER (Website Subscription ₹999 Active) */}
-      {isCustomLandingActive && (
-        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-slate-950 px-4 py-2 text-xs font-black flex items-center justify-between shadow-md relative z-50">
-          <div className="flex items-center gap-2">
-            <Globe className="w-4 h-4 text-slate-950" />
-            <span>Official Partner Website • <strong className="underline">{activeVendorBranding?.companyName}</strong></span>
-            <span className="hidden sm:inline px-2 py-0.5 bg-slate-950/20 text-slate-950 rounded-full text-[10px] font-extrabold uppercase tracking-wide">
-              Website Subscription Active (₹999)
-            </span>
-          </div>
-          <div className="flex items-center gap-3 text-[11px]">
-            {activeVendorBranding?.phone && (
-              <a 
-                href={`tel:${activeVendorBranding.phone}`} 
-                className="hidden md:flex items-center gap-1 font-bold bg-slate-950 text-emerald-400 px-2.5 py-0.5 rounded-full hover:bg-slate-900 transition-colors"
-              >
-                <Phone className="w-3 h-3" /> {activeVendorBranding.phone}
-              </a>
-            )}
-            {onExitVendorView && (
-              <button 
-                onClick={onExitVendorView}
-                className="bg-slate-950 text-white hover:bg-slate-900 px-3 py-1 rounded-lg cursor-pointer font-bold transition-colors"
-              >
-                Back to Dashboard
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* INFORMATIONAL NOTICE: VENDOR HAS NO WEBSITE SUBSCRIPTION (Uses Standard MetaGreen Landing Page) */}
-      {activeVendorBranding && !isCustomLandingActive && (
-        <div className="bg-gradient-to-r from-amber-500/20 via-amber-600/15 to-amber-500/20 border-b border-amber-500/40 text-amber-300 px-4 py-2 text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2 relative z-50">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>
-              <strong>{activeVendorBranding.companyName}</strong> is using the <strong>Standard MetaGreen Landing Page</strong>. (Custom Website Add-On not active).
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => handleStartTrial()}
-              className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-black rounded-lg transition-colors cursor-pointer"
-            >
-              Unlock Custom Website (₹999/-)
-            </button>
-            {onExitVendorView && (
-              <button 
-                onClick={onExitVendorView}
-                className="px-2.5 py-1 text-slate-400 hover:text-white text-[11px] underline cursor-pointer"
-              >
-                Exit
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
+    <div className="min-h-screen bg-slate-950 font-sans text-slate-100 antialiased selection:bg-emerald-500 selection:text-slate-950">
+      
       {/* ========================================================================= */}
-      {/* 1. TOP GLASSMORPHISM NAVBAR (MetaCheck Style)                             */}
+      {/* STICKY GLASS NAVBAR (Matching MetaCheck with Active Nav Highlighting)      */}
       {/* ========================================================================= */}
-      <header className={`sticky top-0 z-40 transition-all backdrop-blur-xl border-b ${isDarkMode
-        ? 'bg-[#080E1E]/85 border-slate-800/80 text-white'
-        : 'bg-white/85 border-slate-200/80 text-slate-900'
-        }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
+      <header
+        className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
+          isScrolled || mobileMenuOpen
+            ? 'bg-[#0a0a1a]/95 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.4)]'
+            : 'bg-[#0a0a1a]/80 backdrop-blur-md'
+        }`}
+      >
+        <div
+          className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-emerald-500/50 via-teal-500/50 to-cyan-500/50"
+          aria-hidden="true"
+        />
 
+        <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:h-[72px] lg:px-8">
           {/* Logo */}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={(e) => scrollToSection(e, 'hero')}
-              className="cursor-pointer flex items-center gap-2 group text-left"
-            >
-              {isCustomLandingActive ? (
-                <div className="flex items-center gap-3">
-                  {activeVendorBranding?.companyLogo ? (
-                    <img 
-                      src={activeVendorBranding.companyLogo} 
-                      alt={activeVendorBranding.companyName} 
-                      className="h-10 w-auto max-w-[140px] object-contain rounded-lg shadow-xs"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-slate-950 font-black text-base shadow-sm">
-                      {activeVendorBranding?.companyName?.charAt(0) || 'S'}
-                    </div>
-                  )}
-                  <div className="flex flex-col">
-                    <span className="font-black text-sm tracking-tight text-white line-clamp-1">{activeVendorBranding?.companyName}</span>
-                    <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                      <Sparkles className="w-2.5 h-2.5" /> Powered by MetaGreen
-                    </span>
+          <div className="flex items-center gap-3">
+            {isCustomLandingActive && activeVendorBranding ? (
+              <div className="flex items-center gap-3">
+                {activeVendorBranding.companyLogo ? (
+                  <img
+                    src={activeVendorBranding.companyLogo}
+                    alt={activeVendorBranding.companyName}
+                    className="h-10 w-auto object-contain rounded-lg bg-white p-1"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-xl bg-emerald-600 flex items-center justify-center font-bold text-white shadow-md">
+                    {activeVendorBranding.companyName.charAt(0)}
                   </div>
+                )}
+                <div>
+                  <span className="font-extrabold text-base tracking-tight text-white block">
+                    {activeVendorBranding.companyName}
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-semibold tracking-wider uppercase block">
+                    Powered by MetaGreen OS
+                  </span>
                 </div>
-              ) : (
-                <MetaGreenLogo size="md" variant={isDarkMode ? 'dark' : 'light'} />
-              )}
-            </button>
+              </div>
+            ) : (
+              <button onClick={() => navigateTo('/')} className="flex items-center gap-2.5 group text-left cursor-pointer">
+                <MetaGreenLogo className="h-10 sm:h-11 w-auto transition-transform group-hover:scale-105" />
+              </button>
+            )}
           </div>
 
-          {/* Desktop Navigation Center */}
-          <nav className="hidden lg:flex items-center gap-7 text-xs font-bold tracking-tight">
+          {/* Desktop Nav Links matching MetaCheck: Home, About, Solutions, Careers, Contact */}
+          <ul className="hidden items-center gap-1 md:flex">
+            {[
+              { label: 'Home', path: '/' },
+              { label: 'About', path: '/about' },
+              { label: 'Solutions', path: '/solutions' },
+              { label: 'Careers', path: '/careers' },
+              { label: 'Contact', path: '/contact' },
+            ].map((item) => {
+              const isActive = currentPath === item.path;
+              return (
+                <li key={item.path}>
+                  <button
+                    onClick={() => navigateTo(item.path)}
+                    className={`relative rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-white shadow-glow'
+                        : 'text-slate-300 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    {isActive && (
+                      <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400" />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
 
-            {/* Solutions Dropdown */}
-            <div
-              className="relative"
-              onMouseEnter={() => setActiveDropdown('solutions')}
-              onMouseLeave={() => setActiveDropdown(null)}
-            >
-              <button className="flex items-center gap-1 hover:text-emerald-500 transition-colors py-2 cursor-pointer">
-                Solutions <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${activeDropdown === 'solutions' ? 'rotate-180 text-emerald-500' : ''}`} />
-              </button>
-
-              {activeDropdown === 'solutions' && (
-                <div className={`absolute top-full left-0 w-84 p-3 rounded-2xl shadow-2xl border backdrop-blur-2xl transition-all duration-150 ${isDarkMode ? 'bg-[#0C152B] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-                  }`}>
-                  <div className="space-y-1">
-                    <a href="#solutions-tabs" onClick={(e) => handleSolutionClick('design', e)} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-emerald-500/10 transition-colors group">
-                      <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-                        <Cpu className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-xs">3D Solar & AI Layout</p>
-                        <p className="text-[11px] font-normal text-slate-400">Automated rooftop modeling & shading analysis.</p>
-                      </div>
-                    </a>
-
-                    <a href="#solutions-tabs" onClick={(e) => handleSolutionClick('crm', e)} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-emerald-500/10 transition-colors group">
-                      <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                        <Users className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-xs">CRM & Lead Pipeline</p>
-                        <p className="text-[11px] font-normal text-slate-400">Geotagged site surveys & customer portal.</p>
-                      </div>
-                    </a>
-
-                    <a href="#solutions-tabs" onClick={(e) => handleSolutionClick('procurement', e)} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-emerald-500/10 transition-colors group">
-                      <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500 group-hover:bg-purple-500 group-hover:text-white transition-colors">
-                        <Box className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-xs">Procurement & Warehouse Stock</p>
-                        <p className="text-[11px] font-normal text-slate-400">Barcode QR serial tracking & PO workflows.</p>
-                      </div>
-                    </a>
-
-                    <a href="#solutions-tabs" onClick={(e) => handleSolutionClick('finance', e)} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-emerald-500/10 transition-colors group">
-                      <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition-colors">
-                        <IndianRupee className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-xs">Finance & GST Invoicing</p>
-                        <p className="text-[11px] font-normal text-slate-400">PM Surya Ghar subsidy status & tax invoices.</p>
-                      </div>
-                    </a>
-
-                    <a href="#solutions-tabs" onClick={(e) => handleSolutionClick('audit', e)} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-emerald-500/10 transition-colors group">
-                      <div className="p-2 rounded-lg bg-teal-500/10 text-teal-500 group-hover:bg-teal-500 group-hover:text-white transition-colors">
-                        <ClipboardCheck className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-xs">Field Audit & Quality Control</p>
-                        <p className="text-[11px] font-normal text-slate-400">GPS geotagged quality checklists & tamper logs.</p>
-                      </div>
-                    </a>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* About Link */}
-            <a
-              href="#about"
-              onClick={(e) => scrollToSection(e, 'about')}
-              className="hover:text-emerald-500 transition-colors cursor-pointer"
-            >
-              About
-            </a>
-
-            {/* Ecosystem Link */}
-            <a
-              href="#ecosystem"
-              onClick={(e) => scrollToSection(e, 'ecosystem')}
-              className="hover:text-emerald-500 transition-colors cursor-pointer"
-            >
-              MetaEcosystem
-            </a>
-
-            {/* Security & Trust */}
-            <a
-              href="#security"
-              onClick={(e) => scrollToSection(e, 'security')}
-              className="hover:text-emerald-500 transition-colors cursor-pointer flex items-center gap-1"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-              Security & Trust
-            </a>
-
-            {/* Pricing Link */}
-            <a
-              href="#pricing"
-              onClick={(e) => scrollToSection(e, 'pricing')}
-              className="hover:text-emerald-500 transition-colors cursor-pointer"
-            >
-              Pricing
-            </a>
-          </nav>
-
-          {/* Action CTAs */}
-          <div className="flex items-center gap-3">
-            {/* Theme Toggle */}
-            <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              className={`p-2 rounded-xl border transition-colors cursor-pointer ${isDarkMode
-                ? 'bg-slate-800/80 border-slate-700 text-amber-400 hover:bg-slate-700'
-                : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
-                }`}
-              title="Toggle Light/Dark Theme"
-            >
-              {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-
-            {/* Customer Track Application Button */}
+          {/* Right Action Buttons */}
+          <div className="hidden items-center gap-2.5 sm:flex">
             <button
               onClick={() => {
                 setTrackingInitialQuery('');
                 setIsTrackingModalOpen(true);
               }}
-              className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-black border transition-all cursor-pointer shadow-xs ${isDarkMode
-                ? 'border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 hover:shadow-emerald-500/10'
-                : 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800'
-                }`}
-              title="Track your solar installation by entering Application ID or Mobile Number"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 px-3 py-2 text-xs font-semibold text-teal-300 hover:bg-teal-500/20 transition-all"
             >
-              <Search className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Track Application</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <Search className="h-3.5 w-3.5" />
+              Track Solar
             </button>
 
-            {/* Book Demo Button */}
+            <button
+              onClick={() => handleOpenLogin('admin')}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 hover:text-white transition-all"
+            >
+              Sign In
+            </button>
+
+            <button
+              onClick={() => setIsRegisterModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 transition-all"
+            >
+              Partner
+            </button>
+
             <button
               onClick={() => setIsBookDemoOpen(true)}
-              className={`hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${isDarkMode
-                ? 'border-slate-700 bg-slate-800/60 hover:bg-slate-800 text-white'
-                : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800'
-                }`}
+              className="group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-4 py-2 text-xs font-bold text-white shadow-glow hover:shadow-glow-lg transition-all hover:brightness-110"
             >
-              <PhoneCall className="w-3.5 h-3.5 text-emerald-500" />
-              Book Demo
-            </button>
-
-            {/* Sign In Options */}
-            <div className="relative group hidden md:block">
-              <button
-                onClick={() => handleOpenLogin('admin')}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border ${isDarkMode
-                  ? 'border-slate-800 bg-slate-900/90 text-slate-200 hover:text-white hover:border-emerald-500/50'
-                  : 'border-slate-200 bg-white text-slate-700 hover:text-slate-950 hover:border-emerald-500/50 shadow-xs'
-                  }`}
-              >
-                <Lock className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Sign In</span>
-                <ChevronDown className="w-3 h-3 text-slate-400 group-hover:rotate-180 transition-transform" />
-              </button>
-
-              {/* Hover Persona Menu */}
-              <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 hidden group-hover:block z-50 animate-in fade-in zoom-in-95 duration-150">
-                <span className="text-[10px] font-black uppercase text-slate-400 px-2 py-1 block tracking-wider">Select Sign In Portal</span>
-                <button
-                  onClick={() => handleOpenLogin('admin')}
-                  className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-emerald-500/20 hover:text-emerald-300 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  <span>👑</span> <span>Global Super Admin</span>
-                </button>
-                <button
-                  onClick={() => handleOpenLogin('vendor')}
-                  className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-amber-500/20 hover:text-amber-300 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  <span>🏢</span> <span>Vendor Partner Portal</span>
-                </button>
-                <button
-                  onClick={() => handleOpenLogin('installer')}
-                  className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-teal-500/20 hover:text-teal-300 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  <span>🔧</span> <span>Solar Installer Portal</span>
-                </button>
-                <button
-                  onClick={() => handleOpenLogin('customer')}
-                  className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-indigo-500/20 hover:text-indigo-300 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  <span>🏠</span> <span>Customer Prosumer Portal</span>
-                </button>
-                <button
-                  onClick={() => handleOpenLogin('staff')}
-                  className="w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-cyan-500/20 hover:text-cyan-300 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  <span>👷</span> <span>Engineering & Staff</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Primary Action Button */}
-            <button
-              onClick={() => handleStartTrial()}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 rounded-xl text-xs font-black transition-all cursor-pointer shadow-lg shadow-emerald-500/20 hover:scale-[1.02] flex items-center gap-1.5"
-            >
-              Start Free Trial
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Mobile Menu Toggle */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white cursor-pointer"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              <span>Book Demo</span>
+              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
             </button>
           </div>
-        </div>
 
-        {/* Mobile Dropdown Menu */}
+          {/* Mobile hamburger */}
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-white hover:bg-white/10 md:hidden"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle Navigation Menu"
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </nav>
+
+        {/* Mobile Menu Drawer */}
         {mobileMenuOpen && (
-          <div className={`lg:hidden px-4 py-6 border-b space-y-4 backdrop-blur-xl ${isDarkMode ? 'bg-[#080E1E] border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-            }`}>
-            <div className="space-y-3 font-bold text-sm">
-              <a href="#solutions-tabs" onClick={(e) => scrollToSection(e, 'solutions-tabs')} className="block py-1 hover:text-emerald-500">Solutions</a>
-              <a href="#about" onClick={(e) => scrollToSection(e, 'about')} className="block py-1 hover:text-emerald-500">About Us</a>
-              <a href="#ecosystem" onClick={(e) => scrollToSection(e, 'ecosystem')} className="block py-1 hover:text-emerald-500">MetaEcosystem</a>
-              <a href="#security" onClick={(e) => scrollToSection(e, 'security')} className="block py-1 hover:text-emerald-500">Security & Trust</a>
-              <a href="#pricing" onClick={(e) => scrollToSection(e, 'pricing')} className="block py-1 hover:text-emerald-500">Pricing</a>
+          <div className="border-t border-white/10 bg-[#0a0a1a]/95 px-5 py-5 backdrop-blur-xl md:hidden space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: 'Home', path: '/' },
+                { label: 'About', path: '/about' },
+                { label: 'Solutions', path: '/solutions' },
+                { label: 'Careers', path: '/careers' },
+                { label: 'Contact', path: '/contact' },
+              ].map((item) => (
+                <button
+                  key={item.path}
+                  onClick={() => navigateTo(item.path)}
+                  className={`rounded-lg p-2.5 text-left text-xs font-semibold ${
+                    currentPath === item.path
+                      ? 'bg-emerald-500/20 text-emerald-400 font-bold'
+                      : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
 
-            <div className="pt-4 border-t border-slate-700/50 flex flex-col gap-2">
+            <div className="pt-3 border-t border-white/10 flex flex-col gap-2">
               <button
-                onClick={() => { 
-                  setMobileMenuOpen(false); 
-                  setTrackingInitialQuery('');
-                  setIsTrackingModalOpen(true); 
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setIsTrackingModalOpen(true);
                 }}
-                className="w-full py-2.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold rounded-xl text-xs flex items-center justify-center gap-2 border border-emerald-500/30 shadow-xs cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-teal-500/15 text-teal-300 font-bold text-xs border border-teal-500/30 flex items-center justify-center gap-2"
               >
-                <Search className="w-4 h-4 text-emerald-500" /> Track Application Flow
+                <Search className="h-4 w-4" /> Track Solar Application
               </button>
-
-              <span className="text-[10px] font-black uppercase text-slate-400 pt-2 tracking-wider">Dedicated Portal Logins</span>
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  onClick={() => { setMobileMenuOpen(false); handleOpenLogin('admin'); }}
-                  className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <span>👑 Admin</span>
-                </button>
-                <button
-                  onClick={() => { setMobileMenuOpen(false); handleOpenLogin('vendor'); }}
-                  className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <span>🏢 Vendor</span>
-                </button>
-                <button
-                  onClick={() => { setMobileMenuOpen(false); handleOpenLogin('installer'); }}
-                  className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-teal-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <span>🔧 Installer</span>
-                </button>
-                <button
-                  onClick={() => { setMobileMenuOpen(false); handleOpenLogin('customer'); }}
-                  className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <span>🏠 Customer</span>
-                </button>
-              </div>
-
               <button
-                onClick={() => { setMobileMenuOpen(false); setIsBookDemoOpen(true); }}
-                className="w-full py-2.5 bg-emerald-500/10 text-emerald-500 font-bold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer mt-1"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleOpenLogin('admin');
+                }}
+                className="w-full py-2.5 rounded-xl bg-white/5 text-white font-semibold text-xs border border-white/10"
               >
-                <PhoneCall className="w-4 h-4" /> Schedule Live Demo
+                Sign In to Portal
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setIsRegisterModalOpen(true);
+                }}
+                className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-md"
+              >
+                Partner with MetaGreen
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setIsBookDemoOpen(true);
+                }}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs shadow-glow"
+              >
+                Book Live Demonstration
               </button>
             </div>
           </div>
@@ -712,1116 +1408,29 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
       </header>
 
       {/* ========================================================================= */}
-      {/* 2. HERO SECTION WITH LIVE INTERACTIVE WIDGET (MetaCheck Style)            */}
+      {/* RENDER CURRENT PAGE ROUTE                                                 */}
       {/* ========================================================================= */}
-      <section id="hero" className="relative pt-12 pb-20 md:pt-20 md:pb-28 overflow-hidden">
-        {/* Background Radial Glow */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[140px] pointer-events-none -z-10" />
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-
-            {/* Left Content Column */}
-            <div className="lg:col-span-6 space-y-6 text-center lg:text-left">
-
-              {/* High-Impact Headline */}
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1]">
-                {isCustomLandingActive && activeVendorBranding ? (
-                  <>
-                    Clean Solar Rooftop Energy Powered by{' '}
-                    <span className="bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 bg-clip-text text-transparent">
-                      {activeVendorBranding.companyName}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    Verify, Design & Manage Every Solar Project with{' '}
-                    <span className="bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 bg-clip-text text-transparent">
-                      Unmatched Precision.
-                    </span>
-                  </>
-                )}
-              </h1>
-
-              {/* Sub-headline */}
-              <p className={`text-base sm:text-lg max-w-2xl mx-auto lg:mx-0 font-medium leading-relaxed ${isDarkMode ? 'text-slate-300' : 'text-slate-600'
-                }`}>
-                {isCustomLandingActive && activeVendorBranding ? (
-                  <>
-                    Authorized Solar Partner powered by MetaGreen OS. We engineer precision 3D rooftop layouts, streamline PM Surya Ghar DISCOM subsidies, and deliver premium solar installations with end-to-end warranty.
-                  </>
-                ) : (
-                  <>
-                    The all-in-one platform for solar EPCs and enterprise operations. Generate 3D solar layouts, automate GST & subsidy invoicing, track multi-warehouse inventory, and empower field engineers — built on an immutable trust foundation.
-                  </>
-                )}
-              </p>
-
-              {/* CTAs & Trial Info */}
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-                <button
-                  onClick={() => handleStartTrial()}
-                  className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 rounded-2xl text-sm font-black transition-all cursor-pointer shadow-xl shadow-emerald-500/25 hover:scale-105 flex items-center justify-center gap-2 group"
-                >
-                  Start 14-Day Free Trial
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-
-                <button
-                  onClick={() => setIsBookDemoOpen(true)}
-                  className={`w-full sm:w-auto px-6 py-4 rounded-2xl text-sm font-bold border transition-all cursor-pointer flex items-center justify-center gap-2 ${isDarkMode
-                    ? 'border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-white'
-                    : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800 shadow-sm'
-                    }`}
-                >
-                  <Sparkles className="w-4 h-4 text-emerald-500" />
-                  Schedule Guided Demo
-                </button>
-              </div>
-
-              {/* Quick Trust Feature Chips */}
-              <div className="pt-4 flex flex-wrap items-center justify-center lg:justify-start gap-y-2 gap-x-6 text-xs font-semibold text-slate-400">
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" /> No credit card required
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" /> PM Surya Ghar Compliant
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Instant Setup in 2 Mins
-                </span>
-              </div>
-            </div>
-
-            {/* Right Column: Live Interactive Card Widget (MetaCheck Signature Design) */}
-            <div className="lg:col-span-6 relative">
-
-              {/* Outer Decorative Gradient Border Card */}
-              <div className={`p-1 rounded-3xl bg-gradient-to-b from-emerald-500/30 via-teal-500/10 to-indigo-500/30 shadow-2xl backdrop-blur-xl transition-all duration-300 ${isDarkMode ? 'bg-slate-900/90' : 'bg-white/90'
-                }`}>
-                <div className={`p-5 sm:p-6 rounded-[22px] space-y-5 ${isDarkMode ? 'bg-[#0B132B]' : 'bg-slate-50/90'
-                  }`}>
-
-                  {/* Top Live Header Status Bar */}
-                  <div className="flex items-center justify-between pb-4 border-b border-slate-700/40">
-                    <div className="flex items-center gap-2">
-                      <span className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                      </span>
-                      <span className="text-xs font-black uppercase tracking-wider text-emerald-500">System Live Stream</span>
-                    </div>
-
-                    <div className="flex items-center gap-3 text-[11px] font-bold text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <Activity className="w-3.5 h-3.5 text-emerald-500" /> 100% Operational
-                      </span>
-                      <span className="hidden sm:inline-block">•</span>
-                      <span className="hidden sm:inline-block">1,420 Checks/Hr</span>
-                    </div>
-                  </div>
-
-                  {/* Operational Cards Feed */}
-                  <div className="space-y-3">
-
-                    {/* Item 1: Verification Approved */}
-                    <div className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${isDarkMode ? 'bg-slate-800/80 border-slate-700/80' : 'bg-white border-slate-200'
-                      }`}>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                          <BadgeCheck className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold">Solar Project #MG-9402 Approved</p>
-                          <p className="text-[11px] text-slate-400">Apex Solar Corp • 150 kW Commercial Rooftop</p>
-                        </div>
-                      </div>
-                      <span className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-extrabold uppercase">
-                        GST Verified
-                      </span>
-                    </div>
-
-                    {/* Item 2: 3D Layout AI Generation */}
-                    <div className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${isDarkMode ? 'bg-slate-800/80 border-slate-700/80' : 'bg-white border-slate-200'
-                      }`}>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-                          <Cpu className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold">3D Photovoltaic Layout Computed</p>
-                          <p className="text-[11px] text-slate-400">Shading Loss: 1.2% • Annual Generation: 214,000 kWh</p>
-                        </div>
-                      </div>
-                      <span className="px-2 py-1 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-extrabold uppercase">
-                        AI Score 0.99
-                      </span>
-                    </div>
-
-                    {/* Item 3: GST Invoice & Subsidy */}
-                    <div className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${isDarkMode ? 'bg-slate-800/80 border-slate-700/80' : 'bg-white border-slate-200'
-                      }`}>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500">
-                          <IndianRupee className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold">GST Tax Invoice #INV-8821 Issued</p>
-                          <p className="text-[11px] text-slate-400">PM Surya Ghar Subsidy Tracker Synced • ₹14.5L</p>
-                        </div>
-                      </div>
-                      <span className="px-2 py-1 rounded-md bg-purple-500/10 text-purple-400 text-[10px] font-extrabold uppercase">
-                        Synced
-                      </span>
-                    </div>
-
-                  </div>
-
-                  {/* Bottom Metrics Bar */}
-                  <div className="pt-3 border-t border-slate-700/40 grid grid-cols-3 gap-2 text-center">
-                    <div className="p-2 rounded-lg bg-emerald-500/5">
-                      <p className="text-sm font-black text-emerald-500">12M+</p>
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase">Records Processed</p>
-                    </div>
-                    <div className="p-2 rounded-lg bg-blue-500/5">
-                      <p className="text-sm font-black text-blue-500">&lt; 2 Mins</p>
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase">Turnaround Time</p>
-                    </div>
-                    <div className="p-2 rounded-lg bg-indigo-500/5">
-                      <p className="text-sm font-black text-indigo-500">99.9%</p>
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase">Audit Accuracy</p>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-            </div>
-
-          </div>
-        </div>
-      </section>
+      <main className="min-h-screen">
+        {renderCurrentPage()}
+      </main>
 
       {/* ========================================================================= */}
-      {/* 2.5. CUSTOMER APPLICATION FLOW TRACKER HERO BAR                           */}
+      {/* COMMON FOOTER (Matching MetaCheck Footer)                                 */}
       {/* ========================================================================= */}
-      <section id="track-flow" className={`py-10 border-t transition-colors ${isDarkMode ? 'bg-[#080E1E] border-slate-800' : 'bg-gradient-to-b from-white to-emerald-50/50 border-slate-200'}`}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`p-6 sm:p-8 rounded-3xl border shadow-xl backdrop-blur-xl transition-all ${isDarkMode ? 'bg-[#0D1836]/90 border-slate-700' : 'bg-white border-emerald-200/90 shadow-emerald-500/5'}`}>
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-              
-              <div className="space-y-1.5 text-center md:text-left">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  <Zap className="w-3.5 h-3.5 animate-pulse" />
-                  <span>Consumer Solar Portal</span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black tracking-tight">
-                  Track Your Solar Application Flow
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-lg font-medium">
-                  Enter your <strong>Application ID</strong> or <strong>10-digit registered mobile number</strong> to see live survey, design, DISCOM approval & subsidy progress.
-                </p>
-              </div>
-
-              <div className="w-full md:w-auto flex-1 max-w-md">
-                <form 
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (heroTrackInput.trim()) {
-                      setTrackingInitialQuery(heroTrackInput.trim());
-                      setIsTrackingModalOpen(true);
-                    } else {
-                      setIsTrackingModalOpen(true);
-                    }
-                  }}
-                  className="flex flex-col sm:flex-row gap-2"
-                >
-                  <div className="relative flex-1">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <Search className="w-4 h-4 text-emerald-500" />
-                    </div>
-                    <input
-                      type="text"
-                      value={heroTrackInput}
-                      onChange={(e) => setHeroTrackInput(e.target.value)}
-                      placeholder="App ID or Mobile No..."
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs sm:text-sm placeholder-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all shadow-xs"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-xs sm:text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5 cursor-pointer shrink-0 hover:scale-105"
-                  >
-                    <span>Track Status</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </form>
-
-                <div className="flex items-center justify-center md:justify-start gap-2 pt-2 text-[11px] text-slate-400 font-medium">
-                  <span>Try:</span>
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setHeroTrackInput('9876543210');
-                      setTrackingInitialQuery('9876543210');
-                      setIsTrackingModalOpen(true);
-                    }} 
-                    className="underline hover:text-emerald-500 cursor-pointer"
-                  >
-                    9876543210
-                  </button>
-                  <span>•</span>
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setHeroTrackInput('APP-101');
-                      setTrackingInitialQuery('APP-101');
-                      setIsTrackingModalOpen(true);
-                    }} 
-                    className="underline hover:text-emerald-500 cursor-pointer"
-                  >
-                    APP-101
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      </section>
+      <LandingFooter
+        onOpenLogin={handleOpenLogin}
+        onOpenDemo={() => setIsBookDemoOpen(true)}
+        onOpenPartner={() => setIsRegisterModalOpen(true)}
+        onOpenTracking={() => {
+          setTrackingInitialQuery('');
+          setIsTrackingModalOpen(true);
+        }}
+        onOpenContact={() => navigateTo('/contact')}
+        onNavigatePage={navigateTo}
+      />
 
       {/* ========================================================================= */}
-      {/* 3. METAECOSYSTEM CROSS-PRODUCT SUITE BAR (MetaCheck Feature)              */}
-      {/* ========================================================================= */}
-      <section id="ecosystem" className={`py-8 border-y transition-colors ${isDarkMode ? 'bg-[#080E1E] border-slate-800' : 'bg-slate-100/70 border-slate-200'
-        }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-xs font-black uppercase tracking-widest text-slate-400 mb-6">
-            Unified Ecosystem • Seamless Integrations Across Platform Suites
-          </p>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
-
-            <a
-              href="https://metadev.in/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-3 rounded-xl border border-slate-700/40 bg-slate-800/30 hover:bg-slate-800/60 hover:border-emerald-500/40 flex items-center gap-2.5 justify-center opacity-80 hover:opacity-100 transition-all group cursor-pointer"
-              title="MetaDev - Developer APIs & Infrastructure"
-            >
-              <Cpu className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-bold">MetaDev</span>
-              <ArrowUpRight className="w-3 h-3 text-slate-500 group-hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-all" />
-            </a>
-
-            <a
-              href="https://metaads.in/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-3 rounded-xl border border-slate-700/40 bg-slate-800/30 hover:bg-slate-800/60 hover:border-indigo-500/40 flex items-center gap-2.5 justify-center opacity-80 hover:opacity-100 transition-all group cursor-pointer"
-              title="MetaAds - Solar Lead Gen & AI Marketing"
-            >
-              <TrendingUp className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-bold">MetaAds</span>
-              <ArrowUpRight className="w-3 h-3 text-slate-500 group-hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all" />
-            </a>
-
-            <a
-              href="https://metacheck.in/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-3 rounded-xl border border-slate-700/40 bg-slate-800/30 hover:bg-slate-800/60 hover:border-emerald-500/40 flex items-center gap-2.5 justify-center opacity-80 hover:opacity-100 transition-all group cursor-pointer"
-              title="MetaCheck - Identity Verification & KYB"
-            >
-              <ShieldCheck className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-bold">MetaCheck</span>
-              <ArrowUpRight className="w-3 h-3 text-slate-500 group-hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-all" />
-            </a>
-
-            <div className="p-3 rounded-xl border border-emerald-500/50 bg-emerald-500/10 flex items-center gap-2.5 justify-center ring-2 ring-emerald-500/30 shadow-md" title="MetaGreen Solar EPC ERP (Active App)">
-              <Sun className="w-4 h-4 text-emerald-400 animate-spin-slow" />
-              <span className="text-xs font-black text-emerald-400">MetaGreen</span>
-            </div>
-
-            <a
-              href="https://metahire.in/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-3 rounded-xl border border-slate-700/40 bg-slate-800/30 hover:bg-slate-800/60 hover:border-blue-500/40 flex items-center gap-2.5 justify-center opacity-80 hover:opacity-100 transition-all group cursor-pointer"
-              title="MetaHire - Technician Staffing & Hiring"
-            >
-              <Users className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-bold">MetaHire</span>
-              <ArrowUpRight className="w-3 h-3 text-slate-500 group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all" />
-            </a>
-
-            <a
-              href="https://metaledger.in/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-3 rounded-xl border border-slate-700/40 bg-slate-800/30 hover:bg-slate-800/60 hover:border-purple-500/40 flex items-center gap-2.5 justify-center opacity-80 hover:opacity-100 transition-all group cursor-pointer"
-              title="MetaLedger - GST Accounting & Financial ERP"
-            >
-              <IndianRupee className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-bold">MetaLedger</span>
-              <ArrowUpRight className="w-3 h-3 text-slate-500 group-hover:text-purple-400 opacity-0 group-hover:opacity-100 transition-all" />
-            </a>
-
-            <a
-              href="https://metape.in/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-3 rounded-xl border border-slate-700/40 bg-slate-800/30 hover:bg-slate-800/60 hover:border-amber-500/40 flex items-center gap-2.5 justify-center opacity-80 hover:opacity-100 transition-all group cursor-pointer"
-              title="MetaPe - B2B Solar Payments & Escrow"
-            >
-              <Zap className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-bold">MetaPe</span>
-              <ArrowUpRight className="w-3 h-3 text-slate-500 group-hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-all" />
-            </a>
-
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* ABOUT US SECTION                                                         */}
-      {/* ========================================================================= */}
-      <section id="about" className={`py-20 border-t transition-colors ${isDarkMode ? 'bg-[#060B17] border-slate-800' : 'bg-slate-50/80 border-slate-200'}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            
-            {/* Left Content */}
-            <div className="lg:col-span-6 space-y-6">
-              <span className="text-xs font-black uppercase tracking-widest text-emerald-500 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-500" /> About MetaGreen Enterprise
-              </span>
-
-              <h2 className="text-3xl sm:text-4xl font-black tracking-tight leading-tight">
-                Empowering the Future of Solar Energy Operations Across India
-              </h2>
-
-              <p className={`text-sm sm:text-base font-medium leading-relaxed ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                MetaGreen is an all-in-one Enterprise ERP engineered specifically for Solar EPC companies, installers, and multi-branch operations. Our mission is to streamline solar project lifecycles—from AI 3D rooftop layouts and CRM lead management to QR inventory tracking, GST tax invoicing, and PM Surya Ghar government subsidy compliance.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center gap-2 justify-center mb-2 font-black">
-                    <Sun className="w-5 h-5" />
-                  </div>
-                  <p className={`font-bold text-sm ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>3D Solar Engineering</p>
-                  <p className={`text-xs mt-1 font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Precise rooftop CAD layout and shading simulation in under 2 minutes.</p>
-                </div>
-
-                <div className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
-                  <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-500 flex items-center gap-2 justify-center mb-2 font-black">
-                    <Globe className="w-5 h-5" />
-                  </div>
-                  <p className={`font-bold text-xs ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>Unified MetaEcosystem</p>
-                  <p className={`text-xs mt-1 font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Natively synced with MetaCheck, MetaLedger, MetaHire, MetaAds & MetaPe.</p>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center gap-4">
-                <button
-                  onClick={() => setIsBookDemoOpen(true)}
-                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black rounded-xl text-xs transition-all cursor-pointer shadow-md flex items-center gap-2"
-                >
-                  Learn More & Book Demo <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Right Card Showcase */}
-            <div className="lg:col-span-6">
-              <div className={`p-8 rounded-3xl border shadow-2xl relative overflow-hidden ${isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'}`}>
-                <div className="space-y-6">
-                  <div className={`flex items-center justify-between border-b pb-4 ${isDarkMode ? 'border-slate-700/60' : 'border-slate-200'}`}>
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wider text-emerald-500">MetaGreen Vision</p>
-                      <p className={`text-lg font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>Clean Energy • Zero Leakage Operations</p>
-                    </div>
-                    <MetaGreenLogo size="sm" variant={isDarkMode ? 'dark' : 'light'} />
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className={`font-bold text-xs ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>End-to-End Solar EPC Digitization</p>
-                        <p className={`text-xs mt-0.5 font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Eliminate manual paperwork with real-time field surveys, quotation builders, and automated BOQ generation.</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className={`font-bold text-xs ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>Government Subsidy Automation</p>
-                        <p className={`text-xs mt-0.5 font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Full audit trail and direct verification logging for PM Surya Ghar and state solar subsidy schemes.</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className={`font-bold text-xs ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>Enterprise Security & Compliance</p>
-                        <p className={`text-xs mt-0.5 font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>Bank-grade encryption, SOC 2 alignment, multi-tenant isolation, and timestamped activity audit logs.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={`p-4 rounded-2xl border text-center ${isDarkMode ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
-                    <p className="text-xs font-bold">Trusted by over 500+ Solar EPCs & Contractors Nationwide</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 5. TABBED SOLUTIONS SHOWCASE (MetaCheck Signature Interactive Grid)       */}
-      {/* ========================================================================= */}
-      <section id="solutions-tabs" className={`py-20 border-t transition-colors ${isDarkMode ? 'bg-[#080E1E] border-slate-800' : 'bg-white border-slate-200'
-        }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-
-          <div className="text-center space-y-4 max-w-3xl mx-auto">
-            <span className="text-xs font-black uppercase tracking-widest text-emerald-500">Platform Capabilities</span>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
-              Modular Solutions Built for Every Phase of Operations
-            </h2>
-            <p className={`text-sm sm:text-base font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-              Whether designing rooftop solar installations, managing field survey teams, or processing vendor purchase orders, MetaGreen provides specialized modules.
-            </p>
-          </div>
-
-          {/* Interactive Category Selector Tabs */}
-          <div className="flex items-center justify-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {solutionTabs.map((tab) => {
-              const IconComp = tab.icon;
-              const isActive = activeSolutionTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveSolutionTab(tab.id as any)}
-                  className={`px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 ${isActive
-                    ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/25 scale-105'
-                    : isDarkMode
-                      ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                >
-                  <IconComp className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Tab Content Display Card */}
-          {(() => {
-            const currentTab = solutionTabs.find((t) => t.id === activeSolutionTab) || solutionTabs[0];
-            const TabIcon = currentTab.icon;
-
-            return (
-              <div className={`p-8 sm:p-12 rounded-3xl border shadow-2xl transition-all ${isDarkMode ? 'bg-[#0B132B] border-slate-800' : 'bg-slate-50 border-slate-200'
-                }`}>
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-
-                  {/* Left Specs */}
-                  <div className="lg:col-span-7 space-y-6">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs font-black">
-                      <TabIcon className="w-4 h-4" />
-                      {currentTab.label}
-                    </div>
-
-                    <h3 className="text-2xl sm:text-3xl font-black tracking-tight">
-                      {currentTab.title}
-                    </h3>
-
-                    <p className={`text-sm font-medium leading-relaxed ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                      {currentTab.subtitle}
-                    </p>
-
-                    {/* Features List */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                      {currentTab.features.map((feat, idx) => (
-                        <div key={idx} className="flex items-center gap-2.5 text-xs font-bold">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span>{feat}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Bottom Action */}
-                    <div className="pt-4 flex items-center gap-4">
-                      <button
-                        onClick={() => setIsBookDemoOpen(true)}
-                        className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs rounded-xl transition-all cursor-pointer shadow-md flex items-center gap-2"
-                      >
-                        Request Module Demo <ArrowRight className="w-4 h-4" />
-                      </button>
-                      <span className="text-xs font-bold text-slate-400">{currentTab.metric}</span>
-                    </div>
-                  </div>
-
-                  {/* Right Graphic Preview */}
-                  <div className="lg:col-span-5">
-                    <div className={`p-6 rounded-2xl border space-y-4 shadow-inner ${isDarkMode ? 'bg-slate-900/90 border-slate-700/80' : 'bg-white border-slate-200'
-                      }`}>
-                      <div className="flex items-center justify-between border-b border-slate-700/40 pb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-red-500" />
-                          <div className="w-3 h-3 rounded-full bg-amber-500" />
-                          <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                        </div>
-                        <span className="text-[10px] font-mono text-slate-400">module_preview.tsx</span>
-                      </div>
-
-                      <div className="space-y-3 font-mono text-xs text-emerald-400">
-                        <p className="text-slate-400">// Live module status</p>
-                        <p>const module = MetaGreen.{currentTab.id.toUpperCase()};</p>
-                        <p>await module.verifyAndCompute({`{ accuracy: 0.99 }`});</p>
-                        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-sans text-xs">
-                          ✅ Verified: All parameters cleared with zero compliance flags.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-            );
-          })()}
-
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 6. INTERACTIVE SAVINGS & ROI CALCULATOR (MetaCheck Style)                 */}
-      {/* ========================================================================= */}
-      <section id="calculator" className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-          <div className={`p-8 sm:p-12 rounded-3xl border shadow-2xl ${isDarkMode ? 'bg-[#0B132B] border-slate-800' : 'bg-white border-slate-200'
-            }`}>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-
-              {/* Left Controls */}
-              <div className="lg:col-span-6 space-y-6">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-black uppercase">
-                  <Calculator className="w-4 h-4" /> Interactive Solar ROI Estimator
-                </div>
-
-                <h2 className="text-3xl font-black tracking-tight">
-                  Calculate Savings & PM Surya Ghar Subsidy
-                </h2>
-
-                <p className={`text-sm font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                  Adjust your monthly electricity expenditure to compute recommended solar plant capacity, govt subsidies, and projected payback timeframe.
-                </p>
-
-                {/* Slider */}
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between text-xs font-bold">
-                    <span>Monthly Electricity Bill:</span>
-                    <span className="text-emerald-500 text-lg font-black">₹{monthlyBill.toLocaleString()} / mo</span>
-                  </div>
-
-                  <input
-                    type="range"
-                    min="1500"
-                    max="50000"
-                    step="500"
-                    value={monthlyBill}
-                    onChange={(e) => setMonthlyBill(Number(e.target.value))}
-                    className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-700 rounded-lg"
-                  />
-                  <div className="flex justify-between text-[11px] text-slate-400 font-bold">
-                    <span>₹1,500</span>
-                    <span>₹25,000</span>
-                    <span>₹50,000+</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Output Cards */}
-              <div className="lg:col-span-6">
-                <div className="grid grid-cols-2 gap-4">
-
-                  <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}>
-                    <p className="text-xs font-bold text-slate-400 uppercase">Recommended System</p>
-                    <p className="text-3xl font-black text-emerald-500 mt-1">{recommendedKw} kW</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Rooftop Solar Plant</p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}>
-                    <p className="text-xs font-bold text-slate-400 uppercase">Govt Subsidy (Surya Ghar)</p>
-                    <p className="text-3xl font-black text-blue-500 mt-1">₹{estimatedSubsidy.toLocaleString()}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Direct Bank Transfer</p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}>
-                    <p className="text-xs font-bold text-slate-400 uppercase">Est. Annual Savings</p>
-                    <p className="text-3xl font-black text-teal-500 mt-1">₹{annualSavings.toLocaleString()}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">88% Bill Reduction</p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl border ${isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
-                    }`}>
-                    <p className="text-xs font-bold text-slate-400 uppercase">Payback Timeframe</p>
-                    <p className="text-3xl font-black text-indigo-500 mt-1">{paybackYears} Yrs</p>
-                    <p className="text-[11px] text-slate-400 mt-1">25+ Year System Life</p>
-                  </div>
-
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 7. ENTERPRISE SECURITY & AUDIT TRAIL (MetaCheck Signature)               */}
-      {/* ========================================================================= */}
-      <section id="security" className={`py-20 border-t transition-colors ${isDarkMode ? 'bg-[#080E1E] border-slate-800' : 'bg-slate-100/70 border-slate-200'
-        }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-
-          <div className="text-center space-y-4 max-w-3xl mx-auto">
-            <span className="text-xs font-black uppercase tracking-widest text-emerald-500">Security & Trust Architecture</span>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
-              Enterprise-Grade Security & Immutable Audit Trails
-            </h2>
-            <p className={`text-sm sm:text-base font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-              Every proposal generated, invoice issued, and field survey signed off is backed by immutable logs and logical tenant isolation.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-
-            <div className={`p-8 rounded-3xl border space-y-4 transition-all ${isDarkMode ? 'bg-[#0B132B] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-              }`}>
-              <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 w-fit">
-                <Lock className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold">Logical Tenant Isolation</h3>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                Strict row-level database controls ensure complete separation of client records, quotes, employee data, and financial transactions.
-              </p>
-            </div>
-
-            <div className={`p-8 rounded-3xl border space-y-4 transition-all ${isDarkMode ? 'bg-[#0B132B] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-              }`}>
-              <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-500 w-fit">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold">Immutable Audit Logs</h3>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                Every system modification ships with immutable evidence, timestamped geolocation, and reasoning — ready for auditors and compliance teams.
-              </p>
-            </div>
-
-            <div className={`p-8 rounded-3xl border space-y-4 transition-all ${isDarkMode ? 'bg-[#0B132B] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-              }`}>
-              <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-500 w-fit">
-                <Server className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold">Typed SDKs & Webhooks</h3>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                Integrate MetaGreen into your existing SAP, Tally, or custom ERP stack in minutes using robust REST APIs and event-driven webhooks.
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 8. PRICING PLANS & BILLING TOGGLE                                         */}
-      {/* ========================================================================= */}
-      <section id="pricing" className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-
-          <div className="text-center space-y-4 max-w-2xl mx-auto">
-            <span className="text-xs font-black uppercase tracking-widest text-emerald-500">Transparent Subscriptions</span>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
-              Flexible Plans for Growing Solar EPCs & Enterprises
-            </h2>
-
-            {/* Billing Toggle */}
-            <div className="pt-2 flex items-center justify-center gap-3">
-              <span className={`text-xs font-bold ${billingCycle === 'monthly' ? 'text-emerald-500' : 'text-slate-400'}`}>Monthly Billing</span>
-              <button
-                onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'annual' : 'monthly')}
-                className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer ${billingCycle === 'annual' ? 'bg-emerald-500' : 'bg-slate-700'
-                  }`}
-              >
-                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${billingCycle === 'annual' ? 'translate-x-6' : 'translate-x-0'
-                  }`} />
-              </button>
-              <span className={`text-xs font-bold flex items-center gap-1.5 ${billingCycle === 'annual' ? 'text-emerald-500' : 'text-slate-400'}`}>
-                Annual Billing
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase">
-                  Save 20%
-                </span>
-              </span>
-            </div>
-          </div>
-
-          {/* Pricing Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {(plans.length > 0 ? plans.filter(p => p.status === 'active') : [DEFAULT_FALLBACK_PLAN]).map((p, idx) => {
-              const isAnnualOnly = p.billingInterval === 'annual';
-              const isMonthlyOnly = p.billingInterval === 'monthly';
-              const effectiveBillingCycle = isAnnualOnly ? 'annual' : (isMonthlyOnly ? 'monthly' : billingCycle);
-
-              const monthlyPrice = p.priceMonthly || 0;
-              const annualPrice = p.priceAnnual || (monthlyPrice ? Math.round(monthlyPrice * 12 * 0.8) : 0);
-              const effectiveMonthly = effectiveBillingCycle === 'annual'
-                ? Math.round(annualPrice / 12)
-                : monthlyPrice;
-              const discount = p.annualDiscountPercentage ?? 20;
-              const isPopular = idx === 1 || p.name.toLowerCase().includes('enterprise') || p.name.toLowerCase().includes('growth');
-
-              return (
-                <div
-                  key={p.id || idx}
-                  className={`p-7 rounded-3xl border relative flex flex-col justify-between space-y-6 transition-all ${
-                    isPopular
-                      ? 'border-2 border-emerald-500 shadow-xl shadow-emerald-500/10 ' + (isDarkMode ? 'bg-[#0E1B38]' : 'bg-white')
-                      : (isDarkMode ? 'bg-[#0B132B] border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-sm hover:shadow-md')
-                  }`}
-                >
-                  {isPopular && (
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
-                      Most Popular
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`text-xs font-black uppercase tracking-wider truncate ${isPopular ? 'text-emerald-400' : 'text-slate-400'}`}>
-                        {p.name}
-                      </span>
-                      {effectiveBillingCycle === 'annual' && discount > 0 && (
-                        <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-black rounded-full uppercase shrink-0">
-                          Save {discount}%
-                        </span>
-                      )}
-                      {isAnnualOnly && (
-                        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-black rounded-full uppercase shrink-0">
-                          Annual Only
-                        </span>
-                      )}
-                    </div>
-
-                    <div>
-                      <p className="text-3xl sm:text-4xl font-black">
-                        ₹{effectiveMonthly.toLocaleString()}
-                        <span className="text-xs font-normal text-slate-400">/month</span>
-                      </p>
-                      {effectiveBillingCycle === 'annual' ? (
-                        <p className="text-[11px] font-bold text-emerald-400 mt-1">
-                          Billed annually at ₹{annualPrice.toLocaleString()}/yr
-                        </p>
-                      ) : (
-                        <p className="text-[11px] font-medium text-slate-400 mt-1">
-                          Billed monthly
-                        </p>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-slate-400">
-                      Includes {p.userLimit} team {p.userLimit === 1 ? 'user' : 'users'} & {p.storageGBLimit} GB encrypted vault.
-                    </p>
-
-                    <div className="space-y-2.5 pt-3 text-xs font-semibold">
-                      <div className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                        <span>Up to {p.userLimit} Active Team Seats</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                        <span>{p.storageGBLimit} GB Storage Vault</span>
-                      </div>
-                      {p.features && p.features.map((feat, fIdx) => (
-                        <div key={fIdx} className="flex items-center gap-2">
-                          <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                          <span className="truncate">{feat}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleStartTrial(p)}
-                    className={`w-full py-3.5 font-bold rounded-2xl text-xs transition-all cursor-pointer ${
-                      isPopular
-                        ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/25'
-                        : 'bg-slate-800 hover:bg-slate-700 text-white'
-                    }`}
-                  >
-                    {p.trialEnabled ? `Start ${p.trialDays || 7}-Day Free Trial` : 'Subscribe Now'}
-                  </button>
-                </div>
-              );
-            })}
-
-            {/* Enterprise Plan */}
-            <div className={`p-7 rounded-3xl border flex flex-col justify-between space-y-6 transition-all ${
-              isDarkMode ? 'bg-[#0B132B] border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-            }`}>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Enterprise & Multi-Branch</span>
-                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] font-black rounded-full uppercase">
-                    Franchise
-                  </span>
-                </div>
-                <p className="text-3xl sm:text-4xl font-black">Custom</p>
-                <p className="text-xs text-slate-400">Tailored deployments, SLA guarantees, dedicated account managers.</p>
-
-                <div className="space-y-2.5 pt-3 text-xs font-semibold">
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Unlimited Users & Locations</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Dedicated Cloud / On-Premise</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> Custom API & Webhook Integrations</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0" /> 24/7 Priority SLA Support</div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setIsBookDemoOpen(true)}
-                className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl text-xs transition-all cursor-pointer"
-              >
-                Contact Sales Team
-              </button>
-            </div>
-
-          </div>
-
-          {/* OPTIONAL WEBSITE ADD-ON SHOWCASE (₹999/-) */}
-          <div className={`mt-10 p-6 sm:p-8 rounded-3xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-6 ${
-            isDarkMode 
-              ? 'bg-gradient-to-r from-emerald-950/40 via-[#0B132B] to-slate-900 border-emerald-500/30' 
-              : 'bg-gradient-to-r from-emerald-50/80 via-white to-teal-50/60 border-emerald-200 shadow-sm'
-          }`}>
-            <div className="space-y-2 max-w-3xl">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                  <Globe className="w-3 h-3" /> Optional Add-On
-                </span>
-                <span className="text-xl sm:text-2xl font-black">
-                  Custom Branded Website & Landing Page
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500 text-slate-950">
-                  ₹999/-
-                </span>
-              </div>
-              <p className={`text-xs sm:text-sm font-medium leading-relaxed ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                Supercharge your solar agency! Opt into our custom website subscription to unlock your own dedicated landing page with custom company branding, logo, contact phone/email, address, and live lead pipeline.
-              </p>
-              <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-[11px] font-bold">
-                <span className="flex items-center gap-1 text-emerald-500">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Checked: Full access to your own branded landing page
-                </span>
-                <span className="flex items-center gap-1 text-slate-400">
-                  <AlertCircle className="w-3.5 h-3.5 text-slate-400" /> Unchecked: Standard MetaGreen landing page only
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => handleStartTrial()}
-              className="w-full md:w-auto px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-xs transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer shrink-0"
-            >
-              <span>Subscribe with Website (+₹999)</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 9. INTERACTIVE FAQ ACCORDION (MetaCheck Style)                             */}
-      {/* ========================================================================= */}
-      <section className={`py-20 border-t transition-colors ${isDarkMode ? 'bg-[#080E1E] border-slate-800' : 'bg-slate-100/70 border-slate-200'
-        }`}>
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-
-          <div className="text-center space-y-3">
-            <span className="text-xs font-black uppercase tracking-widest text-emerald-500">Got Questions?</span>
-            <h2 className="text-3xl font-black tracking-tight">Frequently Asked Questions</h2>
-          </div>
-
-          <div className="space-y-4">
-            {faqList.map((faq, idx) => {
-              const isOpen = openFaq === idx;
-              return (
-                <div
-                  key={idx}
-                  className={`rounded-2xl border transition-all overflow-hidden ${isDarkMode ? 'bg-[#0B132B] border-slate-800' : 'bg-white border-slate-200'
-                    }`}
-                >
-                  <button
-                    onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    className="w-full px-6 py-4 text-left flex items-center justify-between font-bold text-sm cursor-pointer"
-                  >
-                    <span>{faq.q}</span>
-                    <ChevronDown className={`w-4 h-4 text-emerald-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {isOpen && (
-                    <div className="px-6 pb-5 text-xs text-slate-400 leading-relaxed font-medium border-t border-slate-700/30 pt-3">
-                      {faq.a}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 10. HIGH-IMPACT CTA BANNER & 4-COLUMN FOOTER                               */}
-      {/* ========================================================================= */}
-      <section className="py-20 relative">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="p-10 sm:p-16 rounded-3xl bg-gradient-to-r from-emerald-900 via-teal-900 to-indigo-950 text-white text-center space-y-6 shadow-2xl relative overflow-hidden">
-            <div className="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none" />
-
-            <span className="inline-block px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-black uppercase tracking-widest relative z-10">
-              Ready to Accelerate Operations?
-            </span>
-
-            <h2 className="text-3xl sm:text-5xl font-black tracking-tight max-w-3xl mx-auto leading-tight relative z-10">
-              Transform Your Solar & Enterprise Management Today.
-            </h2>
-
-            <p className="text-sm sm:text-base text-slate-300 max-w-xl mx-auto font-medium relative z-10">
-              Join hundreds of solar EPCs and enterprise operators relying on MetaGreen for intelligent 3D design, inventory control, and verified compliance.
-            </p>
-
-            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
-              <button
-                type="button"
-                onClick={() => handleStartTrial()}
-                className="w-full sm:w-auto px-8 py-4 bg-emerald-400 hover:bg-emerald-300 text-slate-950 rounded-2xl text-sm font-black transition-all cursor-pointer shadow-xl shadow-emerald-400/20 hover:scale-105"
-              >
-                Start Free Trial Now
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsBookDemoOpen(true)}
-                className="w-full sm:w-auto px-8 py-4 bg-slate-800/80 hover:bg-slate-800 text-white rounded-2xl text-sm font-bold border border-slate-700 transition-all cursor-pointer hover:border-slate-500"
-              >
-                Schedule Guided Demo
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer className={`py-12 border-t text-xs transition-colors ${isDarkMode ? 'bg-[#040812] border-slate-800 text-slate-400' : 'bg-slate-900 text-slate-400'
-        }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-
-            {/* Col 1: Brand */}
-            <div className="space-y-4">
-              <MetaGreenLogo size="md" variant="dark" />
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                Part of the MetaEcosystem. Empowering solar EPCs and enterprise operations with intelligent 3D design, GST invoicing, and verified trust.
-              </p>
-            </div>
-
-            {/* Col 2: Solutions */}
-            <div className="space-y-2.5">
-              <p className="font-black text-white uppercase tracking-wider">Solutions & Modules</p>
-              <ul className="space-y-2">
-                <li><a href="#solutions-tabs" onClick={(e) => handleSolutionClick('design', e)} className="hover:text-emerald-400 transition-colors">3D Solar & AI Layout</a></li>
-                <li><a href="#solutions-tabs" onClick={(e) => handleSolutionClick('crm', e)} className="hover:text-emerald-400 transition-colors">Solar Lead CRM & Pipeline</a></li>
-                <li><a href="#solutions-tabs" onClick={(e) => handleSolutionClick('procurement', e)} className="hover:text-emerald-400 transition-colors">Procurement & Warehouse Stock</a></li>
-                <li><a href="#solutions-tabs" onClick={(e) => handleSolutionClick('finance', e)} className="hover:text-emerald-400 transition-colors">GST Invoicing & Subsidy Tracker</a></li>
-                <li><a href="#solutions-tabs" onClick={(e) => handleSolutionClick('audit', e)} className="hover:text-emerald-400 transition-colors">Geotagged Field Audit App</a></li>
-                <li><button type="button" onClick={() => { setTrackingInitialQuery(''); setIsTrackingModalOpen(true); }} className="hover:text-emerald-400 transition-colors text-left cursor-pointer text-emerald-400 font-bold flex items-center gap-1">🔍 Track Solar Application</button></li>
-              </ul>
-            </div>
-
-            {/* Col 3: Ecosystem & Trust */}
-            <div className="space-y-2.5">
-              <p className="font-black text-white uppercase tracking-wider">Ecosystem & Trust</p>
-              <ul className="space-y-1.5">
-                <li><a href="https://metadev.in/" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 inline-flex items-center gap-1">MetaDev (Dev APIs) <ArrowUpRight className="w-3 h-3 text-slate-500" /></a></li>
-                <li><a href="https://metaads.in/" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 inline-flex items-center gap-1">MetaAds (Lead Gen) <ArrowUpRight className="w-3 h-3 text-slate-500" /></a></li>
-                <li><a href="https://metacheck.in/" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 inline-flex items-center gap-1">MetaCheck (Identity Verification) <ArrowUpRight className="w-3 h-3 text-slate-500" /></a></li>
-                <li><a href="https://metahire.in/" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 inline-flex items-center gap-1">MetaHire (Workforce & Hiring) <ArrowUpRight className="w-3 h-3 text-slate-500" /></a></li>
-                <li><a href="https://metaledger.in/" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 inline-flex items-center gap-1">MetaLedger (GST & Accounting) <ArrowUpRight className="w-3 h-3 text-slate-500" /></a></li>
-                <li><a href="https://metape.in/" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 inline-flex items-center gap-1">MetaPe (Payments & Escrow) <ArrowUpRight className="w-3 h-3 text-slate-500" /></a></li>
-                <li><a href="#security" onClick={(e) => scrollToSection(e, 'security')} className="hover:text-emerald-400">SOC 2 & ISO 27001 Security</a></li>
-              </ul>
-            </div>
-
-            {/* Col 4: Contact */}
-            <div className="space-y-2.5">
-              <p className="font-black text-white uppercase tracking-wider">Enterprise Support</p>
-              <p className="text-slate-400">Headquarters: New Delhi, India</p>
-              <p className="text-slate-300 font-bold">Sales & Quotes: <span className="text-emerald-400">sales@metadev.in</span></p>
-              <p className="text-slate-300 font-bold">Support: <span className="text-emerald-400">support@metadev.in</span></p>
-              <div className="pt-2">
-                <button
-                  onClick={() => { setContactPurpose('Sales'); setIsContactCareerOpen(true); }}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black rounded-xl text-xs transition-all cursor-pointer shadow-sm"
-                >
-                  Contact Enterprise Sales
-                </button>
-              </div>
-            </div>
-
-          </div>
-
-          <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between text-xs gap-4">
-            <p className="text-slate-400 font-medium">© 2026 Meta Green Enterprise ERP. All rights reserved.</p>
-            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 font-bold text-slate-300">
-              <a href="#hero" onClick={(e) => scrollToSection(e, 'hero')} className="hover:text-emerald-400 transition-colors">Home</a>
-              <a href="#solutions-tabs" onClick={(e) => scrollToSection(e, 'solutions-tabs')} className="hover:text-emerald-400 transition-colors">Solutions</a>
-              <a href="#about" onClick={(e) => scrollToSection(e, 'about')} className="hover:text-emerald-400 transition-colors">About Us</a>
-              <a href="#ecosystem" onClick={(e) => scrollToSection(e, 'ecosystem')} className="hover:text-emerald-400 transition-colors">MetaEcosystem</a>
-              <a href="#security" onClick={(e) => scrollToSection(e, 'security')} className="hover:text-emerald-400 transition-colors">Security</a>
-              <a href="#calculator" onClick={(e) => scrollToSection(e, 'calculator')} className="hover:text-emerald-400 transition-colors">Calculator</a>
-              <a href="#pricing" onClick={(e) => scrollToSection(e, 'pricing')} className="hover:text-emerald-400 transition-colors">Pricing</a>
-              <button type="button" onClick={() => { setTrackingInitialQuery(''); setIsTrackingModalOpen(true); }} className="hover:text-emerald-400 cursor-pointer text-emerald-400 font-bold">Track Application</button>
-              <button onClick={() => handleOpenLogin('admin')} className="hover:text-emerald-400 cursor-pointer text-slate-300">Admin Sign In</button>
-              <button onClick={() => handleOpenLogin('vendor')} className="hover:text-amber-400 cursor-pointer text-amber-300/80">Vendor Portal</button>
-              <button onClick={() => handleOpenLogin('installer')} className="hover:text-teal-400 cursor-pointer text-teal-300/80">Installer Portal</button>
-              <button onClick={() => handleOpenLogin('customer')} className="hover:text-indigo-400 cursor-pointer text-indigo-300/80">Customer Portal</button>
-              <button onClick={() => handleOpenLogin('staff')} className="hover:text-cyan-400 cursor-pointer text-cyan-300/80">Staff Login</button>
-              <button onClick={() => setIsBookDemoOpen(true)} className="hover:text-emerald-400 cursor-pointer">Book Demo</button>
-              <button onClick={(e) => scrollToSection(e, 'hero')} className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-slate-950 transition-all font-black flex items-center gap-1 cursor-pointer">
-                Top ↑
-              </button>
-            </div>
-          </div>
-
-        </div>
-      </footer>
-
-      {/* ========================================================================= */}
-      {/* 11. MODALS                                                                */}
+      {/* MODALS                                                                    */}
       {/* ========================================================================= */}
       {isRegisterModalOpen && (
         <VendorRegistrationModal
@@ -1875,15 +1484,15 @@ export default function LandingPage({ onLoginSuccess, vendorBranding, onExitVend
         />
       )}
 
-      {/* Floating Scroll to Top Navigation Button */}
+      {/* Scroll to Top Float */}
       {showScrollTop && (
         <button
-          onClick={(e) => scrollToSection(e, 'hero')}
-          className="fixed bottom-6 right-6 z-50 p-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-2xl transition-all cursor-pointer hover:scale-105 flex items-center gap-2 text-xs font-black border border-emerald-400/40"
-          title="Scroll Back to Top"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 z-50 p-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xl transition-all cursor-pointer hover:scale-105 flex items-center gap-1.5 text-xs font-bold border border-emerald-400/40"
+          title="Back to Top"
         >
           <ChevronRight className="w-4 h-4 -rotate-90" />
-          <span className="hidden sm:inline">Back to Top</span>
+          <span className="hidden sm:inline">Top</span>
         </button>
       )}
 
